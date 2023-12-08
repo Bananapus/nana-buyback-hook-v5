@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.16;
 
-import "../interfaces/external/IWETH9.sol";
+import "src/interfaces/external/IWETH9.sol";
 import "./helpers/TestBaseWorkflowV3.sol";
 
-import "@juicebox/interfaces/IJBController.sol";
-import "@juicebox/interfaces/IJBDirectory.sol";
-import "@juicebox/interfaces/IJBRedemptionDelegate3_1_1.sol";
-import "@juicebox/libraries/JBConstants.sol";
+import "lib/juice-contracts-v4/src/src/interfaces/IJBController.sol";
+import "lib/juice-contracts-v4/src/interfaces/IJBDirectory.sol";
+import "lib/juice-contracts-v4/src/interfaces/IJBRedeemHook.sol";
+import "lib/juice-contracts-v4/src/libraries/JBConstants.sol";
 
-import {JBDelegateMetadataHelper} from "@jbx-protocol/juice-delegate-metadata-lib/src/JBDelegateMetadataHelper.sol";
+import {MetadataResolverHelper} from "lib/juice-contracts-v4/src/../test/helpers/MetadataResolverHelper.sol";
 
-import "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
-import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165Checker.sol";
+import "lib/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 import "forge-std/Test.sol";
 
@@ -29,17 +29,25 @@ contract TestJBBuybackHook_Units is Test {
 
     ForTest_JBBuybackHook delegate;
 
-    event BuybackDelegate_Swap(uint256 indexed projectId, uint256 amountIn, IUniswapV3Pool pool, uint256 amountOut, address caller);
+    event BuybackDelegate_Swap(
+        uint256 indexed projectId, uint256 amountIn, IUniswapV3Pool pool, uint256 amountOut, address caller
+    );
     event BuybackDelegate_Mint(uint256 indexed projectId, uint256 amount, uint256 tokenCount, address caller);
-    event BuybackDelegate_TwapWindowChanged(uint256 indexed projectId, uint256 oldSecondsAgo, uint256 newSecondsAgo, address caller);
-    event BuybackDelegate_TwapSlippageToleranceChanged(uint256 indexed projectId, uint256 oldTwapDelta, uint256 newTwapDelta, address caller);
-    event BuybackDelegate_PoolAdded(uint256 indexed projectId, address indexed terminalToken, address newPool, address caller);
+    event BuybackDelegate_TwapWindowChanged(
+        uint256 indexed projectId, uint256 oldSecondsAgo, uint256 newSecondsAgo, address caller
+    );
+    event BuybackDelegate_TwapSlippageToleranceChanged(
+        uint256 indexed projectId, uint256 oldTwapDelta, uint256 newTwapDelta, address caller
+    );
+    event BuybackDelegate_PoolAdded(
+        uint256 indexed projectId, address indexed terminalToken, address newPool, address caller
+    );
 
     // Use the L1 UniswapV3Pool jbx/eth 1% fee for create2 magic
     IUniswapV3Pool pool = IUniswapV3Pool(0x48598Ff1Cee7b4d31f8f9050C2bbAE98e17E6b17);
     IERC20 projectToken = IERC20(0x3abF2A4f8452cCC2CF7b4C1e4663147600646f66);
     IWETH9 weth = IWETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-    uint24 fee = 10000;
+    uint24 fee = 10_000;
 
     // A random non-weth pool: The PulseDogecoin Staking Carnival Token/HEX @ 0.3%
     IERC20 otherRandomProjectToken = IERC20(0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39);
@@ -50,15 +58,14 @@ contract TestJBBuybackHook_Units is Test {
 
     address _uniswapFactory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
 
-    IJBMultiTerminal jbxTerminal =
-        IJBMultiTerminal(makeAddr("IJBPayoutRedemptionPaymentTerminal3_1"));
+    IJBMultiTerminal jbxTerminal = IJBMultiTerminal(makeAddr("IJBPayoutRedemptionPaymentTerminal3_1"));
     IJBProjects projects = IJBProjects(makeAddr("IJBProjects"));
-    IJBOperatorStore operatorStore = IJBOperatorStore(makeAddr("IJBOperatorStore"));
+    IJBPermissions operatorStore = IJBPermissions(makeAddr("IJBPermissions"));
     IJBController controller = IJBController(makeAddr("controller"));
     IJBDirectory directory = IJBDirectory(makeAddr("directory"));
-    IJBTokenStore tokenStore = IJBTokenStore(makeAddr("tokenStore"));
+    IJBTokens tokenStore = IJBTokens(makeAddr("tokenStore"));
 
-    JBDelegateMetadataHelper metadataHelper = new JBDelegateMetadataHelper();
+    MetadataResolverHelper metadataHelper = new MetadataResolverHelper();
 
     address terminalStore = makeAddr("terminalStore");
 
@@ -127,7 +134,7 @@ contract TestJBBuybackHook_Units is Test {
             _factory: _uniswapFactory,
             _directory: directory,
             _controller: controller,
-            _id: bytes4(hex'69')
+            _id: bytes4(hex"69")
         });
 
         delegate.ForTest_initPool(pool, projectId, secondsAgo, twapDelta, address(projectToken), address(weth));
@@ -141,7 +148,14 @@ contract TestJBBuybackHook_Units is Test {
      *
      * @dev    _tokenCount == weight, as we use a value of 1.
      */
-    function test_payParams_callWithQuote(uint256 _weight, uint256 _swapOutCount, uint256 _amountIn, uint256 _decimals) public {
+    function test_payParams_callWithQuote(
+        uint256 _weight,
+        uint256 _swapOutCount,
+        uint256 _amountIn,
+        uint256 _decimals
+    )
+        public
+    {
         // Avoid accidentally using the twap (triggered if out == 0)
         _swapOutCount = bound(_swapOutCount, 1, type(uint256).max);
 
@@ -154,7 +168,7 @@ contract TestJBBuybackHook_Units is Test {
         // The terminal token decimals
         _decimals = bound(_decimals, 1, 18);
 
-        uint256 _tokenCount = mulDiv(_amountIn, _weight, 10**_decimals);
+        uint256 _tokenCount = mulDiv(_amountIn, _weight, 10 ** _decimals);
 
         // Pass the quote as metadata
         bytes[] memory _data = new bytes[](1);
@@ -196,15 +210,17 @@ contract TestJBBuybackHook_Units is Test {
             assertEq(_allocationsReturned[0].amount, _amountIn, "worng amount in returned");
             assertEq(
                 _allocationsReturned[0].metadata,
-                abi.encode(true, address(projectToken) < address(weth), payParams.amount.value - _amountIn, _swapOutCount, payParams.weight),
+                abi.encode(
+                    true,
+                    address(projectToken) < address(weth),
+                    payParams.amount.value - _amountIn,
+                    _swapOutCount,
+                    payParams.weight
+                ),
                 "wrong metadata"
             );
 
-            assertEq(
-                _weightReturned,
-                0,
-                "wrong weight returned (if swapping)"
-            );
+            assertEq(_weightReturned, 0, "wrong weight returned (if swapping)");
         }
 
         // Same memo in any case
@@ -273,9 +289,7 @@ contract TestJBBuybackHook_Units is Test {
 
             assertEq(
                 _allocationsReturned[0].metadata,
-                abi.encode(
-                    false, address(projectToken) < address(weth), 0, _twapAmountOut, payParams.weight
-                ),
+                abi.encode(false, address(projectToken) < address(weth), 0, _twapAmountOut, payParams.weight),
                 "wrong metadata"
             );
 
@@ -328,7 +342,7 @@ contract TestJBBuybackHook_Units is Test {
 
         uint256 _weight = 1 ether;
 
-        uint256 _tokenCount = mulDiv(_amountIn, _weight, 10**18);
+        uint256 _tokenCount = mulDiv(_amountIn, _weight, 10 ** 18);
 
         // Avoid accidentally using the twap (triggered if out == 0)
         _swapOutCount = bound(_swapOutCount, _tokenCount + 1, type(uint256).max);
@@ -376,7 +390,6 @@ contract TestJBBuybackHook_Units is Test {
             _tokenCount,
             _twapQuote
         );
-
 
         // mock the swap call
         vm.mockCall(
@@ -469,7 +482,6 @@ contract TestJBBuybackHook_Units is Test {
             _tokenCount
         );
 
-
         // mock the swap call
         vm.mockCall(
             address(pool),
@@ -547,7 +559,7 @@ contract TestJBBuybackHook_Units is Test {
     /**
      * @notice Test didPay with token received from swapping
      */
-    function test_didPay_swap_ERC20(uint256 _tokenCount, uint256 _twapQuote, uint256 _decimals ) public {
+    function test_didPay_swap_ERC20(uint256 _tokenCount, uint256 _twapQuote, uint256 _decimals) public {
         // Bound to avoid overflow and insure swap quote > mint quote
         _tokenCount = bound(_tokenCount, 2, type(uint256).max - 1);
         _twapQuote = bound(_twapQuote, _tokenCount + 1, type(uint256).max);
@@ -649,7 +661,9 @@ contract TestJBBuybackHook_Units is Test {
 
         // expect event
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_Swap(didPayData.projectId, didPayData.amount.value, randomPool, _twapQuote, address(jbxTerminal));
+        emit BuybackDelegate_Swap(
+            didPayData.projectId, didPayData.amount.value, randomPool, _twapQuote, address(jbxTerminal)
+        );
 
         vm.prank(address(jbxTerminal));
         delegate.didPay(didPayData);
@@ -704,9 +718,17 @@ contract TestJBBuybackHook_Units is Test {
     }
 
     /**
-     * @notice Test didPay with swap reverting while using the twap, should then mint with the delegate balance, random erc20 is terminal token
+     * @notice Test didPay with swap reverting while using the twap, should then mint with the delegate balance, random
+     * erc20 is terminal token
      */
-    function test_didPay_swapRevertWithoutQuote_ERC20(uint256 _tokenCount, uint256 _weight, uint256 _decimals, uint256 _extraMint) public {
+    function test_didPay_swapRevertWithoutQuote_ERC20(
+        uint256 _tokenCount,
+        uint256 _weight,
+        uint256 _decimals,
+        uint256 _extraMint
+    )
+        public
+    {
         // The current weight
         _weight = bound(_weight, 1, 1 ether);
 
@@ -777,13 +799,19 @@ contract TestJBBuybackHook_Units is Test {
         );
         vm.expectCall(address(randomTerminalToken), abi.encodeCall(randomTerminalToken.balanceOf, (address(delegate))));
 
-
         // mock the minting call - this uses the weight and not the (potentially faulty) quote or twap
         vm.mockCall(
             address(controller),
             abi.encodeCall(
                 controller.mintTokensOf,
-                (didPayData.projectId, mulDiv(_tokenCount, _weight, 10**_decimals) +  mulDiv(_extraMint, _weight, 10**_decimals), didPayData.beneficiary, didPayData.memo, didPayData.preferClaimedTokens, true)
+                (
+                    didPayData.projectId,
+                    mulDiv(_tokenCount, _weight, 10 ** _decimals) + mulDiv(_extraMint, _weight, 10 ** _decimals),
+                    didPayData.beneficiary,
+                    didPayData.memo,
+                    didPayData.preferClaimedTokens,
+                    true
+                )
             ),
             abi.encode(true)
         );
@@ -791,7 +819,14 @@ contract TestJBBuybackHook_Units is Test {
             address(controller),
             abi.encodeCall(
                 controller.mintTokensOf,
-                (didPayData.projectId,  mulDiv(_tokenCount, _weight, 10**_decimals) +  mulDiv(_extraMint, _weight, 10**_decimals), didPayData.beneficiary, didPayData.memo, didPayData.preferClaimedTokens, true)
+                (
+                    didPayData.projectId,
+                    mulDiv(_tokenCount, _weight, 10 ** _decimals) + mulDiv(_extraMint, _weight, 10 ** _decimals),
+                    didPayData.beneficiary,
+                    didPayData.memo,
+                    didPayData.preferClaimedTokens,
+                    true
+                )
             )
         );
 
@@ -802,7 +837,8 @@ contract TestJBBuybackHook_Units is Test {
             abi.encode(true)
         );
         vm.expectCall(
-            address(randomTerminalToken), abi.encodeCall(randomTerminalToken.approve, (address(jbxTerminal), _tokenCount))
+            address(randomTerminalToken),
+            abi.encodeCall(randomTerminalToken.approve, (address(jbxTerminal), _tokenCount))
         );
 
         // mock the add to balance adding the terminal token back to the terminal
@@ -824,16 +860,26 @@ contract TestJBBuybackHook_Units is Test {
 
         // expect event - only for the non-extra mint
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_Mint(didPayData.projectId, _tokenCount,  mulDiv(_tokenCount, _weight, 10**_decimals), address(jbxTerminal));
+        emit BuybackDelegate_Mint(
+            didPayData.projectId, _tokenCount, mulDiv(_tokenCount, _weight, 10 ** _decimals), address(jbxTerminal)
+        );
 
         vm.prank(address(jbxTerminal));
         delegate.didPay(didPayData);
     }
 
     /**
-     * @notice Test didPay with swap reverting while using the twap, should then mint with the delegate balance, random erc20 is terminal token
+     * @notice Test didPay with swap reverting while using the twap, should then mint with the delegate balance, random
+     * erc20 is terminal token
      */
-    function test_didPay_swapRevertWithoutQuote_ETH(uint256 _tokenCount, uint256 _weight, uint256 _decimals, uint256 _extraMint) public {
+    function test_didPay_swapRevertWithoutQuote_ETH(
+        uint256 _tokenCount,
+        uint256 _weight,
+        uint256 _decimals,
+        uint256 _extraMint
+    )
+        public
+    {
         // The current weight
         _weight = bound(_weight, 1, 1 ether);
 
@@ -870,9 +916,7 @@ contract TestJBBuybackHook_Units is Test {
                     address(delegate),
                     address(weth) < address(projectToken),
                     int256(_tokenCount),
-                    address(projectToken) < address(weth)
-                        ? TickMath.MAX_SQRT_RATIO - 1
-                        : TickMath.MIN_SQRT_RATIO + 1,
+                    address(projectToken) < address(weth) ? TickMath.MAX_SQRT_RATIO - 1 : TickMath.MIN_SQRT_RATIO + 1,
                     abi.encode(projectId, weth)
                 )
             ),
@@ -898,7 +942,14 @@ contract TestJBBuybackHook_Units is Test {
             address(controller),
             abi.encodeCall(
                 controller.mintTokensOf,
-                (didPayData.projectId, mulDiv(_tokenCount, _weight, 10**_decimals) + mulDiv(_extraMint, _weight, 10**_decimals), didPayData.beneficiary, didPayData.memo, didPayData.preferClaimedTokens, true)
+                (
+                    didPayData.projectId,
+                    mulDiv(_tokenCount, _weight, 10 ** _decimals) + mulDiv(_extraMint, _weight, 10 ** _decimals),
+                    didPayData.beneficiary,
+                    didPayData.memo,
+                    didPayData.preferClaimedTokens,
+                    true
+                )
             ),
             abi.encode(true)
         );
@@ -906,7 +957,14 @@ contract TestJBBuybackHook_Units is Test {
             address(controller),
             abi.encodeCall(
                 controller.mintTokensOf,
-                (didPayData.projectId, mulDiv(_tokenCount, _weight, 10**_decimals) + mulDiv(_extraMint, _weight, 10**_decimals), didPayData.beneficiary, didPayData.memo, didPayData.preferClaimedTokens, true)
+                (
+                    didPayData.projectId,
+                    mulDiv(_tokenCount, _weight, 10 ** _decimals) + mulDiv(_extraMint, _weight, 10 ** _decimals),
+                    didPayData.beneficiary,
+                    didPayData.memo,
+                    didPayData.preferClaimedTokens,
+                    true
+                )
             )
         );
 
@@ -931,7 +989,9 @@ contract TestJBBuybackHook_Units is Test {
 
         // expect event
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_Mint(didPayData.projectId, _tokenCount, mulDiv(_tokenCount, _weight, 10**_decimals), address(jbxTerminal));
+        emit BuybackDelegate_Mint(
+            didPayData.projectId, _tokenCount, mulDiv(_tokenCount, _weight, 10 ** _decimals), address(jbxTerminal)
+        );
 
         vm.prank(address(jbxTerminal));
         delegate.didPay(didPayData);
@@ -980,7 +1040,7 @@ contract TestJBBuybackHook_Units is Test {
             _factory: _uniswapFactory,
             _directory: directory,
             _controller: controller,
-            _id: bytes4(hex'69')
+            _id: bytes4(hex"69")
         });
 
         // Init with weth (as weth is stored in the pool of mapping)
@@ -991,7 +1051,8 @@ contract TestJBBuybackHook_Units is Test {
         // If project is token0, then received is delta0 (the negative value)
         (_delta0, _delta1) = address(_projectToken) < address(_terminalToken) ? (_delta0, _delta1) : (_delta1, _delta0);
 
-        // mock and expect _terminalToken calls, this should transfer from delegate to pool (positive delta in the callback)
+        // mock and expect _terminalToken calls, this should transfer from delegate to pool (positive delta in the
+        // callback)
         vm.mockCall(address(_terminalToken), abi.encodeCall(_terminalToken.deposit, ()), "");
         vm.expectCall(address(_terminalToken), abi.encodeCall(_terminalToken.deposit, ()));
 
@@ -1013,9 +1074,7 @@ contract TestJBBuybackHook_Units is Test {
 
         vm.deal(address(delegate), uint256(address(_projectToken) < address(_terminalToken) ? _delta1 : _delta0));
         vm.prank(address(pool));
-        delegate.uniswapV3SwapCallback(
-            _delta0, _delta1, abi.encode(projectId, JBConstants.NATIVE_TOKEN)
-        );
+        delegate.uniswapV3SwapCallback(_delta0, _delta1, abi.encode(projectId, JBConstants.NATIVE_TOKEN));
 
         /**
          * Second branch: terminal token = random IERC20, project token = weth (as another random ierc20)
@@ -1032,7 +1091,7 @@ contract TestJBBuybackHook_Units is Test {
             _factory: _uniswapFactory,
             _directory: directory,
             _controller: controller,
-            _id: bytes4(hex'69')
+            _id: bytes4(hex"69")
         });
 
         delegate.ForTest_initPool(
@@ -1057,11 +1116,7 @@ contract TestJBBuybackHook_Units is Test {
 
         vm.deal(address(delegate), uint256(address(_projectToken) < address(_terminalToken) ? _delta1 : _delta0));
         vm.prank(address(pool));
-        delegate.uniswapV3SwapCallback(
-            _delta0,
-            _delta1,
-            abi.encode(projectId, address(_terminalToken))
-        );
+        delegate.uniswapV3SwapCallback(_delta0, _delta1, abi.encode(projectId, address(_terminalToken)));
     }
 
     /**
@@ -1086,7 +1141,9 @@ contract TestJBBuybackHook_Units is Test {
         address _terminalToken,
         address _projectToken,
         uint24 _fee
-    ) public {
+    )
+        public
+    {
         vm.assume(_terminalToken != address(0) && _projectToken != address(0) && _fee != 0);
         vm.assume(_terminalToken != _projectToken);
 
@@ -1113,7 +1170,12 @@ contract TestJBBuybackHook_Units is Test {
         emit BuybackDelegate_TwapSlippageToleranceChanged(projectId, 0, _twapDelta, owner);
 
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_PoolAdded(projectId, _terminalToken == JBConstants.NATIVE_TOKEN ? address(weth) : _terminalToken, address(_pool), owner);
+        emit BuybackDelegate_PoolAdded(
+            projectId,
+            _terminalToken == JBConstants.NATIVE_TOKEN ? address(weth) : _terminalToken,
+            address(_pool),
+            owner
+        );
 
         vm.prank(owner);
         address _newPool =
@@ -1122,7 +1184,12 @@ contract TestJBBuybackHook_Units is Test {
         // Check: correct params stored?
         assertEq(delegate.twapWindowOf(projectId), _secondsAgo);
         assertEq(delegate.twapSlippageToleranceOf(projectId), _twapDelta);
-        assertEq(address(delegate.poolOf(projectId, _terminalToken == JBConstants.NATIVE_TOKEN ? address(weth) : _terminalToken)), _pool);
+        assertEq(
+            address(
+                delegate.poolOf(projectId, _terminalToken == JBConstants.NATIVE_TOKEN ? address(weth) : _terminalToken)
+            ),
+            _pool
+        );
         assertEq(_newPool, _pool);
     }
 
@@ -1137,7 +1204,9 @@ contract TestJBBuybackHook_Units is Test {
         address _terminalToken,
         address _projectToken,
         uint24 _fee
-    ) public {
+    )
+        public
+    {
         vm.assume(_terminalToken != address(0) && _projectToken != address(0) && _fee != 0);
         vm.assume(_terminalToken != _projectToken);
 
@@ -1180,16 +1249,12 @@ contract TestJBBuybackHook_Units is Test {
 
         vm.mockCall(
             address(operatorStore),
-            abi.encodeCall(
-                operatorStore.hasPermission, (dude, owner, 0, JBBuybackHookPermissionIds.CHANGE_POOL)
-            ),
+            abi.encodeCall(operatorStore.hasPermission, (dude, owner, 0, JBBuybackHookPermissionIds.CHANGE_POOL)),
             abi.encode(false)
         );
         vm.expectCall(
             address(operatorStore),
-            abi.encodeCall(
-                operatorStore.hasPermission, (dude, owner, 0, JBBuybackHookPermissionIds.CHANGE_POOL)
-            )
+            abi.encodeCall(operatorStore.hasPermission, (dude, owner, 0, JBBuybackHookPermissionIds.CHANGE_POOL))
         );
 
         // check: revert?
@@ -1202,11 +1267,7 @@ contract TestJBBuybackHook_Units is Test {
     /**
      * @notice Test if only twap delta and periods between the extrema's are allowed
      */
-    function test_setPoolFor_revertIfWrongParams(
-        address _terminalToken,
-        address _projectToken,
-        uint24 _fee
-    ) public {
+    function test_setPoolFor_revertIfWrongParams(address _terminalToken, address _projectToken, uint24 _fee) public {
         vm.assume(_terminalToken != address(0) && _projectToken != address(0) && _fee != 0);
         vm.assume(_terminalToken != _projectToken);
 
@@ -1221,22 +1282,30 @@ contract TestJBBuybackHook_Units is Test {
         // Check: seconds ago too low
         vm.expectRevert(IJBBuybackHook.JuiceBuyback_InvalidTwapWindow.selector);
         vm.prank(owner);
-        delegate.setPoolFor(projectId, _fee, uint32(_MIN_TWAP_WINDOW - 1), _MIN_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken);
+        delegate.setPoolFor(
+            projectId, _fee, uint32(_MIN_TWAP_WINDOW - 1), _MIN_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken
+        );
 
         // Check: seconds ago too high
         vm.expectRevert(IJBBuybackHook.JuiceBuyback_InvalidTwapWindow.selector);
         vm.prank(owner);
-        delegate.setPoolFor(projectId, _fee, uint32(_MAX_TWAP_WINDOW + 1), _MIN_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken);
+        delegate.setPoolFor(
+            projectId, _fee, uint32(_MAX_TWAP_WINDOW + 1), _MIN_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken
+        );
 
         // Check: min twap deviation too low
         vm.expectRevert(IJBBuybackHook.JuiceBuyback_InvalidTwapSlippageTolerance.selector);
         vm.prank(owner);
-        delegate.setPoolFor(projectId, _fee, uint32(_MIN_TWAP_WINDOW + 1), _MIN_TWAP_SLIPPAGE_TOLERANCE - 1, _terminalToken);
+        delegate.setPoolFor(
+            projectId, _fee, uint32(_MIN_TWAP_WINDOW + 1), _MIN_TWAP_SLIPPAGE_TOLERANCE - 1, _terminalToken
+        );
 
         // Check: max twap deviation too high
         vm.expectRevert(IJBBuybackHook.JuiceBuyback_InvalidTwapSlippageTolerance.selector);
         vm.prank(owner);
-        delegate.setPoolFor(projectId, _fee, uint32(_MIN_TWAP_WINDOW + 1), _MAX_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken);
+        delegate.setPoolFor(
+            projectId, _fee, uint32(_MIN_TWAP_WINDOW + 1), _MAX_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken
+        );
     }
 
     /**
@@ -1248,7 +1317,9 @@ contract TestJBBuybackHook_Units is Test {
         address _terminalToken,
         address _projectToken,
         uint24 _fee
-    ) public {
+    )
+        public
+    {
         vm.assume(_terminalToken != address(0) && _projectToken != address(0) && _fee != 0);
         vm.assume(_terminalToken != _projectToken);
 
@@ -1367,7 +1438,9 @@ contract TestJBBuybackHook_Units is Test {
 
         // Check: correct event?
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_TwapSlippageToleranceChanged(projectId, delegate.twapSlippageToleranceOf(projectId), _newDelta, owner);
+        emit BuybackDelegate_TwapSlippageToleranceChanged(
+            projectId, delegate.twapSlippageToleranceOf(projectId), _newDelta, owner
+        );
 
         // Test: set the twap
         vm.prank(owner);
@@ -1448,8 +1521,8 @@ contract TestJBBuybackHook_Units is Test {
      */
     function test_redeemParams_unchangedRedemption(uint256 _amountIn) public {
         JBRedeemParamsData memory _data = JBRedeemParamsData({
-            terminal: IJBTerminal(makeAddr('terminal')),
-            holder: makeAddr('hooldooor'),
+            terminal: IJBTerminal(makeAddr("terminal")),
+            holder: makeAddr("hooldooor"),
             projectId: 69,
             currentFundingCycleConfiguration: 420,
             tokenCount: 4,
@@ -1458,11 +1531,12 @@ contract TestJBBuybackHook_Units is Test {
             reclaimAmount: JBTokenAmount(address(1), _amountIn, 2, 3),
             useTotalOverflow: true,
             redemptionRate: 7,
-            memo: 'memooo',
-            metadata: ''
+            memo: "memooo",
+            metadata: ""
         });
 
-        (uint256 _amountOut, string memory _memoOut, JBRedeemHookPayload[] memory _allocationOut) = delegate.redeemParams(_data);
+        (uint256 _amountOut, string memory _memoOut, JBRedeemHookPayload[] memory _allocationOut) =
+            delegate.redeemParams(_data);
 
         assertEq(_amountOut, _amountIn);
         assertEq(_memoOut, _data.memo);
@@ -1470,10 +1544,9 @@ contract TestJBBuybackHook_Units is Test {
     }
 
     function test_supportsInterface(bytes4 _random) public {
-        vm.assume(_random != type(IJBBuybackHook).interfaceId
-            && _random != type(IJBRulesetDataHook).interfaceId
-            && _random != type(IJBPayHook).interfaceId
-            && _random != type(IERC165).interfaceId
+        vm.assume(
+            _random != type(IJBBuybackHook).interfaceId && _random != type(IJBRulesetDataHook).interfaceId
+                && _random != type(IJBPayHook).interfaceId && _random != type(IERC165).interfaceId
         );
 
         assertTrue(ERC165Checker.supportsInterface(address(delegate), type(IJBRulesetDataHook).interfaceId));
@@ -1486,11 +1559,22 @@ contract TestJBBuybackHook_Units is Test {
 }
 
 contract ForTest_JBBuybackHook is JBBuybackHook {
-    constructor(IWETH9 _weth, address _factory, IJBDirectory _directory, IJBController _controller, bytes4 _id)
+    constructor(
+        IWETH9 _weth,
+        address _factory,
+        IJBDirectory _directory,
+        IJBController _controller,
+        bytes4 _id
+    )
         JBBuybackHook(_weth, _factory, _directory, _controller, _id)
     {}
 
-    function ForTest_getQuote(uint256 _projectId, address _projectToken, uint256 _amountIn, address _terminalToken)
+    function ForTest_getQuote(
+        uint256 _projectId,
+        address _projectToken,
+        uint256 _amountIn,
+        address _terminalToken
+    )
         external
         view
         returns (uint256 _amountOut)
@@ -1505,7 +1589,9 @@ contract ForTest_JBBuybackHook is JBBuybackHook {
         uint256 _twapDelta,
         address _projectToken,
         address _terminalToken
-    ) external {
+    )
+        external
+    {
         _twapParamsOf[_projectId] = _twapDelta << 128 | _secondsAgo;
         projectTokenOf[_projectId] = _projectToken;
         poolOf[_projectId][_terminalToken] = _pool;

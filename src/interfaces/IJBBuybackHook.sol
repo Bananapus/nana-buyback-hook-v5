@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IJBPayHook} from "@juicebox/interfaces/IJBPayHook.sol";
-import {IJBRulesetDataHook} from
-    "@juicebox/interfaces/IJBRulesetDataHook.sol";
-import {IJBDirectory} from "@juicebox/interfaces/IJBDirectory.sol";
-import {IJBController} from "@juicebox/interfaces/IJBController.sol";
-import {IJBProjects} from "@juicebox/interfaces/IJBProjects.sol";
-import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
+import {IJBPayHook} from "lib/juice-contracts-v4/src/interfaces/IJBPayHook.sol";
+import {IJBRulesetDataHook} from "lib/juice-contracts-v4/src/interfaces/IJBRulesetDataHook.sol";
+import {IJBDirectory} from "lib/juice-contracts-v4/src/interfaces/IJBDirectory.sol";
+import {IJBController} from "lib/juice-contracts-v4/src/interfaces/IJBController.sol";
+import {IJBProjects} from "lib/juice-contracts-v4/src/interfaces/IJBProjects.sol";
+import {IUniswapV3Pool} from "lib/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import {IUniswapV3SwapCallback} from "lib/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 
 import {IWETH9} from "./external/IWETH9.sol";
 
@@ -32,11 +31,19 @@ interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallba
     //                             Events                              //
     /////////////////////////////////////////////////////////////////////
 
-    event BuybackDelegate_Swap(uint256 indexed projectId, uint256 amountIn, IUniswapV3Pool pool, uint256 amountOut, address caller);
+    event BuybackDelegate_Swap(
+        uint256 indexed projectId, uint256 amountIn, IUniswapV3Pool pool, uint256 amountOut, address caller
+    );
     event BuybackDelegate_Mint(uint256 indexed projectId, uint256 amountIn, uint256 tokenCount, address caller);
-    event BuybackDelegate_TwapWindowChanged(uint256 indexed projectId, uint256 oldSecondsAgo, uint256 newSecondsAgo, address caller);
-    event BuybackDelegate_TwapSlippageToleranceChanged(uint256 indexed projectId, uint256 oldTwapDelta, uint256 newTwapDelta, address caller);
-    event BuybackDelegate_PoolAdded(uint256 indexed projectId, address indexed terminalToken, address newPool, address caller);
+    event BuybackDelegate_TwapWindowChanged(
+        uint256 indexed projectId, uint256 oldSecondsAgo, uint256 newSecondsAgo, address caller
+    );
+    event BuybackDelegate_TwapSlippageToleranceChanged(
+        uint256 indexed projectId, uint256 oldTwapDelta, uint256 newTwapDelta, address caller
+    );
+    event BuybackDelegate_PoolAdded(
+        uint256 indexed projectId, address indexed terminalToken, address newPool, address caller
+    );
 
     /////////////////////////////////////////////////////////////////////
     //                             Getters                             //
@@ -62,7 +69,13 @@ interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallba
     //                    State-changing functions                     //
     /////////////////////////////////////////////////////////////////////
 
-    function setPoolFor(uint256 projectId, uint24 fee, uint32 twapWindow, uint256 twapSlippageTolerance, address terminalToken)
+    function setPoolFor(
+        uint256 projectId,
+        uint24 fee,
+        uint32 twapWindow,
+        uint256 twapSlippageTolerance,
+        address terminalToken
+    )
         external
         returns (IUniswapV3Pool newPool);
 

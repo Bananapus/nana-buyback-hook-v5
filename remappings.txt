@@ -1,7 +1,2 @@
 ds-test/=lib/forge-std/lib/ds-test/src/
 forge-std/=lib/forge-std/src/
-@juicebox=lib/juice-contracts-v4/src/
-@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
-@paulrberg/contracts/math/=lib/prb-math/src/
-@uniswap/v3-core=lib/v3-core/contracts/
-@uniswap/v3-periphery=lib/v3-periphery/contracts/

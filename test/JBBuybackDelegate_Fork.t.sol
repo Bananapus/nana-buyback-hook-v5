@@ -4,19 +4,19 @@ pragma solidity ^0.8.16;
 import "../interfaces/external/IWETH9.sol";
 import "./helpers/TestBaseWorkflowV3.sol";
 
-import {JBDelegateMetadataHelper} from "@jbx-protocol/juice-delegate-metadata-lib/src/JBDelegateMetadataHelper.sol";
+import {MetadataResolverHelper} from "@jbx-protocol/juice-delegate-metadata-lib/src/MetadataResolverHelper.sol";
 
 import "@paulrberg/contracts/math/PRBMath.sol";
-import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
-import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
-import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
+import "lib/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import "lib/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import "lib/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import "lib/v3-core/contracts/libraries/TickMath.sol";
 
 import "@exhausted-pigeon/uniswap-v3-forge-quoter/src/UniswapV3ForgeQuoter.sol";
 
 import "../JBBuybackHook.sol";
 
-import {mulDiv18} from "@prb/math/src/Common.sol";
+import {mulDiv18} from "lib/prb-math/src/Common.sol";
 
 /**
  * @notice Buyback fork integration tests, using $jbx v3
@@ -24,7 +24,9 @@ import {mulDiv18} from "@prb/math/src/Common.sol";
 contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
     using JBFundingCycleMetadataResolver for JBFundingCycle;
 
-    event BuybackDelegate_Swap(uint256 indexed projectId, uint256 amountIn, IUniswapV3Pool pool, uint256 amountOut, address caller);
+    event BuybackDelegate_Swap(
+        uint256 indexed projectId, uint256 amountIn, IUniswapV3Pool pool, uint256 amountOut, address caller
+    );
     event Mint(
         address indexed holder,
         uint256 indexed projectId,
@@ -35,33 +37,32 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
     );
 
     // Constants
-    uint256 constant SLIPPAGE_DENOMINATOR = 10000;
+    uint256 constant SLIPPAGE_DENOMINATOR = 10_000;
 
     IUniswapV3Factory constant factory = IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984);
-    IERC20 constant jbx  = IERC20(0x4554CC10898f92D45378b98D6D6c2dD54c687Fb2); // 0 - 69420*10**18
+    IERC20 constant jbx = IERC20(0x4554CC10898f92D45378b98D6D6c2dD54c687Fb2); // 0 - 69420*10**18
     IWETH9 constant weth = IWETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2); // 1 - 1*10**18
 
-    uint256 constant price = 69420 ether;
-    uint32 constant cardinality = 100000;
+    uint256 constant price = 69_420 ether;
+    uint32 constant cardinality = 100_000;
     uint256 constant twapDelta = 500;
-    uint24 constant fee = 10000;
-    
+    uint24 constant fee = 10_000;
+
     uint256 constant amountPaid = 1 ether;
 
-
     // Contracts needed
-    IJBFundingCycleStore jbFundingCycleStore;
+    IJBRulesets jbRulesets;
     IJBDirectory jbDirectory;
     IJBProjects jbProjects;
-    IJBSplitsStore jbSplitsStore;
+    IJBSplits jbSplits;
     IJBMultiTerminal jbEthPaymentTerminal;
     IJBSingleTokenPaymentTerminal terminal;
     IJBSingleTokenPaymentTerminalStore jbTerminalStore;
     IJBController jbController;
-    IJBTokenStore jbTokenStore;
-    IJBOperatorStore jbOperatorStore;
+    IJBTokens jbTokens;
+    IJBPermissions jbPermissions;
     IUniswapV3Pool pool;
-    JBDelegateMetadataHelper metadataHelper;
+    MetadataResolverHelper metadataHelper;
 
     // Structure needed
     JBProjectMetadata projectMetadata;
@@ -73,48 +74,38 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 
     // Target contract
     JBBuybackHook delegate;
-    
-    address beneficiary = makeAddr('benefichiary');
+
+    address beneficiary = makeAddr("benefichiary");
 
     // sqrtPriceX96 = sqrt(1*10**18 << 192 / 69420*10**18) = 300702666377442711115399168 (?)
-    uint160 sqrtPriceX96 = 300702666377442711115399168;
+    uint160 sqrtPriceX96 = 300_702_666_377_442_711_115_399_168;
 
     uint256 amountOutQuoted;
 
     function setUp() public {
-        vm.createSelectFork("https://rpc.ankr.com/eth",17962427);
+        vm.createSelectFork("https://rpc.ankr.com/eth", 17_962_427);
 
         // Collect the mainnet deployment addresses
         jbDirectory = IJBDirectory(
-            stdJson.readAddress(
-                vm.readFile("node_modules/@juicebox/deployments/mainnet/JBDirectory.json"),
-                ".address"
-            )
+            stdJson.readAddress(vm.readFile("node_modules/lib/juice-contracts-v4/src/deployments/mainnet/JBDirectory.json"), ".address")
         );
 
         jbEthPaymentTerminal = IJBMultiTerminal(
             stdJson.readAddress(
-                vm.readFile(
-                    "node_modules/@juicebox/deployments/mainnet/JBETHPaymentTerminal3_1_1.json"
-                ),
-                ".address"
+                vm.readFile("node_modules/lib/juice-contracts-v4/src/deployments/mainnet/JBMultiTerminal.json"), ".address"
             )
         );
 
         terminal = IJBSingleTokenPaymentTerminal(
             stdJson.readAddress(
-                vm.readFile(
-                    "node_modules/@juicebox/deployments/mainnet/JBETHPaymentTerminal3_1_1.json"
-                ),
-                ".address"
+                vm.readFile("node_modules/lib/juice-contracts-v4/src/deployments/mainnet/JBMultiTerminal.json"), ".address"
             )
         );
-        vm.label(address(jbEthPaymentTerminal), "jbEthPaymentTerminal3_1_1");
+        vm.label(address(jbEthPaymentTerminal), "JBMultiTerminal");
 
         jbController = IJBController(
             stdJson.readAddress(
-                vm.readFile("node_modules/@juicebox/deployments/mainnet/JBController3_1.json"),
-                ".address"
+                vm.readFile("node_modules/lib/juice-contracts-v4/src/deployments/mainnet/JBController.json"), ".address"
             )
         );
         vm.label(address(jbController), "jbController");
@@ -122,33 +113,33 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
         jbTerminalStore = IJBSingleTokenPaymentTerminalStore(0x82129d4109625F94582bDdF6101a8Cd1a27919f5);
         vm.label(address(jbTerminalStore), "jbTerminalStore");
 
-        jbTokenStore = jbController.tokenStore();
-        jbFundingCycleStore = jbController.fundingCycleStore();
+        jbTokens = jbController.tokenStore();
+        jbRulesets = jbController.fundingCycleStore();
         jbProjects = jbController.projects();
-        jbOperatorStore = IJBPermissioned(address(jbTokenStore)).operatorStore();
-        jbSplitsStore = jbController.splitsStore();
+        jbPermissions = IJBPermissioned(address(jbTokens)).operatorStore();
+        jbSplits = jbController.splitsStore();
 
         delegate = new JBBuybackHook({
             _weth: weth,
             _factory: address(factory),
             _directory: IJBDirectory(address(jbDirectory)),
             _controller: jbController,
-            _delegateId: bytes4(hex'69')
+            _delegateId: bytes4(hex"69")
         });
 
         // JBX V3 pool wasn't deployed at that block
         pool = IUniswapV3Pool(factory.createPool(address(weth), address(jbx), fee));
         pool.initialize(sqrtPriceX96); // 1 eth <=> 69420 jbx
 
-        address LP = makeAddr('LP');
+        address LP = makeAddr("LP");
         vm.startPrank(LP, LP);
-        deal(address(weth), LP, 10000000 ether);
-        deal(address(jbx), LP, 10000000 ether);
+        deal(address(weth), LP, 10_000_000 ether);
+        deal(address(jbx), LP, 10_000_000 ether);
 
         // create a full range position
         address POSITION_MANAGER = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88;
-        jbx.approve(POSITION_MANAGER, 10000000 ether);
-        weth.approve(POSITION_MANAGER, 10000000 ether);
+        jbx.approve(POSITION_MANAGER, 10_000_000 ether);
+        weth.approve(POSITION_MANAGER, 10_000_000 ether);
 
         // mint concentrated position
         INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({
@@ -156,10 +147,10 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
             token1: address(weth),
             fee: fee,
             // considering a max valid range
-            tickLower: -840000,
-            tickUpper: 840000,
-            amount0Desired: 10000000 ether,
-            amount1Desired: 10000000 ether,
+            tickLower: -840_000,
+            tickUpper: 840_000,
+            amount0Desired: 10_000_000 ether,
+            amount1Desired: 10_000_000 ether,
             amount0Min: 0,
             amount1Min: 0,
             recipient: LP,
@@ -175,7 +166,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 
         amountOutQuoted = getAmountOut(pool, 1 ether, address(weth));
 
-        metadataHelper = new JBDelegateMetadataHelper();
+        metadataHelper = new MetadataResolverHelper();
 
         vm.label(address(pool), "uniswapPool");
         vm.label(address(factory), "uniswapFactory");
@@ -183,7 +174,11 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
         vm.label(address(jbx), "$JBX");
     }
 
-    function _getTwapQuote(uint256 _amountIn, uint32 _secondsAgo, uint256 _twapDelta)
+    function _getTwapQuote(
+        uint256 _amountIn,
+        uint32 _secondsAgo,
+        uint256 _twapDelta
+    )
         internal
         view
         returns (uint256 _amountOut)
@@ -209,7 +204,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
         uint256 _amountOutQuoted = getAmountOut(pool, _amountIn, address(weth));
 
         // Reconfigure with a weight bigger than the price implied by the quote
-        _weight = bound(_weight, (_amountOutQuoted * 10**18 / _amountIn) + 1, type(uint88).max);
+        _weight = bound(_weight, (_amountOutQuoted * 10 ** 18 / _amountIn) + 1, type(uint88).max);
 
         _reconfigure(1, address(delegate), _weight, 5000);
 
@@ -262,7 +257,9 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
         assertEq(_diff, mulDiv18(_weight, _amountIn) / 2);
 
         // Check: token added to the reserve - 1 wei sensitivity for rounding errors
-        assertApproxEqAbs(jbController.reservedTokenBalanceOf(1), _reservedBalanceBefore + mulDiv18(_weight, _amountIn) / 2, 1);
+        assertApproxEqAbs(
+            jbController.reservedTokenBalanceOf(1), _reservedBalanceBefore + mulDiv18(_weight, _amountIn) / 2, 1
+        );
     }
 
     /**
@@ -276,9 +273,9 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
         uint256 _amountOutQuoted = getAmountOut(pool, _amountIn, address(weth));
 
         // Reconfigure with a weight smaller than the price implied by the quote
-        _weight = bound(_weight, 1, (_amountOutQuoted * 10**18 / _amountIn) - 1);
+        _weight = bound(_weight, 1, (_amountOutQuoted * 10 ** 18 / _amountIn) - 1);
 
-        _reservedRate = bound(_reservedRate, 0, 10000);
+        _reservedRate = bound(_reservedRate, 0, 10_000);
 
         _reconfigure(1, address(delegate), _weight, _reservedRate);
 
@@ -317,10 +314,20 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
         );
 
         // Check: token received by the beneficiary
-        assertApproxEqAbs(jbx.balanceOf(beneficiary) - _balBeforePayment, _amountOutQuoted - (_amountOutQuoted * _reservedRate / 10000), 1, "wrong balance");
+        assertApproxEqAbs(
+            jbx.balanceOf(beneficiary) - _balBeforePayment,
+            _amountOutQuoted - (_amountOutQuoted * _reservedRate / 10_000),
+            1,
+            "wrong balance"
+        );
 
         // Check: token added to the reserve - 1 wei sensitivity for rounding errors
-        assertApproxEqAbs(jbController.reservedTokenBalanceOf(1), _reservedBalanceBefore + _amountOutQuoted * _reservedRate / 10000, 1, "wrong reserve");
+        assertApproxEqAbs(
+            jbController.reservedTokenBalanceOf(1),
+            _reservedBalanceBefore + _amountOutQuoted * _reservedRate / 10_000,
+            1,
+            "wrong reserve"
+        );
     }
 
     /**
@@ -457,13 +464,14 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
     }
 
     /**
-     * @notice If the amount of token returned by swapping is greater than by minting, swap & use quote from uniswap lib rather than a user provided quote
+     * @notice If the amount of token returned by swapping is greater than by minting, swap & use quote from uniswap lib
+     * rather than a user provided quote
      *
      * @dev    Should swap for both beneficiary and reserve (by burning/minting)
      */
     function test_swapWhenQuoteNotProvidedInMetadata(uint256 _amountIn, uint256 _reservedRate) public {
         _amountIn = bound(_amountIn, 10, 10 ether);
-        _reservedRate = bound(_reservedRate, 0, 10000);
+        _reservedRate = bound(_reservedRate, 0, 10_000);
 
         uint256 _weight = 10 ether;
 
@@ -504,16 +512,27 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
         // 1 wei sensitivity for rounding errors
         if (_twap > _tokenCount) {
             // Path is picked based on twap, but the token received are the one quoted
-            assertApproxEqAbs(_tokenReceived, _quote - (_quote * _reservedRate) / 10000, 1, "wrong swap");
-            assertApproxEqAbs(jbController.reservedTokenBalanceOf(1), _reservedBalanceBefore + (_quote * _reservedRate) / 10000, 1, "Reserve");
+            assertApproxEqAbs(_tokenReceived, _quote - (_quote * _reservedRate) / 10_000, 1, "wrong swap");
+            assertApproxEqAbs(
+                jbController.reservedTokenBalanceOf(1),
+                _reservedBalanceBefore + (_quote * _reservedRate) / 10_000,
+                1,
+                "Reserve"
+            );
         } else {
-            assertApproxEqAbs(_tokenReceived, _tokenCount - (_tokenCount * _reservedRate) / 10000, 1, "Wrong mint");
-            assertApproxEqAbs(jbController.reservedTokenBalanceOf(1), _reservedBalanceBefore + (_tokenCount * _reservedRate) / 10000, 1, "Reserve");
+            assertApproxEqAbs(_tokenReceived, _tokenCount - (_tokenCount * _reservedRate) / 10_000, 1, "Wrong mint");
+            assertApproxEqAbs(
+                jbController.reservedTokenBalanceOf(1),
+                _reservedBalanceBefore + (_tokenCount * _reservedRate) / 10_000,
+                1,
+                "Reserve"
+            );
         }
     }
 
     /**
-     * @notice If the amount of token returned by minting is greater than by swapping, we mint outside of the delegate & when there is no user provided quote presemt in metadata
+     * @notice If the amount of token returned by minting is greater than by swapping, we mint outside of the delegate &
+     * when there is no user provided quote presemt in metadata
      *
      * @dev    Should mint for both beneficiary and reserve
      */
@@ -568,7 +587,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
         bytes[] memory _data = new bytes[](1);
         _data[0] = abi.encode(
             0,
-            69412820131620254304865 + 10 // 10 more than quote at that block
+            69_412_820_131_620_254_304_865 + 10 // 10 more than quote at that block
         );
 
         // Pass the delegate id
@@ -600,12 +619,12 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
     function test_mintWithExtraFunds(uint256 _amountIn, uint256 _amountInExtra) public {
         _amountIn = bound(_amountIn, 100, 10 ether);
         _amountInExtra = bound(_amountInExtra, 100, 10 ether);
-        
+
         // Refresh the quote
         amountOutQuoted = getAmountOut(pool, _amountIn, address(weth));
 
         // Reconfigure with a weight smaller than the quote
-        uint256 _weight = amountOutQuoted * 10**18 / _amountIn - 1;
+        uint256 _weight = amountOutQuoted * 10 ** 18 / _amountIn - 1;
         _reconfigure(1, address(delegate), _weight, 5000);
 
         uint256 _reservedBalanceBefore = jbController.reservedTokenBalanceOf(1);
@@ -643,22 +662,30 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
         );
 
         // Check: token received by the beneficiary
-        assertApproxEqAbs(jbx.balanceOf(beneficiary) - _balBeforePayment, amountOutQuoted / 2 + mulDiv18(_amountInExtra, _weight) / 2, 10);
+        assertApproxEqAbs(
+            jbx.balanceOf(beneficiary) - _balBeforePayment,
+            amountOutQuoted / 2 + mulDiv18(_amountInExtra, _weight) / 2,
+            10
+        );
 
         // Check: token added to the reserve
-        assertApproxEqAbs(jbController.reservedTokenBalanceOf(1), _reservedBalanceBefore + amountOutQuoted / 2 + mulDiv18(_amountInExtra, _weight) / 2, 10);
+        assertApproxEqAbs(
+            jbController.reservedTokenBalanceOf(1),
+            _reservedBalanceBefore + amountOutQuoted / 2 + mulDiv18(_amountInExtra, _weight) / 2,
+            10
+        );
     }
 
     function _reconfigure(uint256 _projectId, address _delegate, uint256 _weight, uint256 _reservedRate) internal {
         address _projectOwner = jbProjects.ownerOf(_projectId);
 
-        JBFundingCycle memory _fundingCycle = jbFundingCycleStore.currentOf(_projectId);
+        JBFundingCycle memory _fundingCycle = jbRulesets.currentOf(_projectId);
         metadata = _fundingCycle.expandMetadata();
 
         JBGroupedSplits[] memory _groupedSplits = new JBGroupedSplits[](1);
         _groupedSplits[0] = JBGroupedSplits({
             group: 1,
-            splits: jbSplitsStore.splitsOf(
+            splits: jbSplits.splitsOf(
                 _projectId,
                 _fundingCycle.configuration,
                 /*domain*/

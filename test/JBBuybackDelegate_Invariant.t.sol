@@ -3,10 +3,9 @@ pragma solidity ^0.8.16;
 
 import "./helpers/TestBaseWorkflowV3.sol";
 
-import {JBConstants} from "@juicebox/libraries/JBConstants.sol";
-import {JBDelegateMetadataHelper} from "@jbx-protocol/juice-delegate-metadata-lib/src/JBDelegateMetadataHelper.sol";
+import {JBConstants} from "lib/juice-contracts-v4/src/libraries/JBConstants.sol";
+import {MetadataResolverHelper} from "@jbx-protocol/juice-delegate-metadata-lib/src/MetadataResolverHelper.sol";
 import {PoolTestHelper} from "@exhausted-pigeon/uniswap-v3-foundry-pool/src/PoolTestHelper.sol";
-
 
 /**
  * @notice Invariant tests for the JBBuybackHook contract.
@@ -15,21 +14,31 @@ import {PoolTestHelper} from "@exhausted-pigeon/uniswap-v3-foundry-pool/src/Pool
  *          - BBD1: totalSupply after pay == total supply before pay + (amountIn * weight / 10^18)
  */
 contract TestJBBuybackHook_Invariant is TestBaseWorkflowV3, PoolTestHelper {
-
     BBDHandler handler;
-    JBDelegateMetadataHelper _metadataHelper = new JBDelegateMetadataHelper();
+    MetadataResolverHelper _metadataHelper = new MetadataResolverHelper();
 
     /**
      * @notice Set up a new JBX project and use the buyback delegate as the datasource
      */
     function setUp() public override {
-        // super is the Jbx V3 fixture: deploy full protocol, launch project 1, emit token, deploy delegate, set the pool
+        // super is the Jbx V3 fixture: deploy full protocol, launch project 1, emit token, deploy delegate, set the
+        // pool
         super.setUp();
 
         handler = new BBDHandler(_jbETHPaymentTerminal, _projectId, pool, _delegate);
 
         PoolTestHelper _helper = new PoolTestHelper();
-        IUniswapV3Pool _newPool = IUniswapV3Pool(address(_helper.createPool(address(weth), address(_jbController.tokenStore().tokenOf(_projectId)), fee, 1000 ether, PoolTestHelper.Chains.Mainnet)));
+        IUniswapV3Pool _newPool = IUniswapV3Pool(
+            address(
+                _helper.createPool(
+                    address(weth),
+                    address(_jbController.tokenStore().tokenOf(_projectId)),
+                    fee,
+                    1000 ether,
+                    PoolTestHelper.Chains.Mainnet
+                )
+            )
+        );
 
         targetContract(address(handler));
     }
@@ -37,10 +46,7 @@ contract TestJBBuybackHook_Invariant is TestBaseWorkflowV3, PoolTestHelper {
     function invariant_BBD1() public {
         uint256 _amountIn = handler.ghost_accumulatorAmountIn();
 
-        assertEq(
-            _jbController.totalOutstandingTokensOf(_projectId),
-            _amountIn * weight / 10 ** 18
-        );
+        assertEq(_jbController.totalOutstandingTokensOf(_projectId), _amountIn * weight / 10 ** 18);
     }
 
     function test_inv() public {
@@ -49,8 +55,8 @@ contract TestJBBuybackHook_Invariant is TestBaseWorkflowV3, PoolTestHelper {
 }
 
 contract BBDHandler is Test {
-    JBDelegateMetadataHelper immutable metadataHelper;
-    JBETHPaymentTerminal3_1_1 immutable jbETHPaymentTerminal;
+    MetadataResolverHelper immutable metadataHelper;
+    JBMultiTerminal immutable jbETHPaymentTerminal;
     IUniswapV3Pool immutable pool;
     IJBBuybackHook immutable delegate;
     uint256 immutable projectId;
@@ -60,30 +66,30 @@ contract BBDHandler is Test {
     uint256 public ghost_accumulatorAmountIn;
     uint256 public ghost_liquidityProvided;
     uint256 public ghost_liquidityToUse;
-    
+
     modifier useLiquidity(uint256 _seed) {
         ghost_liquidityToUse = bound(_seed, 1, ghost_liquidityProvided);
         _;
     }
 
     constructor(
-        JBETHPaymentTerminal3_1_1 _terminal, 
-        uint256 _projectId, 
+        JBMultiTerminal _terminal,
+        uint256 _projectId,
         IUniswapV3Pool _pool,
         IJBBuybackHook _delegate
     ) {
-        metadataHelper = new JBDelegateMetadataHelper();
+        metadataHelper = new MetadataResolverHelper();
 
         jbETHPaymentTerminal = _terminal;
         projectId = _projectId;
         pool = _pool;
         delegate = _delegate;
 
-        _beneficiary = makeAddr('_beneficiary');
+        _beneficiary = makeAddr("_beneficiary");
     }
 
     function trigger_pay(uint256 _amountIn) public {
-        _amountIn = bound(_amountIn, 0, 10000 ether);
+        _amountIn = bound(_amountIn, 0, 10_000 ether);
 
         // bool zeroForOne = jbETHPaymentTerminal.token() > address(JBConstants.NATIVE_TOKEN);
 
@@ -138,7 +144,5 @@ contract BBDHandler is Test {
 
     function addLiquidity(uint256 _amount0, uint256 _amount1, int24 _lowerTick, int24 _upperTick) public {
         // ghost_liquidityProvided += pool.addLiquidity()
-        
     }
-
 }

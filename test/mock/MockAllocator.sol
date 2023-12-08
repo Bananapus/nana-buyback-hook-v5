@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.16;
 
-import "@juicebox/structs/JBSplitAllocationData.sol";
-import "@juicebox/structs/JBTokenAmount.sol";
-import "@juicebox/interfaces/IJBPayDelegate.sol";
-import "@juicebox/interfaces/IJBSplitAllocator.sol";
+import "lib/juice-contracts-v4/src/structs/JBSplitAllocationData.sol";
+import "lib/juice-contracts-v4/src/structs/JBTokenAmount.sol";
+import "lib/juice-contracts-v4/src/interfaces/IJBPayDelegate.sol";
+import "lib/juice-contracts-v4/src/interfaces/IJBSplitAllocator.sol";
 
-import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165.sol";
 
 contract MockAllocator is ERC165, IJBSplitAllocator {
     IJBPayDelegate public immutable payDelegate;

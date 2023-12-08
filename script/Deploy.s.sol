@@ -56,7 +56,7 @@ contract DeployGeneric is Script {
             stdJson.readAddress(
                 vm.readFile(
                     string.concat(
-                        "node_modules/@jbx-protocol/juice-contracts-v3/deployments/", _network, "/JBController3_1.json"
+                        "node_modules/@jbx-protocol/juice-contracts-v3/deployments/", _network, "/JBController.json"
                     )
                 ),
                 ".address"
@@ -76,13 +76,7 @@ contract DeployGeneric is Script {
         console.log(address(_controller));
 
         vm.startBroadcast();
-        JBBuybackHook _delegate = new JBBuybackHook(
-            _weth,
-            _factory,
-            _directory,
-            _controller,
-            _delegateId
-        );
+        JBBuybackHook _delegate = new JBBuybackHook(_weth, _factory, _directory, _controller, _delegateId);
 
         console.log("Delegate deployed at:");
         console.log(address(_delegate));

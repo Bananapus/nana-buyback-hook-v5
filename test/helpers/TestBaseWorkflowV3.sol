@@ -3,44 +3,42 @@ pragma solidity ^0.8.16;
 
 import "forge-std/Test.sol";
 
-import "@juicebox/JBController3_1.sol";
-import "@juicebox/JBDirectory.sol";
-import "@juicebox/JBETHPaymentTerminal3_1_1.sol";
-import "@juicebox/JBFundAccessConstraintsStore.sol";
-import "@juicebox/JBSingleTokenPaymentTerminalStore3_1_1.sol";
-import "@juicebox/JBFundingCycleStore.sol";
-import "@juicebox/JBOperatorStore.sol";
-import "@juicebox/JBPrices.sol";
-import "@juicebox/JBProjects.sol";
-import "@juicebox/JBSplitsStore.sol";
-import "@juicebox/JBTokenStore.sol";
+import "lib/juice-contracts-v4/src/JBController.sol";
+import "lib/juice-contracts-v4/src/JBDirectory.sol";
+import "lib/juice-contracts-v4/src/JBMultiTerminal.sol";
+import "lib/juice-contracts-v4/src/JBFundAccessLimits.sol";
+import "lib/juice-contracts-v4/src/JBTerminalStore.sol";
+import "lib/juice-contracts-v4/src/JBRulesets.sol";
+import "lib/juice-contracts-v4/src/JBPermissions.sol";
+import "lib/juice-contracts-v4/src/JBPrices.sol";
+import "lib/juice-contracts-v4/src/JBProjects.sol";
+import "lib/juice-contracts-v4/src/JBSplits.sol";
+import "lib/juice-contracts-v4/src/JBTokens.sol";
 
-import "@juicebox/structs/JBDidPayData.sol";
-import "@juicebox/structs/JBDidRedeemData.sol";
-import "@juicebox/structs/JBFee.sol";
-import "@juicebox/structs/JBFundAccessConstraints.sol";
-import "@juicebox/structs/JBFundingCycle.sol";
-import "@juicebox/structs/JBFundingCycleData.sol";
-import "@juicebox/structs/JBFundingCycleMetadata.sol";
-import "@juicebox/structs/JBGroupedSplits.sol";
-import "@juicebox/structs/JBOperatorData.sol";
-import "@juicebox/structs/JBPayParamsData.sol";
-import "@juicebox/structs/JBProjectMetadata.sol";
-import "@juicebox/structs/JBRedeemParamsData.sol";
-import "@juicebox/structs/JBSplit.sol";
-import "@juicebox/interfaces/terminal/IJBTerminal.sol";
-import "@juicebox/interfaces/IJBToken.sol";
-import "@juicebox/libraries/JBConstants.sol";
+import "lib/juice-contracts-v4/src/structs/JBDidPayData.sol";
+import "lib/juice-contracts-v4/src/structs/JBDidRedeemData.sol";
+import "lib/juice-contracts-v4/src/structs/JBFee.sol";
+import "lib/juice-contracts-v4/src/structs/JBFundAccessConstraints.sol";
+import "lib/juice-contracts-v4/src/structs/JBFundingCycle.sol";
+import "lib/juice-contracts-v4/src/structs/JBFundingCycleData.sol";
+import "lib/juice-contracts-v4/src/structs/JBFundingCycleMetadata.sol";
+import "lib/juice-contracts-v4/src/structs/JBGroupedSplits.sol";
+import "lib/juice-contracts-v4/src/structs/JBOperatorData.sol";
+import "lib/juice-contracts-v4/src/structs/JBPayParamsData.sol";
+import "lib/juice-contracts-v4/src/structs/JBProjectMetadata.sol";
+import "lib/juice-contracts-v4/src/structs/JBRedeemParamsData.sol";
+import "lib/juice-contracts-v4/src/structs/JBSplit.sol";
+import "lib/juice-contracts-v4/src/interfaces/terminal/IJBTerminal.sol";
+import "lib/juice-contracts-v4/src/interfaces/IJBToken.sol";
+import "lib/juice-contracts-v4/src/libraries/JBConstants.sol";
 
-import "@juicebox/interfaces/IJBSingleTokenPaymentTerminalStore.sol";
+import "lib/juice-contracts-v4/src/interfaces/IJBSingleTokenPaymentTerminalStore.sol";
 
 import "@paulrberg/contracts/math/PRBMath.sol";
 
 import "./AccessJBLib.sol";
 import "../../interfaces/external/IWETH9.sol";
 import "../../JBBuybackHook.sol";
-
-
 
 // Base contract for Juicebox system tests.
 //
@@ -53,27 +51,27 @@ contract TestBaseWorkflowV3 is Test {
     //*********************************************************************//
 
     // Multisig address used for testing.
-    address internal _multisig = makeAddr('mooltichig');
-    address internal _beneficiary = makeAddr('benefishary');
+    address internal _multisig = makeAddr("mooltichig");
+    address internal _beneficiary = makeAddr("benefishary");
 
-    JBOperatorStore internal _jbOperatorStore;
+    JBPermissions internal _jbPermissions;
     JBProjects internal _jbProjects;
     JBPrices internal _jbPrices;
     JBDirectory internal _jbDirectory;
-    JBFundAccessConstraintsStore internal _fundAccessConstraintsStore;
-    JBFundingCycleStore internal _jbFundingCycleStore;
-    JBTokenStore internal _jbTokenStore;
-    JBSplitsStore internal _jbSplitsStore;
-    JBController3_1 internal _jbController;
-    JBSingleTokenPaymentTerminalStore3_1_1 internal _jbPaymentTerminalStore;
-    JBETHPaymentTerminal3_1_1 internal _jbETHPaymentTerminal;
+    JBFundAccessLimits internal _fundAccessConstraintsStore;
+    JBRulesets internal _jbRulesets;
+    JBTokens internal _jbTokens;
+    JBSplits internal _jbSplits;
+    JBController internal _jbController;
+    JBTerminalStore internal _jbPaymentTerminalStore;
+    JBMultiTerminal internal _jbETHPaymentTerminal;
     AccessJBLib internal _accessJBLib;
 
     JBBuybackHook _delegate;
 
     uint256 _projectId;
     uint256 reservedRate = 4500;
-    uint256 weight = 10 ether ; // Minting 10 token per eth
+    uint256 weight = 10 ether; // Minting 10 token per eth
     uint32 cardinality = 1000;
     uint256 twapDelta = 500;
 
@@ -90,10 +88,9 @@ contract TestBaseWorkflowV3 is Test {
     IJBToken jbx = IJBToken(0x3abF2A4f8452cCC2CF7b4C1e4663147600646f66);
     IWETH9 weth = IWETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     address _uniswapFactory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-    uint24 fee = 10000;
+    uint24 fee = 10_000;
 
     IUniswapV3Pool pool;
-
 
     //*********************************************************************//
     // ------------------------- internal views -------------------------- //
@@ -121,12 +118,12 @@ contract TestBaseWorkflowV3 is Test {
         vm.etch(address(pool), "0x69");
         vm.etch(address(weth), "0x69");
 
-        // JBOperatorStore
-        _jbOperatorStore = new JBOperatorStore();
-        vm.label(address(_jbOperatorStore), "JBOperatorStore");
+        // JBPermissions
+        _jbPermissions = new JBPermissions();
+        vm.label(address(_jbPermissions), "JBPermissions");
 
         // JBProjects
-        _jbProjects = new JBProjects(_jbOperatorStore);
+        _jbProjects = new JBProjects(_jbPermissions);
         vm.label(address(_jbProjects), "JBProjects");
 
         // JBPrices
@@ -135,33 +132,33 @@ contract TestBaseWorkflowV3 is Test {
 
         address contractAtNoncePlusOne = computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
 
-        // JBFundingCycleStore
-        _jbFundingCycleStore = new JBFundingCycleStore(IJBDirectory(contractAtNoncePlusOne));
-        vm.label(address(_jbFundingCycleStore), "JBFundingCycleStore");
+        // JBRulesets
+        _jbRulesets = new JBRulesets(IJBDirectory(contractAtNoncePlusOne));
+        vm.label(address(_jbRulesets), "JBRulesets");
 
         // JBDirectory
-        _jbDirectory = new JBDirectory(_jbOperatorStore, _jbProjects, _jbFundingCycleStore, _multisig);
+        _jbDirectory = new JBDirectory(_jbPermissions, _jbProjects, _jbRulesets, _multisig);
         vm.label(address(_jbDirectory), "JBDirectory");
 
-        // JBTokenStore
-        _jbTokenStore = new JBTokenStore(_jbOperatorStore, _jbProjects, _jbDirectory, _jbFundingCycleStore);
-        vm.label(address(_jbTokenStore), "JBTokenStore");
+        // JBTokens
+        _jbTokens = new JBTokens(_jbPermissions, _jbProjects, _jbDirectory, _jbRulesets);
+        vm.label(address(_jbTokens), "JBTokens");
 
-        // JBSplitsStore
-        _jbSplitsStore = new JBSplitsStore(_jbOperatorStore, _jbProjects, _jbDirectory);
-        vm.label(address(_jbSplitsStore), "JBSplitsStore");
+        // JBSplits
+        _jbSplits = new JBSplits(_jbPermissions, _jbProjects, _jbDirectory);
+        vm.label(address(_jbSplits), "JBSplits");
 
-        _fundAccessConstraintsStore = new JBFundAccessConstraintsStore(_jbDirectory);
-        vm.label(address(_fundAccessConstraintsStore), "JBFundAccessConstraintsStore");
+        _fundAccessConstraintsStore = new JBFundAccessLimits(_jbDirectory);
+        vm.label(address(_fundAccessConstraintsStore), "JBFundAccessLimits");
 
         // JBController
-        _jbController = new JBController3_1(
-            _jbOperatorStore,
+        _jbController = new JBController(
+            _jbPermissions,
             _jbProjects,
             _jbDirectory,
-            _jbFundingCycleStore,
-            _jbTokenStore,
-            _jbSplitsStore,
+            _jbRulesets,
+            _jbTokens,
+            _jbSplits,
             _fundAccessConstraintsStore
         );
         vm.label(address(_jbController), "JBController");
@@ -170,23 +167,20 @@ contract TestBaseWorkflowV3 is Test {
         _jbDirectory.setIsAllowedToSetFirstController(address(_jbController), true);
 
         // JBETHPaymentTerminalStore
-        _jbPaymentTerminalStore = new JBSingleTokenPaymentTerminalStore3_1_1(
-            _jbDirectory,
-            _jbFundingCycleStore,
-            _jbPrices
-        );
+        _jbPaymentTerminalStore =
+            new JBTerminalStore(_jbDirectory, _jbRulesets, _jbPrices);
         vm.label(address(_jbPaymentTerminalStore), "JBSingleTokenPaymentTerminalStore");
 
         // AccessJBLib
         _accessJBLib = new AccessJBLib();
 
         // JBETHPaymentTerminal
-        _jbETHPaymentTerminal = new JBETHPaymentTerminal3_1_1(
+        _jbETHPaymentTerminal = new JBMultiTerminal(
             _accessJBLib.ETH(),
-            _jbOperatorStore,
+            _jbPermissions,
             _jbProjects,
             _jbDirectory,
-            _jbSplitsStore,
+            _jbSplits,
             _jbPrices,
             address(_jbPaymentTerminalStore),
             _multisig
@@ -199,7 +193,7 @@ contract TestBaseWorkflowV3 is Test {
             _factory: _uniswapFactory,
             _directory: IJBDirectory(address(_jbDirectory)),
             _controller: _jbController,
-            _delegateId: bytes4(hex'69')
+            _delegateId: bytes4(hex"69")
         });
 
         _projectMetadata = JBProjectMetadata({content: "myIPFSHash", domain: 1});
@@ -264,10 +258,9 @@ contract TestBaseWorkflowV3 is Test {
         );
 
         vm.prank(_multisig);
-        _jbTokenStore.issueFor(_projectId, "jbx", "jbx");
+        _jbTokens.issueFor(_projectId, "jbx", "jbx");
 
         vm.prank(_multisig);
         pool = _delegate.setPoolFor(_projectId, fee, uint32(cardinality), twapDelta, address(weth));
-
     }
 }
