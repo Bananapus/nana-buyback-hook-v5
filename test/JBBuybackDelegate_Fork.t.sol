@@ -14,14 +14,14 @@ import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 
 import "@exhausted-pigeon/uniswap-v3-forge-quoter/src/UniswapV3ForgeQuoter.sol";
 
-import "../JBBuybackDelegate.sol";
+import "../JBBuybackHook.sol";
 
 import {mulDiv18} from "@prb/math/src/Common.sol";
 
 /**
  * @notice Buyback fork integration tests, using $jbx v3
  */
-contract TestJBBuybackDelegate_Fork is Test, UniswapV3ForgeQuoter {
+contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
     using JBFundingCycleMetadataResolver for JBFundingCycle;
 
     event BuybackDelegate_Swap(uint256 indexed projectId, uint256 amountIn, IUniswapV3Pool pool, uint256 amountOut, address caller);
@@ -54,10 +54,10 @@ contract TestJBBuybackDelegate_Fork is Test, UniswapV3ForgeQuoter {
     IJBDirectory jbDirectory;
     IJBProjects jbProjects;
     IJBSplitsStore jbSplitsStore;
-    IJBPayoutRedemptionPaymentTerminal3_1_1 jbEthPaymentTerminal;
+    IJBMultiTerminal jbEthPaymentTerminal;
     IJBSingleTokenPaymentTerminal terminal;
     IJBSingleTokenPaymentTerminalStore jbTerminalStore;
-    IJBController3_1 jbController;
+    IJBController jbController;
     IJBTokenStore jbTokenStore;
     IJBOperatorStore jbOperatorStore;
     IUniswapV3Pool pool;
@@ -68,11 +68,11 @@ contract TestJBBuybackDelegate_Fork is Test, UniswapV3ForgeQuoter {
     JBFundingCycleData data;
     JBFundingCycleMetadata metadata;
     JBFundAccessConstraints[] fundAccessConstraints;
-    IJBPaymentTerminal[] terminals;
+    IJBTerminal[] terminals;
     JBGroupedSplits[] groupedSplits;
 
     // Target contract
-    JBBuybackDelegate delegate;
+    JBBuybackHook delegate;
     
     address beneficiary = makeAddr('benefichiary');
 
@@ -87,15 +87,15 @@ contract TestJBBuybackDelegate_Fork is Test, UniswapV3ForgeQuoter {
         // Collect the mainnet deployment addresses
         jbDirectory = IJBDirectory(
             stdJson.readAddress(
-                vm.readFile("node_modules/@jbx-protocol/juice-contracts-v3/deployments/mainnet/JBDirectory.json"),
+                vm.readFile("node_modules/@juicebox/deployments/mainnet/JBDirectory.json"),
                 ".address"
             )
         );
 
-        jbEthPaymentTerminal = IJBPayoutRedemptionPaymentTerminal3_1_1(
+        jbEthPaymentTerminal = IJBMultiTerminal(
             stdJson.readAddress(
                 vm.readFile(
-                    "node_modules/@jbx-protocol/juice-contracts-v3/deployments/mainnet/JBETHPaymentTerminal3_1_1.json"
+                    "node_modules/@juicebox/deployments/mainnet/JBETHPaymentTerminal3_1_1.json"
                 ),
                 ".address"
             )
@@ -104,16 +104,16 @@ contract TestJBBuybackDelegate_Fork is Test, UniswapV3ForgeQuoter {
         terminal = IJBSingleTokenPaymentTerminal(
             stdJson.readAddress(
                 vm.readFile(
-                    "node_modules/@jbx-protocol/juice-contracts-v3/deployments/mainnet/JBETHPaymentTerminal3_1_1.json"
+                    "node_modules/@juicebox/deployments/mainnet/JBETHPaymentTerminal3_1_1.json"
                 ),
                 ".address"
             )
         );
         vm.label(address(jbEthPaymentTerminal), "jbEthPaymentTerminal3_1_1");
 
-        jbController = IJBController3_1(
+        jbController = IJBController(
             stdJson.readAddress(
-                vm.readFile("node_modules/@jbx-protocol/juice-contracts-v3/deployments/mainnet/JBController3_1.json"),
+                vm.readFile("node_modules/@juicebox/deployments/mainnet/JBController3_1.json"),
                 ".address"
             )
         );
@@ -125,10 +125,10 @@ contract TestJBBuybackDelegate_Fork is Test, UniswapV3ForgeQuoter {
         jbTokenStore = jbController.tokenStore();
         jbFundingCycleStore = jbController.fundingCycleStore();
         jbProjects = jbController.projects();
-        jbOperatorStore = IJBOperatable(address(jbTokenStore)).operatorStore();
+        jbOperatorStore = IJBPermissioned(address(jbTokenStore)).operatorStore();
         jbSplitsStore = jbController.splitsStore();
 
-        delegate = new JBBuybackDelegate({
+        delegate = new JBBuybackHook({
             _weth: weth,
             _factory: address(factory),
             _directory: IJBDirectory(address(jbDirectory)),
@@ -578,7 +578,7 @@ contract TestJBBuybackDelegate_Fork is Test, UniswapV3ForgeQuoter {
         // Generate the metadata
         bytes memory _delegateMetadata = metadataHelper.createMetadata(_ids, _data);
 
-        vm.expectRevert(IJBBuybackDelegate.JuiceBuyback_MaximumSlippage.selector);
+        vm.expectRevert(IJBBuybackHook.JuiceBuyback_MaximumSlippage.selector);
 
         // Pay the project
         jbEthPaymentTerminal.pay{value: 1 ether}(

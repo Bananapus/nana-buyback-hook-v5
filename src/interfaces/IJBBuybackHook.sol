@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IJBPayDelegate3_1_1} from "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBPayDelegate3_1_1.sol";
-import {IJBFundingCycleDataSource3_1_1} from
-    "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBFundingCycleDataSource3_1_1.sol";
-import {IJBDirectory} from "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBDirectory.sol";
-import {IJBController3_1} from "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBController3_1.sol";
-import {IJBProjects} from "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBProjects.sol";
+import {IJBPayHook} from "@juicebox/interfaces/IJBPayHook.sol";
+import {IJBRulesetDataHook} from
+    "@juicebox/interfaces/IJBRulesetDataHook.sol";
+import {IJBDirectory} from "@juicebox/interfaces/IJBDirectory.sol";
+import {IJBController} from "@juicebox/interfaces/IJBController.sol";
+import {IJBProjects} from "@juicebox/interfaces/IJBProjects.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 
 import {IWETH9} from "./external/IWETH9.sol";
 
-interface IJBBuybackDelegate is IJBPayDelegate3_1_1, IJBFundingCycleDataSource3_1_1, IUniswapV3SwapCallback {
+interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallback {
     /////////////////////////////////////////////////////////////////////
     //                             Errors                              //
     /////////////////////////////////////////////////////////////////////
@@ -49,7 +49,7 @@ interface IJBBuybackDelegate is IJBPayDelegate3_1_1, IJBFundingCycleDataSource3_
     function MAX_TWAP_WINDOW() external view returns (uint256);
     function UNISWAP_V3_FACTORY() external view returns (address);
     function DIRECTORY() external view returns (IJBDirectory);
-    function CONTROLLER() external view returns (IJBController3_1);
+    function CONTROLLER() external view returns (IJBController);
     function PROJECTS() external view returns (IJBProjects);
     function WETH() external view returns (IWETH9);
     function DELEGATE_ID() external view returns (bytes4);

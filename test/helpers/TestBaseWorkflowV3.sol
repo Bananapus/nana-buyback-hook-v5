@@ -3,42 +3,42 @@ pragma solidity ^0.8.16;
 
 import "forge-std/Test.sol";
 
-import "@jbx-protocol/juice-contracts-v3/contracts/JBController3_1.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/JBDirectory.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/JBETHPaymentTerminal3_1_1.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/JBFundAccessConstraintsStore.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/JBSingleTokenPaymentTerminalStore3_1_1.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/JBFundingCycleStore.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/JBOperatorStore.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/JBPrices.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/JBProjects.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/JBSplitsStore.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/JBTokenStore.sol";
+import "@juicebox/JBController3_1.sol";
+import "@juicebox/JBDirectory.sol";
+import "@juicebox/JBETHPaymentTerminal3_1_1.sol";
+import "@juicebox/JBFundAccessConstraintsStore.sol";
+import "@juicebox/JBSingleTokenPaymentTerminalStore3_1_1.sol";
+import "@juicebox/JBFundingCycleStore.sol";
+import "@juicebox/JBOperatorStore.sol";
+import "@juicebox/JBPrices.sol";
+import "@juicebox/JBProjects.sol";
+import "@juicebox/JBSplitsStore.sol";
+import "@juicebox/JBTokenStore.sol";
 
-import "@jbx-protocol/juice-contracts-v3/contracts/structs/JBDidPayData.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/structs/JBDidRedeemData.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/structs/JBFee.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/structs/JBFundAccessConstraints.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/structs/JBFundingCycle.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/structs/JBFundingCycleData.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/structs/JBFundingCycleMetadata.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/structs/JBGroupedSplits.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/structs/JBOperatorData.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/structs/JBPayParamsData.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/structs/JBProjectMetadata.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/structs/JBRedeemParamsData.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/structs/JBSplit.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBPaymentTerminal.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBToken.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/libraries/JBConstants.sol";
+import "@juicebox/structs/JBDidPayData.sol";
+import "@juicebox/structs/JBDidRedeemData.sol";
+import "@juicebox/structs/JBFee.sol";
+import "@juicebox/structs/JBFundAccessConstraints.sol";
+import "@juicebox/structs/JBFundingCycle.sol";
+import "@juicebox/structs/JBFundingCycleData.sol";
+import "@juicebox/structs/JBFundingCycleMetadata.sol";
+import "@juicebox/structs/JBGroupedSplits.sol";
+import "@juicebox/structs/JBOperatorData.sol";
+import "@juicebox/structs/JBPayParamsData.sol";
+import "@juicebox/structs/JBProjectMetadata.sol";
+import "@juicebox/structs/JBRedeemParamsData.sol";
+import "@juicebox/structs/JBSplit.sol";
+import "@juicebox/interfaces/terminal/IJBTerminal.sol";
+import "@juicebox/interfaces/IJBToken.sol";
+import "@juicebox/libraries/JBConstants.sol";
 
-import "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBSingleTokenPaymentTerminalStore.sol";
+import "@juicebox/interfaces/IJBSingleTokenPaymentTerminalStore.sol";
 
 import "@paulrberg/contracts/math/PRBMath.sol";
 
 import "./AccessJBLib.sol";
 import "../../interfaces/external/IWETH9.sol";
-import "../../JBBuybackDelegate.sol";
+import "../../JBBuybackHook.sol";
 
 
 
@@ -69,7 +69,7 @@ contract TestBaseWorkflowV3 is Test {
     JBETHPaymentTerminal3_1_1 internal _jbETHPaymentTerminal;
     AccessJBLib internal _accessJBLib;
 
-    JBBuybackDelegate _delegate;
+    JBBuybackHook _delegate;
 
     uint256 _projectId;
     uint256 reservedRate = 4500;
@@ -83,7 +83,7 @@ contract TestBaseWorkflowV3 is Test {
     JBFundingCycleData _dataWithoutBallot;
     JBFundingCycleMetadata _metadata;
     JBFundAccessConstraints[] _fundAccessConstraints; // Default empty
-    IJBPaymentTerminal[] _terminals; // Default empty
+    IJBTerminal[] _terminals; // Default empty
 
     // Use the L1 UniswapV3Pool jbx/eth 1% fee for create2 magic
     // IUniswapV3Pool pool = IUniswapV3Pool(0x48598Ff1Cee7b4d31f8f9050C2bbAE98e17E6b17);
@@ -194,7 +194,7 @@ contract TestBaseWorkflowV3 is Test {
         vm.label(address(_jbETHPaymentTerminal), "JBETHPaymentTerminal");
 
         // Deploy the delegate
-        _delegate = new JBBuybackDelegate({
+        _delegate = new JBBuybackHook({
             _weth: weth,
             _factory: _uniswapFactory,
             _directory: IJBDirectory(address(_jbDirectory)),

@@ -1,42 +1,42 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IJBPaymentTerminal} from "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBPaymentTerminal.sol";
-import {IJBPayoutRedemptionPaymentTerminal3_1_1} from
-    "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBPayoutRedemptionPaymentTerminal3_1_1.sol";
-import {JBDidPayData3_1_1} from "@jbx-protocol/juice-contracts-v3/contracts/structs/JBDidPayData3_1_1.sol";
-import {JBOperatable} from "@jbx-protocol/juice-contracts-v3/contracts/abstract/JBOperatable.sol";
-import {IJBDirectory} from "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBDirectory.sol";
-import {IJBController3_1} from "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBController3_1.sol";
-import {IJBProjects} from "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBController3_1.sol";
-import {IJBOperatable} from "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBOperatable.sol";
-import {IJBFundingCycleDataSource3_1_1} from
-    "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBFundingCycleDataSource3_1_1.sol";
-import {IJBPayDelegate3_1_1} from "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBPayDelegate3_1_1.sol";
-import {JBPayDelegateAllocation3_1_1} from
-    "@jbx-protocol/juice-contracts-v3/contracts/structs/JBPayDelegateAllocation3_1_1.sol";
-import {JBPayParamsData} from "@jbx-protocol/juice-contracts-v3/contracts/structs/JBPayParamsData.sol";
-import {JBRedeemParamsData} from "@jbx-protocol/juice-contracts-v3/contracts/structs/JBRedeemParamsData.sol";
-import {JBRedemptionDelegateAllocation3_1_1} from
-    "@jbx-protocol/juice-contracts-v3/contracts/structs/JBRedemptionDelegateAllocation3_1_1.sol";
-import {JBTokens} from "@jbx-protocol/juice-contracts-v3/contracts/libraries/JBTokens.sol";
-import {JBDelegateMetadataLib} from "@jbx-protocol/juice-delegate-metadata-lib/src/JBDelegateMetadataLib.sol";
+import {IJBTerminal} from "@juicebox/interfaces/terminal/IJBTerminal.sol";
+import {IJBMultiTerminal} from
+    "@juicebox/interfaces/terminal/IJBMultiTerminal.sol";
+import {JBDidPayData} from "@juicebox/structs/JBDidPayData.sol";
+import {JBPermissioned} from "@juicebox/abstract/JBPermissioned.sol";
+import {IJBDirectory} from "@juicebox/interfaces/IJBDirectory.sol";
+import {IJBController} from "@juicebox/interfaces/IJBController.sol";
+import {IJBProjects} from "@juicebox/interfaces/IJBController.sol";
+import {IJBPermissioned} from "@juicebox/interfaces/IJBPermissioned.sol";
+import {IJBRulesetDataHook} from
+    "@juicebox/interfaces/IJBRulesetDataHook.sol";
+import {IJBPayHook} from "@juicebox/interfaces/IJBPayHook.sol";
+import {JBPayHookPayload} from
+    "@juicebox/structs/JBPayHookPayload.sol";
+import {JBPayParamsData} from "@juicebox/structs/JBPayParamsData.sol";
+import {JBRedeemParamsData} from "@juicebox/structs/JBRedeemParamsData.sol";
+import {JBRedeemHookPayload} from
+    "@juicebox/structs/JBRedeemHookPayload.sol";
+import {JBConstants} from "@juicebox/libraries/JBConstants.sol";
+import {JBMetadataResolver} from "@juicebox/libraries/JBMetadataResolver.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {mulDiv} from "@prb/math/src/Common.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {OracleLibrary} from "@uniswap/v3-periphery/contracts/libraries/OracleLibrary.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import {JBBuybackDelegateOperations} from "./libraries/JBBuybackDelegateOperations.sol";
-import {IJBBuybackDelegate} from "./interfaces/IJBBuybackDelegate.sol";
+import {JBBuybackHookPermissionIds} from "./libraries/JBBuybackHookPermissionIds.sol";
+import {IJBBuybackHook} from "./interfaces/IJBBuybackHook.sol";
 import {IWETH9} from "./interfaces/external/IWETH9.sol";
 
 /// @custom:benediction DEVS BENEDICAT ET PROTEGAT CONTRACTVS MEAM
-/// @title JBBuybackDelegate
+/// @title JBBuybackHook
 /// @notice Generic Buyback Delegate compatible with any Juicebox payment terminal and any project token that can be pooled.
 /// @notice Functions as a Data Source and Delegate allowing beneficiaries of payments to get the highest amount
 /// of a project's token between minting using the project weight and swapping in a given Uniswap V3 pool.
-contract JBBuybackDelegate is ERC165, JBOperatable, IJBBuybackDelegate {
+contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     //*********************************************************************//
     // --------------------- internal stored properties ------------------ //
     //*********************************************************************//
@@ -79,7 +79,7 @@ contract JBBuybackDelegate is ERC165, JBOperatable, IJBBuybackDelegate {
     IJBDirectory public immutable DIRECTORY;
 
     /// @notice The controller used to mint and burn tokens from.
-    IJBController3_1 public immutable CONTROLLER;
+    IJBController public immutable CONTROLLER;
 
     /// @notice The project registry.
     IJBProjects public immutable PROJECTS;
@@ -116,9 +116,9 @@ contract JBBuybackDelegate is ERC165, JBOperatable, IJBBuybackDelegate {
         IWETH9 _weth,
         address _factory,
         IJBDirectory _directory,
-        IJBController3_1 _controller,
+        IJBController _controller,
         bytes4 _delegateId
-    ) JBOperatable(IJBOperatable(address(_controller)).operatorStore()) {
+    ) JBPermissioned(IJBPermissioned(address(_controller)).operatorStore()) {
         WETH = _weth;
         DIRECTORY = _directory;
         CONTROLLER = _controller;
@@ -140,7 +140,7 @@ contract JBBuybackDelegate is ERC165, JBOperatable, IJBBuybackDelegate {
         external
         view
         override
-        returns (uint256 weight, string memory memo, JBPayDelegateAllocation3_1_1[] memory delegateAllocations)
+        returns (uint256 weight, string memory memo, JBPayHookPayload[] memory delegateAllocations)
     {
         // Keep a reference to the payment total
         uint256 _totalPaid = _data.amount.value;
@@ -162,7 +162,7 @@ contract JBBuybackDelegate is ERC165, JBOperatable, IJBBuybackDelegate {
             bytes memory _metadata;
 
             // Unpack the quote from the pool, given by the frontend.
-            (_quoteExists, _metadata) = JBDelegateMetadataLib.getMetadata(DELEGATE_ID, _data.metadata);
+            (_quoteExists, _metadata) = JBMetadataResolver.getMetadata(DELEGATE_ID, _data.metadata);
             if (_quoteExists) (_amountToSwapWith, _minimumSwapAmountOut) = abi.decode(_metadata, (uint256, uint256));
         }
 
@@ -177,7 +177,7 @@ contract JBBuybackDelegate is ERC165, JBOperatable, IJBBuybackDelegate {
         address _projectToken = projectTokenOf[_data.projectId];
 
         // Keep a reference to the token being used by the terminal that is calling this delegate. Use weth is ETH.
-        address _terminalToken = _data.amount.token == JBTokens.ETH ? address(WETH) : _data.amount.token;
+        address _terminalToken = _data.amount.token == JBConstants.NATIVE_TOKEN ? address(WETH) : _data.amount.token;
 
         // If a minimum amount of tokens to swap for wasn't specified, resolve a value as good as possible using a TWAP.
         if (_minimumSwapAmountOut == 0) {
@@ -193,9 +193,9 @@ contract JBBuybackDelegate is ERC165, JBOperatable, IJBBuybackDelegate {
             bool _projectTokenIs0 = address(_projectToken) < _terminalToken;
 
             // Return this delegate as the one to use, while forwarding the amount to swap with. Speficy metadata that allows the swap to be executed.
-            delegateAllocations = new JBPayDelegateAllocation3_1_1[](1);
-            delegateAllocations[0] = JBPayDelegateAllocation3_1_1({
-                delegate: IJBPayDelegate3_1_1(this),
+            delegateAllocations = new JBPayHookPayload[](1);
+            delegateAllocations[0] = JBPayHookPayload({
+                delegate: IJBPayHook(this),
                 amount: _amountToSwapWith,
                 metadata: abi.encode(_quoteExists, _projectTokenIs0, _totalPaid == _amountToSwapWith ? 0 : _totalPaid - _amountToSwapWith, _minimumSwapAmountOut, _weight)
             });
@@ -233,7 +233,7 @@ contract JBBuybackDelegate is ERC165, JBOperatable, IJBBuybackDelegate {
         external
         pure
         override
-        returns (uint256, string memory, JBRedemptionDelegateAllocation3_1_1[] memory delegateAllocations)
+        returns (uint256, string memory, JBRedeemHookPayload[] memory delegateAllocations)
     {
         return (_data.reclaimAmount.value, _data.memo, delegateAllocations);
     }
@@ -243,9 +243,9 @@ contract JBBuybackDelegate is ERC165, JBOperatable, IJBBuybackDelegate {
     //*********************************************************************//
 
     function supportsInterface(bytes4 _interfaceId) public view override(ERC165, IERC165) returns (bool) {
-        return _interfaceId == type(IJBFundingCycleDataSource3_1_1).interfaceId
-            || _interfaceId == type(IJBPayDelegate3_1_1).interfaceId
-            || _interfaceId == type(IJBBuybackDelegate).interfaceId
+        return _interfaceId == type(IJBRulesetDataHook).interfaceId
+            || _interfaceId == type(IJBPayHook).interfaceId
+            || _interfaceId == type(IJBBuybackHook).interfaceId
             || super.supportsInterface(_interfaceId);
     }
 
@@ -257,9 +257,9 @@ contract JBBuybackDelegate is ERC165, JBOperatable, IJBBuybackDelegate {
     /// @dev This delegate is called only if the quote for the swap is bigger than the quote when minting.
     /// If the swap reverts (slippage, liquidity, etc), the delegate will then mint the same amount of token as if the delegate was not used.
     /// @param _data The delegate data passed by the terminal.
-    function didPay(JBDidPayData3_1_1 calldata _data) external payable override {
+    function didPay(JBDidPayData calldata _data) external payable override {
         // Make sure only a payment terminal belonging to the project can access this functionality.
-        if (!DIRECTORY.isTerminalOf(_data.projectId, IJBPaymentTerminal(msg.sender))) {
+        if (!DIRECTORY.isTerminalOf(_data.projectId, IJBTerminal(msg.sender))) {
             revert JuiceBuyback_Unauthorized();
         }
 
@@ -279,7 +279,7 @@ contract JBBuybackDelegate is ERC165, JBOperatable, IJBBuybackDelegate {
         if (_quoteExists && _exactSwapAmountOut < _minimumSwapAmountOut) revert JuiceBuyback_MaximumSlippage();
 
         // Get a reference to any amount of tokens paid in remaining in this contract.
-        uint256 _terminalTokenInThisContract = _data.forwardedAmount.token == JBTokens.ETH
+        uint256 _terminalTokenInThisContract = _data.forwardedAmount.token == JBConstants.NATIVE_TOKEN
             ? address(this).balance
             : IERC20(_data.forwardedAmount.token).balanceOf(address(this));
 
@@ -290,13 +290,13 @@ contract JBBuybackDelegate is ERC165, JBOperatable, IJBBuybackDelegate {
             _partialMintTokenCount = mulDiv(_terminalTokenInThisContract, _weight, 10 ** _data.amount.decimals);
 
             // If the token paid in wasn't ETH, give the terminal permission to pull them back into its balance.
-            if (_data.forwardedAmount.token != JBTokens.ETH) {
+            if (_data.forwardedAmount.token != JBConstants.NATIVE_TOKEN) {
                 IERC20(_data.forwardedAmount.token).approve(msg.sender, _terminalTokenInThisContract);
             }
 
             // Add the paid amount back to the project's terminal balance.
-            IJBPayoutRedemptionPaymentTerminal3_1_1(msg.sender).addToBalanceOf{
-                value: _data.forwardedAmount.token == JBTokens.ETH ? _terminalTokenInThisContract : 0
+            IJBMultiTerminal(msg.sender).addToBalanceOf{
+                value: _data.forwardedAmount.token == JBConstants.NATIVE_TOKEN ? _terminalTokenInThisContract : 0
             }(_data.projectId, _terminalTokenInThisContract, _data.forwardedAmount.token, "", "");
 
             emit BuybackDelegate_Mint(_data.projectId, _terminalTokenInThisContract, _partialMintTokenCount, msg.sender);
@@ -328,7 +328,7 @@ contract JBBuybackDelegate is ERC165, JBOperatable, IJBBuybackDelegate {
         (uint256 _projectId, address _terminalToken) = abi.decode(_data, (uint256, address));
 
         // Get the terminal token, using WETH if the token paid in is ETH.
-        address _terminalTokenWithWETH = _terminalToken == JBTokens.ETH ? address(WETH) : _terminalToken;
+        address _terminalTokenWithWETH = _terminalToken == JBConstants.NATIVE_TOKEN ? address(WETH) : _terminalToken;
 
         // Make sure this call is being made from within the swap execution.
         if (msg.sender != address(poolOf[_projectId][_terminalTokenWithWETH])) revert JuiceBuyback_Unauthorized();
@@ -337,7 +337,7 @@ contract JBBuybackDelegate is ERC165, JBOperatable, IJBBuybackDelegate {
         uint256 _amountToSendToPool = _amount0Delta < 0 ? uint256(_amount1Delta) : uint256(_amount0Delta);
 
         // Wrap ETH into WETH if relevant (do not rely on ETH delegate balance to support pure WETH terminals)
-        if (_terminalToken == JBTokens.ETH) WETH.deposit{value: _amountToSendToPool}();
+        if (_terminalToken == JBConstants.NATIVE_TOKEN) WETH.deposit{value: _amountToSendToPool}();
 
         // Transfer the token to the pool.
         IERC20(_terminalTokenWithWETH).transfer(msg.sender, _amountToSendToPool);
@@ -354,7 +354,7 @@ contract JBBuybackDelegate is ERC165, JBOperatable, IJBBuybackDelegate {
     /// @return newPool The pool that was created.
     function setPoolFor(uint256 _projectId, uint24 _fee, uint32 _twapWindow, uint256 _twapSlippageTolerance, address _terminalToken)
         external
-        requirePermission(PROJECTS.ownerOf(_projectId), _projectId, JBBuybackDelegateOperations.CHANGE_POOL)
+        requirePermission(PROJECTS.ownerOf(_projectId), _projectId, JBBuybackHookPermissionIds.CHANGE_POOL)
         returns (IUniswapV3Pool newPool)
     {
         // Make sure the provided delta is within sane bounds.
@@ -370,7 +370,7 @@ contract JBBuybackDelegate is ERC165, JBOperatable, IJBBuybackDelegate {
         if (_projectToken == address(0)) revert JuiceBuyback_NoProjectToken();
 
         // If the terminal token specified in ETH, use WETH instead.
-        if (_terminalToken == JBTokens.ETH) _terminalToken = address(WETH);
+        if (_terminalToken == JBConstants.NATIVE_TOKEN) _terminalToken = address(WETH);
 
         // Keep a reference to a flag indicating if the pool will reference the project token as the first in the pair.
         bool _projectTokenIs0 = address(_projectToken) < _terminalToken;
@@ -421,7 +421,7 @@ contract JBBuybackDelegate is ERC165, JBOperatable, IJBBuybackDelegate {
     /// @param _newWindow The new TWAP period.
     function setTwapWindowOf(uint256 _projectId, uint32 _newWindow)
         external
-        requirePermission(PROJECTS.ownerOf(_projectId), _projectId, JBBuybackDelegateOperations.SET_POOL_PARAMS)
+        requirePermission(PROJECTS.ownerOf(_projectId), _projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
     {
         // Make sure the provided period is within sane bounds.
         if (_newWindow < MIN_TWAP_WINDOW || _newWindow > MAX_TWAP_WINDOW) {
@@ -446,7 +446,7 @@ contract JBBuybackDelegate is ERC165, JBOperatable, IJBBuybackDelegate {
     /// @param _newSlippageTolerance the new delta, out of SLIPPAGE_DENOMINATOR.
     function setTwapSlippageToleranceOf(uint256 _projectId, uint256 _newSlippageTolerance)
         external
-        requirePermission(PROJECTS.ownerOf(_projectId), _projectId, JBBuybackDelegateOperations.SET_POOL_PARAMS)
+        requirePermission(PROJECTS.ownerOf(_projectId), _projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
     {
         // Make sure the provided delta is within sane bounds.
         if (_newSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || _newSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE) revert JuiceBuyback_InvalidTwapSlippageTolerance();
@@ -515,14 +515,14 @@ contract JBBuybackDelegate is ERC165, JBOperatable, IJBBuybackDelegate {
     /// @param _projectTokenIs0 A flag indicating if the pool will reference the project token as the first in the pair.
     /// @return amountReceived The amount of tokens received from the swap.
     function _swap(
-        JBDidPayData3_1_1 calldata _data,
+        JBDidPayData calldata _data,
         bool _projectTokenIs0
     ) internal returns (uint256 amountReceived) {
         // The amount of tokens that are being used with which to make the swap.
         uint256 _amountToSwapWith = _data.forwardedAmount.value;
 
         // Get the terminal token, using WETH if the token paid in is ETH.
-        address _terminalTokenWithWETH = _data.forwardedAmount.token == JBTokens.ETH ? address(WETH) : _data.forwardedAmount.token;
+        address _terminalTokenWithWETH = _data.forwardedAmount.token == JBConstants.NATIVE_TOKEN ? address(WETH) : _data.forwardedAmount.token;
 
         // Get a reference to the pool that'll be used to make the swap.
         IUniswapV3Pool _pool = poolOf[_data.projectId][_terminalTokenWithWETH];

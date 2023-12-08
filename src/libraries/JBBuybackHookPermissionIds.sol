@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/// @title JBBuybackDelegateOperations
-/// @notice JB specific operation indexes for the JBBuybackDelegate
-library JBBuybackDelegateOperations {
+/// @title JBBuybackHookPermissionIds
+/// @notice JB specific operation indexes for the JBBuybackHook
+library JBBuybackHookPermissionIds {
     // [0..18] - JBOperations
     // 19 - JBOperations2 (ENS/Handle)
     // 20 - JBUriOperations (Set token URI)

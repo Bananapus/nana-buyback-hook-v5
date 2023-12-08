@@ -3,18 +3,18 @@ pragma solidity ^0.8.16;
 
 import "./helpers/TestBaseWorkflowV3.sol";
 
-import {JBTokens} from "@jbx-protocol/juice-contracts-v3/contracts/libraries/JBTokens.sol";
+import {JBConstants} from "@juicebox/libraries/JBConstants.sol";
 import {JBDelegateMetadataHelper} from "@jbx-protocol/juice-delegate-metadata-lib/src/JBDelegateMetadataHelper.sol";
 import {PoolTestHelper} from "@exhausted-pigeon/uniswap-v3-foundry-pool/src/PoolTestHelper.sol";
 
 
 /**
- * @notice Invariant tests for the JBBuybackDelegate contract.
+ * @notice Invariant tests for the JBBuybackHook contract.
  *
  * @dev    Invariant tested:
  *          - BBD1: totalSupply after pay == total supply before pay + (amountIn * weight / 10^18)
  */
-contract TestJBBuybackDelegate_Invariant is TestBaseWorkflowV3, PoolTestHelper {
+contract TestJBBuybackHook_Invariant is TestBaseWorkflowV3, PoolTestHelper {
 
     BBDHandler handler;
     JBDelegateMetadataHelper _metadataHelper = new JBDelegateMetadataHelper();
@@ -52,7 +52,7 @@ contract BBDHandler is Test {
     JBDelegateMetadataHelper immutable metadataHelper;
     JBETHPaymentTerminal3_1_1 immutable jbETHPaymentTerminal;
     IUniswapV3Pool immutable pool;
-    IJBBuybackDelegate immutable delegate;
+    IJBBuybackHook immutable delegate;
     uint256 immutable projectId;
 
     address public _beneficiary;
@@ -70,7 +70,7 @@ contract BBDHandler is Test {
         JBETHPaymentTerminal3_1_1 _terminal, 
         uint256 _projectId, 
         IUniswapV3Pool _pool,
-        IJBBuybackDelegate _delegate
+        IJBBuybackHook _delegate
     ) {
         metadataHelper = new JBDelegateMetadataHelper();
 
@@ -85,7 +85,7 @@ contract BBDHandler is Test {
     function trigger_pay(uint256 _amountIn) public {
         _amountIn = bound(_amountIn, 0, 10000 ether);
 
-        // bool zeroForOne = jbETHPaymentTerminal.token() > address(JBTokens.ETH);
+        // bool zeroForOne = jbETHPaymentTerminal.token() > address(JBConstants.NATIVE_TOKEN);
 
         // vm.mockCall(
         //     address(pool),
@@ -98,7 +98,7 @@ contract BBDHandler is Test {
         //             zeroForOne
         //                 ? TickMath.MIN_SQRT_RATIO + 1
         //                 : TickMath.MAX_SQRT_RATIO - 1,
-        //             abi.encode(projectId, JBTokens.ETH)
+        //             abi.encode(projectId, JBConstants.NATIVE_TOKEN)
         //         )
         //     ),
         //     abi.encode(0, 0)

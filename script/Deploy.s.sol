@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Script.sol";
 
-import "../JBBuybackDelegate.sol";
+import "../JBBuybackHook.sol";
 
 contract DeployGeneric is Script {
     uint256 _chainId = block.chainid;
@@ -20,7 +20,7 @@ contract DeployGeneric is Script {
     address _factory;
 
     IJBDirectory _directory;
-    IJBController3_1 _controller;
+    IJBController _controller;
 
     bytes4 constant _delegateId = bytes4("BUYB");
 
@@ -52,7 +52,7 @@ contract DeployGeneric is Script {
             )
         );
 
-        _controller = IJBController3_1(
+        _controller = IJBController(
             stdJson.readAddress(
                 vm.readFile(
                     string.concat(
@@ -76,7 +76,7 @@ contract DeployGeneric is Script {
         console.log(address(_controller));
 
         vm.startBroadcast();
-        JBBuybackDelegate _delegate = new JBBuybackDelegate(
+        JBBuybackHook _delegate = new JBBuybackHook(
             _weth,
             _factory,
             _directory,
