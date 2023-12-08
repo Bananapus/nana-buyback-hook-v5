@@ -1,4 +1,5 @@
 [profile.default]
+solc = '0.8.20'
 fs_permissions = [{ access = "read", path = "./node_modules/@jbx-protocol/juice-contracts-v3/deployments/"}] # Get the deployment addresses for forking
 
 [invariant] 
