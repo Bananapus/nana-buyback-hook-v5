@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.16;
 
-import "../interfaces/external/IWETH9.sol";
+import "src/interfaces/external/IWETH9.sol";
 import "./helpers/TestBaseWorkflowV3.sol";
 
-import {MetadataResolverHelper} from "@jbx-protocol/juice-delegate-metadata-lib/src/MetadataResolverHelper.sol";
+import {MetadataResolverHelper} from "lib/juice-contracts-v4/test/helpers/MetadataResolverHelper.sol";
 
-import "@paulrberg/contracts/math/PRBMath.sol";
 import "lib/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import "lib/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import "lib/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
@@ -14,9 +13,9 @@ import "lib/v3-core/contracts/libraries/TickMath.sol";
 
 import "@exhausted-pigeon/uniswap-v3-forge-quoter/src/UniswapV3ForgeQuoter.sol";
 
-import "../JBBuybackHook.sol";
+import "src/JBBuybackHook.sol";
 
-import {mulDiv18} from "lib/prb-math/src/Common.sol";
+import {mulDiv, mulDiv18} from "lib/prb-math/src/Common.sol";
 
 /**
  * @notice Buyback fork integration tests, using $jbx v3
@@ -562,7 +561,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
             new bytes(0)
         );
 
-        uint256 expectedTokenCount = PRBMath.mulDiv(_amountIn, amountOutQuoted + 1, 10 ** 18);
+        uint256 expectedTokenCount = mulDiv(_amountIn, amountOutQuoted + 1, 10 ** 18);
 
         uint256 _balAfterPayment = jbx.balanceOf(beneficiary);
         uint256 _diff = _balAfterPayment - _balBeforePayment;

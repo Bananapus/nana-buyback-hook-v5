@@ -4,7 +4,7 @@ pragma solidity ^0.8.16;
 import "./helpers/TestBaseWorkflowV3.sol";
 
 import {JBConstants} from "lib/juice-contracts-v4/src/libraries/JBConstants.sol";
-import {MetadataResolverHelper} from "@jbx-protocol/juice-delegate-metadata-lib/src/MetadataResolverHelper.sol";
+import {MetadataResolverHelper} from "lib/juice-contracts-v4/test/helpers/MetadataResolverHelper.sol";
 import {PoolTestHelper} from "@exhausted-pigeon/uniswap-v3-foundry-pool/src/PoolTestHelper.sol";
 
 /**
