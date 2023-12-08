@@ -282,7 +282,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             uint256 _amountToMintWith,
             uint256 _minimumSwapAmountOut,
             uint256 _weight
-        ) = abi.decode(_data.dataSourceMetadata, (bool, bool, uint256, uint256, uint256));
+        ) = abi.decode(_data.hookMetadata, (bool, bool, uint256, uint256, uint256));
 
         // Get a reference to the amount of tokens that was swapped for.
         uint256 _exactSwapAmountOut = _swap(_data, _projectTokenIs0);
@@ -378,7 +378,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         address _terminalToken
     )
         external
-        requirePermission(PROJECTS.ownerOf(_projectId), _projectId, JBBuybackHookPermissionIds.CHANGE_POOL)
+        _requirePermission(PROJECTS.ownerOf(_projectId), _projectId, JBBuybackHookPermissionIds.CHANGE_POOL)
         returns (IUniswapV3Pool newPool)
     {
         // Make sure the provided delta is within sane bounds.
@@ -452,7 +452,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         uint32 _newWindow
     )
         external
-        requirePermission(PROJECTS.ownerOf(_projectId), _projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
+        _requirePermission(PROJECTS.ownerOf(_projectId), _projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
     {
         // Make sure the provided period is within sane bounds.
         if (_newWindow < MIN_TWAP_WINDOW || _newWindow > MAX_TWAP_WINDOW) {
@@ -480,7 +480,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         uint256 _newSlippageTolerance
     )
         external
-        requirePermission(PROJECTS.ownerOf(_projectId), _projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
+        _requirePermission(PROJECTS.ownerOf(_projectId), _projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
     {
         // Make sure the provided delta is within sane bounds.
         if (_newSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || _newSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE)

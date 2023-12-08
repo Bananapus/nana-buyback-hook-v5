@@ -56,7 +56,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
     IJBSplits jbSplits;
     IJBMultiTerminal jbEthPaymentTerminal;
     IJBSingleTokenPaymentTerminal terminal;
-    IJBSingleTokenPaymentTerminalStore jbTerminalStore;
+    IJBTerminalStore jbTerminalStore;
     IJBController jbController;
     IJBTokens jbTokens;
     IJBPermissions jbPermissions;
@@ -64,7 +64,6 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
     MetadataResolverHelper metadataHelper;
 
     // Structure needed
-    JBProjectMetadata projectMetadata;
     JBRulesetData data;
     JBRulesetMetadata metadata;
     JBFundAccessLimitGroup[] fundAccessConstraints;
@@ -86,22 +85,18 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 
         // Collect the mainnet deployment addresses
         jbDirectory = IJBDirectory(
-            stdJson.readAddress(
-                vm.readFile("node_modules/lib/juice-contracts-v4/src/deployments/mainnet/JBDirectory.json"), ".address"
-            )
+            stdJson.readAddress(vm.readFile("node_modules/lib/juice-contracts-v4/src/deployments/mainnet/JBDirectory.json"), ".address")
         );
 
         jbEthPaymentTerminal = IJBMultiTerminal(
             stdJson.readAddress(
-                vm.readFile("node_modules/lib/juice-contracts-v4/src/deployments/mainnet/JBMultiTerminal.json"),
-                ".address"
+                vm.readFile("node_modules/lib/juice-contracts-v4/src/deployments/mainnet/JBMultiTerminal.json"), ".address"
             )
         );
 
         terminal = IJBSingleTokenPaymentTerminal(
             stdJson.readAddress(
-                vm.readFile("node_modules/lib/juice-contracts-v4/src/deployments/mainnet/JBMultiTerminal.json"),
-                ".address"
+                vm.readFile("node_modules/lib/juice-contracts-v4/src/deployments/mainnet/JBMultiTerminal.json"), ".address"
             )
         );
         vm.label(address(jbEthPaymentTerminal), "JBMultiTerminal");
@@ -113,7 +108,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
         );
         vm.label(address(jbController), "jbController");
 
-        jbTerminalStore = IJBSingleTokenPaymentTerminalStore(0x82129d4109625F94582bDdF6101a8Cd1a27919f5);
+        jbTerminalStore = IJBTerminalStore(0x82129d4109625F94582bDdF6101a8Cd1a27919f5);
         vm.label(address(jbTerminalStore), "jbTerminalStore");
 
         jbTokens = jbController.tokenStore();
@@ -696,8 +691,8 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
                 )
         });
 
-        metadata.useDataSourceForPay = true;
-        metadata.dataSource = _delegate;
+        metadata.useDataHookForPay = true;
+        metadata.dataHook = _delegate;
 
         metadata.reservedRate = _reservedRate;
 

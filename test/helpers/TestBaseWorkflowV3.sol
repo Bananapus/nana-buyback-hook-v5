@@ -31,7 +31,7 @@ import "lib/juice-contracts-v4/src/interfaces/terminal/IJBTerminal.sol";
 import "lib/juice-contracts-v4/src/interfaces/IJBToken.sol";
 import "lib/juice-contracts-v4/src/libraries/JBConstants.sol";
 
-import "lib/juice-contracts-v4/src/interfaces/IJBSingleTokenPaymentTerminalStore.sol";
+import "lib/juice-contracts-v4/src/interfaces/IJBTerminalStore.sol";
 
 import "./AccessJBLib.sol";
 import "src/interfaces/external/IWETH9.sol";
@@ -195,27 +195,21 @@ contract TestBaseWorkflowV3 is Test {
         });
 
         _metadata = JBRulesetMetadata({
-            global: JBGlobalFundingCycleMetadata({
-                allowSetTerminals: false,
-                allowSetController: false,
-                pauseTransfers: false
-            }),
             reservedRate: reservedRate,
             redemptionRate: 5000,
-            ballotRedemptionRate: 0,
+            baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
-            pauseDistributions: false,
-            pauseRedeem: false,
-            pauseBurn: false,
-            allowMinting: true,
-            preferClaimedTokenOverride: false,
+            pauseCreditTransfers: false,
+            allowOwnerMinting: false,
             allowTerminalMigration: false,
+            allowSetTerminals: false,
             allowControllerMigration: false,
+            allowSetController: false,
             holdFees: false,
-            useTotalOverflowForRedemptions: false,
-            useDataSourceForPay: true,
-            useDataSourceForRedeem: false,
-            dataSource: address(_delegate),
+            useTotalSurplusForRedemptions: true,
+            useDataHookForPay: true,
+            useDataHookForRedeem: false,
+            dataHook: address(_delegate),
             metadata: 0
         });
 

@@ -4,7 +4,7 @@ pragma solidity ^0.8.16;
 import "src/interfaces/external/IWETH9.sol";
 import "./helpers/TestBaseWorkflowV3.sol";
 
-import "lib/juice-contracts-v4/src/src/interfaces/IJBController.sol";
+import "lib/juice-contracts-v4/src/interfaces/IJBController.sol";
 import "lib/juice-contracts-v4/src/interfaces/IJBDirectory.sol";
 import "lib/juice-contracts-v4/src/interfaces/IJBRedeemHook.sol";
 import "lib/juice-contracts-v4/src/libraries/JBConstants.sol";
@@ -17,8 +17,8 @@ import "lib/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import "forge-std/Test.sol";
 
 import "./helpers/PoolAddress.sol";
-import "../JBBuybackHook.sol";
-import "../libraries/JBBuybackHookPermissionIds.sol";
+import "src/JBBuybackHook.sol";
+import "src/libraries/JBBuybackHookPermissionIds.sol";
 
 /**
  * @notice Unit tests for the JBBuybackHook contract.
@@ -82,7 +82,7 @@ contract TestJBBuybackHook_Units is Test {
         payer: dude,
         amount: JBTokenAmount({token: address(weth), value: 1 ether, decimals: 18, currency: 1}),
         projectId: projectId,
-        currentFundingCycleConfiguration: 0,
+        rulesetId: 0,
         beneficiary: dude,
         weight: 69,
         reservedRate: 0,
@@ -93,14 +93,14 @@ contract TestJBBuybackHook_Units is Test {
     JBDidPayData didPayData = JBDidPayData({
         payer: dude,
         projectId: projectId,
-        currentFundingCycleConfiguration: 0,
+        rulesetId: 0,
         amount: JBTokenAmount({token: JBConstants.NATIVE_TOKEN, value: 1 ether, decimals: 18, currency: 1}),
         forwardedAmount: JBTokenAmount({token: JBConstants.NATIVE_TOKEN, value: 1 ether, decimals: 18, currency: 1}),
         projectTokenCount: 69,
         beneficiary: dude,
         preferClaimedTokens: true,
         memo: "myMemo",
-        dataSourceMetadata: "",
+        hookMetadata: "",
         payerMetadata: ""
     });
 
@@ -383,7 +383,7 @@ contract TestJBBuybackHook_Units is Test {
         _twapQuote = bound(_twapQuote, _tokenCount + 1, type(uint256).max);
 
         // The metadata coming from payParams(..)
-        didPayData.dataSourceMetadata = abi.encode(
+        didPayData.hookMetadata = abi.encode(
             true, // use quote
             address(projectToken) < address(weth),
             0,
@@ -474,7 +474,7 @@ contract TestJBBuybackHook_Units is Test {
         _twapQuote = bound(_twapQuote, _tokenCount + 1, type(uint256).max);
 
         // The metadata coming from payParams(..)
-        didPayData.dataSourceMetadata = abi.encode(
+        didPayData.hookMetadata = abi.encode(
             true, // use quote
             address(projectToken) < address(weth),
             0,
@@ -573,7 +573,7 @@ contract TestJBBuybackHook_Units is Test {
         didPayData.projectId = randomId;
 
         // The metadata coming from payParams(..)
-        didPayData.dataSourceMetadata = abi.encode(
+        didPayData.hookMetadata = abi.encode(
             true, // use quote
             address(projectToken) < address(weth),
             0,
@@ -676,7 +676,7 @@ contract TestJBBuybackHook_Units is Test {
         _tokenCount = bound(_tokenCount, 1, type(uint256).max - 1);
 
         // The metadata coming from payParams(..)
-        didPayData.dataSourceMetadata = abi.encode(
+        didPayData.hookMetadata = abi.encode(
             true, // use quote
             address(projectToken) < address(weth),
             0,
@@ -754,7 +754,7 @@ contract TestJBBuybackHook_Units is Test {
         );
 
         // The metadata coming from payParams(..)
-        didPayData.dataSourceMetadata = abi.encode(
+        didPayData.hookMetadata = abi.encode(
             false, // use quote
             address(otherRandomProjectToken) < address(randomTerminalToken),
             _extraMint, // extra amount to mint with
@@ -899,7 +899,7 @@ contract TestJBBuybackHook_Units is Test {
             JBTokenAmount({token: JBConstants.NATIVE_TOKEN, value: _tokenCount, decimals: _decimals, currency: 1});
 
         // The metadata coming from payParams(..)
-        didPayData.dataSourceMetadata = abi.encode(
+        didPayData.hookMetadata = abi.encode(
             false, // use quote
             address(projectToken) < address(weth),
             _extraMint,
@@ -1524,7 +1524,7 @@ contract TestJBBuybackHook_Units is Test {
             terminal: IJBTerminal(makeAddr("terminal")),
             holder: makeAddr("hooldooor"),
             projectId: 69,
-            currentFundingCycleConfiguration: 420,
+            rulesetId: 420,
             tokenCount: 4,
             totalSupply: 5,
             overflow: 6,
