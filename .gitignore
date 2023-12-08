@@ -6,4 +6,5 @@ cache
 node_modules
 out/
 lib/forge-std/
-broadcast/
+broadcast/*
+.gas-snapshot
