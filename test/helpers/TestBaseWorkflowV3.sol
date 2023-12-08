@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.16;
 
-import "forge-std/Test.sol";
+import "lib/forge-std/src/Test.sol";
 
 import "lib/juice-contracts-v4/src/JBController.sol";
 import "lib/juice-contracts-v4/src/JBDirectory.sol";
@@ -18,14 +18,13 @@ import "lib/juice-contracts-v4/src/JBTokens.sol";
 import "lib/juice-contracts-v4/src/structs/JBDidPayData.sol";
 import "lib/juice-contracts-v4/src/structs/JBDidRedeemData.sol";
 import "lib/juice-contracts-v4/src/structs/JBFee.sol";
-import "lib/juice-contracts-v4/src/structs/JBFundAccessConstraints.sol";
-import "lib/juice-contracts-v4/src/structs/JBFundingCycle.sol";
-import "lib/juice-contracts-v4/src/structs/JBFundingCycleData.sol";
-import "lib/juice-contracts-v4/src/structs/JBFundingCycleMetadata.sol";
-import "lib/juice-contracts-v4/src/structs/JBGroupedSplits.sol";
-import "lib/juice-contracts-v4/src/structs/JBOperatorData.sol";
+import "lib/juice-contracts-v4/src/structs/JBFundAccessLimitGroup.sol";
+import "lib/juice-contracts-v4/src/structs/JBRuleset.sol";
+import "lib/juice-contracts-v4/src/structs/JBRulesetData.sol";
+import "lib/juice-contracts-v4/src/structs/JBRulesetMetadata.sol";
+import "lib/juice-contracts-v4/src/structs/JBSplitGroup.sol";
+import "lib/juice-contracts-v4/src/structs/JBPermissionsData.sol";
 import "lib/juice-contracts-v4/src/structs/JBPayParamsData.sol";
-import "lib/juice-contracts-v4/src/structs/JBProjectMetadata.sol";
 import "lib/juice-contracts-v4/src/structs/JBRedeemParamsData.sol";
 import "lib/juice-contracts-v4/src/structs/JBSplit.sol";
 import "lib/juice-contracts-v4/src/interfaces/terminal/IJBTerminal.sol";
@@ -34,11 +33,9 @@ import "lib/juice-contracts-v4/src/libraries/JBConstants.sol";
 
 import "lib/juice-contracts-v4/src/interfaces/IJBSingleTokenPaymentTerminalStore.sol";
 
-import "@paulrberg/contracts/math/PRBMath.sol";
-
 import "./AccessJBLib.sol";
-import "../../interfaces/external/IWETH9.sol";
-import "../../JBBuybackHook.sol";
+import "src/interfaces/external/IWETH9.sol";
+import "src/JBBuybackHook.sol";
 
 // Base contract for Juicebox system tests.
 //
@@ -75,12 +72,11 @@ contract TestBaseWorkflowV3 is Test {
     uint32 cardinality = 1000;
     uint256 twapDelta = 500;
 
-    JBProjectMetadata _projectMetadata;
-    JBFundingCycleData _data;
-    JBFundingCycleData _dataReconfiguration;
-    JBFundingCycleData _dataWithoutBallot;
-    JBFundingCycleMetadata _metadata;
-    JBFundAccessConstraints[] _fundAccessConstraints; // Default empty
+    JBRulesetData _data;
+    JBRulesetData _dataReconfiguration;
+    JBRulesetData _dataWithoutBallot;
+    JBRulesetMetadata _metadata;
+    JBFundAccessLimitGroup[] _fundAccessConstraints; // Default empty
     IJBTerminal[] _terminals; // Default empty
 
     // Use the L1 UniswapV3Pool jbx/eth 1% fee for create2 magic
@@ -153,13 +149,7 @@ contract TestBaseWorkflowV3 is Test {
 
         // JBController
         _jbController = new JBController(
-            _jbPermissions,
-            _jbProjects,
-            _jbDirectory,
-            _jbRulesets,
-            _jbTokens,
-            _jbSplits,
-            _fundAccessConstraintsStore
+            _jbPermissions, _jbProjects, _jbDirectory, _jbRulesets, _jbTokens, _jbSplits, _fundAccessConstraintsStore
         );
         vm.label(address(_jbController), "JBController");
 
@@ -167,8 +157,7 @@ contract TestBaseWorkflowV3 is Test {
         _jbDirectory.setIsAllowedToSetFirstController(address(_jbController), true);
 
         // JBETHPaymentTerminalStore
-        _jbPaymentTerminalStore =
-            new JBTerminalStore(_jbDirectory, _jbRulesets, _jbPrices);
+        _jbPaymentTerminalStore = new JBTerminalStore(_jbDirectory, _jbRulesets, _jbPrices);
         vm.label(address(_jbPaymentTerminalStore), "JBSingleTokenPaymentTerminalStore");
 
         // AccessJBLib
@@ -196,16 +185,16 @@ contract TestBaseWorkflowV3 is Test {
             _delegateId: bytes4(hex"69")
         });
 
-        _projectMetadata = JBProjectMetadata({content: "myIPFSHash", domain: 1});
+        _projectMetadata = "myIPFSHash";
 
-        _data = JBFundingCycleData({
+        _data = JBRulesetData({
             duration: 6 days,
             weight: weight,
             discountRate: 0,
             ballot: IJBFundingCycleBallot(address(0))
         });
 
-        _metadata = JBFundingCycleMetadata({
+        _metadata = JBRulesetMetadata({
             global: JBGlobalFundingCycleMetadata({
                 allowSetTerminals: false,
                 allowSetController: false,
@@ -231,7 +220,7 @@ contract TestBaseWorkflowV3 is Test {
         });
 
         _fundAccessConstraints.push(
-            JBFundAccessConstraints({
+            JBFundAccessLimitGroup({
                 terminal: _jbETHPaymentTerminal,
                 token: jbLibraries().ETHToken(),
                 distributionLimit: 2 ether,
@@ -243,7 +232,7 @@ contract TestBaseWorkflowV3 is Test {
 
         _terminals = [_jbETHPaymentTerminal];
 
-        JBGroupedSplits[] memory _groupedSplits = new JBGroupedSplits[](1); // Default empty
+        JBSplitGroup[] memory _groupedSplits = new JBSplitGroup[](1); // Default empty
 
         _projectId = _jbController.launchProjectFor(
             _multisig,

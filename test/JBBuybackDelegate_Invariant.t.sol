@@ -5,7 +5,7 @@ import "./helpers/TestBaseWorkflowV3.sol";
 
 import {JBConstants} from "lib/juice-contracts-v4/src/libraries/JBConstants.sol";
 import {MetadataResolverHelper} from "lib/juice-contracts-v4/test/helpers/MetadataResolverHelper.sol";
-import {PoolTestHelper} from "@exhausted-pigeon/uniswap-v3-foundry-pool/src/PoolTestHelper.sol";
+import {PoolTestHelper} from "lib/uniswap-v3-foundry-pool/src/PoolTestHelper.sol";
 
 /**
  * @notice Invariant tests for the JBBuybackHook contract.
@@ -72,12 +72,7 @@ contract BBDHandler is Test {
         _;
     }
 
-    constructor(
-        JBMultiTerminal _terminal,
-        uint256 _projectId,
-        IUniswapV3Pool _pool,
-        IJBBuybackHook _delegate
-    ) {
+    constructor(JBMultiTerminal _terminal, uint256 _projectId, IUniswapV3Pool _pool, IJBBuybackHook _delegate) {
         metadataHelper = new MetadataResolverHelper();
 
         jbETHPaymentTerminal = _terminal;

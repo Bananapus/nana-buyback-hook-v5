@@ -11,7 +11,7 @@ import "lib/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import "lib/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import "lib/v3-core/contracts/libraries/TickMath.sol";
 
-import "@exhausted-pigeon/uniswap-v3-forge-quoter/src/UniswapV3ForgeQuoter.sol";
+import "lib/uniswap-v3-foundry-quote/src/UniswapV3ForgeQuoter.sol";
 
 import "src/JBBuybackHook.sol";
 
@@ -21,7 +21,7 @@ import {mulDiv, mulDiv18} from "lib/prb-math/src/Common.sol";
  * @notice Buyback fork integration tests, using $jbx v3
  */
 contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
-    using JBFundingCycleMetadataResolver for JBFundingCycle;
+    using JBFundingCycleMetadataResolver for JBRuleset;
 
     event BuybackDelegate_Swap(
         uint256 indexed projectId, uint256 amountIn, IUniswapV3Pool pool, uint256 amountOut, address caller
@@ -65,11 +65,11 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 
     // Structure needed
     JBProjectMetadata projectMetadata;
-    JBFundingCycleData data;
-    JBFundingCycleMetadata metadata;
-    JBFundAccessConstraints[] fundAccessConstraints;
+    JBRulesetData data;
+    JBRulesetMetadata metadata;
+    JBFundAccessLimitGroup[] fundAccessConstraints;
     IJBTerminal[] terminals;
-    JBGroupedSplits[] groupedSplits;
+    JBSplitGroup[] groupedSplits;
 
     // Target contract
     JBBuybackHook delegate;
@@ -86,18 +86,22 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 
         // Collect the mainnet deployment addresses
         jbDirectory = IJBDirectory(
-            stdJson.readAddress(vm.readFile("node_modules/lib/juice-contracts-v4/src/deployments/mainnet/JBDirectory.json"), ".address")
+            stdJson.readAddress(
+                vm.readFile("node_modules/lib/juice-contracts-v4/src/deployments/mainnet/JBDirectory.json"), ".address"
+            )
         );
 
         jbEthPaymentTerminal = IJBMultiTerminal(
             stdJson.readAddress(
-                vm.readFile("node_modules/lib/juice-contracts-v4/src/deployments/mainnet/JBMultiTerminal.json"), ".address"
+                vm.readFile("node_modules/lib/juice-contracts-v4/src/deployments/mainnet/JBMultiTerminal.json"),
+                ".address"
             )
         );
 
         terminal = IJBSingleTokenPaymentTerminal(
             stdJson.readAddress(
-                vm.readFile("node_modules/lib/juice-contracts-v4/src/deployments/mainnet/JBMultiTerminal.json"), ".address"
+                vm.readFile("node_modules/lib/juice-contracts-v4/src/deployments/mainnet/JBMultiTerminal.json"),
+                ".address"
             )
         );
         vm.label(address(jbEthPaymentTerminal), "JBMultiTerminal");
@@ -678,11 +682,11 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
     function _reconfigure(uint256 _projectId, address _delegate, uint256 _weight, uint256 _reservedRate) internal {
         address _projectOwner = jbProjects.ownerOf(_projectId);
 
-        JBFundingCycle memory _fundingCycle = jbRulesets.currentOf(_projectId);
+        JBRuleset memory _fundingCycle = jbRulesets.currentOf(_projectId);
         metadata = _fundingCycle.expandMetadata();
 
-        JBGroupedSplits[] memory _groupedSplits = new JBGroupedSplits[](1);
-        _groupedSplits[0] = JBGroupedSplits({
+        JBSplitGroup[] memory _groupedSplits = new JBSplitGroup[](1);
+        _groupedSplits[0] = JBSplitGroup({
             group: 1,
             splits: jbSplits.splitsOf(
                 _projectId,
