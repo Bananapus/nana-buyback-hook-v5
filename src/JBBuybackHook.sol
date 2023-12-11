@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
+import {ERC165} from "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165.sol";
+import {IERC165} from "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165.sol";
+import {mulDiv} from "lib/prb-math/src/Common.sol";
+import {TickMath} from "lib/v3-core/contracts/libraries/TickMath.sol";
+import {OracleLibrary} from "lib/v3-periphery/contracts/libraries/OracleLibrary.sol";
+import {IUniswapV3Pool} from "lib/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IJBTerminal} from "lib/juice-contracts-v4/src/interfaces/terminal/IJBTerminal.sol";
 import {IJBMultiTerminal} from "lib/juice-contracts-v4/src/interfaces/terminal/IJBMultiTerminal.sol";
 import {JBDidPayData} from "lib/juice-contracts-v4/src/structs/JBDidPayData.sol";
@@ -17,12 +24,6 @@ import {JBRedeemParamsData} from "lib/juice-contracts-v4/src/structs/JBRedeemPar
 import {JBRedeemHookPayload} from "lib/juice-contracts-v4/src/structs/JBRedeemHookPayload.sol";
 import {JBConstants} from "lib/juice-contracts-v4/src/libraries/JBConstants.sol";
 import {JBMetadataResolver} from "lib/juice-contracts-v4/src/libraries/JBMetadataResolver.sol";
-import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
-import {ERC165, IERC165} from "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165.sol";
-import {mulDiv} from "lib/prb-math/src/Common.sol";
-import {TickMath} from "lib/v3-core/contracts/libraries/TickMath.sol";
-import {OracleLibrary} from "lib/v3-periphery/contracts/libraries/OracleLibrary.sol";
-import {IUniswapV3Pool} from "lib/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {JBBuybackHookPermissionIds} from "./libraries/JBBuybackHookPermissionIds.sol";
 import {IJBBuybackHook} from "./interfaces/IJBBuybackHook.sol";
 import {IWETH9} from "./interfaces/external/IWETH9.sol";
@@ -135,7 +136,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     //*********************************************************************//
 
     /// @notice The DataSource implementation that determines if a swap path and/or a mint path should be taken.
-    /// @param  _data The data passed to the data source in terminal.pay(..). _data.metadata can have a Uniswap quote
+    /// @param  data The data passed to the data source in terminal.pay(..). _data.metadata can have a Uniswap quote
     /// and specify how much of the payment should be used to swap, otherwise a quote will be determined from a TWAP and
     /// use the full amount paid in.
     /// @return weight The weight to use, which is the original weight passed in if no swap path is taken, 0 if only the
@@ -143,121 +144,117 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     /// @return memo the original memo passed
     /// @return delegateAllocations The amount to send to delegates instead of adding to the local balance. This is
     /// empty if only the mint path is taken.
-    function payParams(JBPayParamsData calldata _data)
+    function payParams(JBPayParamsData calldata data)
         external
         view
         override
-        returns (uint256 weight, string memory memo, JBPayHookPayload[] memory delegateAllocations)
+        returns (uint256 weight, JBPayHookPayload[] memory delegateAllocations)
     {
         // Keep a reference to the payment total
-        uint256 _totalPaid = _data.amount.value;
+        uint256 totalPaid = data.amount.value;
 
         // Keep a reference to the weight
-        uint256 _weight = _data.weight;
+        weight = data.weight;
 
         // Keep a reference to the minimum number of tokens expected to be swapped for.
-        uint256 _minimumSwapAmountOut;
+        uint256 minimumSwapAmountOut;
 
         // Keep a reference to the amount from the payment to allocate towards a swap.
-        uint256 _amountToSwapWith;
+        uint256 amountToSwapWith;
 
         // Keep a reference to a flag indicating if the quote passed into the metadata exists.
-        bool _quoteExists;
+        bool quoteExists;
 
         // Scoped section to prevent Stack Too Deep.
         {
-            bytes memory _metadata;
+            bytes memory metadata;
 
             // Unpack the quote from the pool, given by the frontend.
-            (_quoteExists, _metadata) = JBMetadataResolver.getMetadata(DELEGATE_ID, _data.metadata);
-            if (_quoteExists) (_amountToSwapWith, _minimumSwapAmountOut) = abi.decode(_metadata, (uint256, uint256));
+            (quoteExists, metadata) = JBMetadataResolver.getMetadata(DELEGATE_ID, data.metadata);
+            if (quoteExists) (amountToSwapWith, minimumSwapAmountOut) = abi.decode(metadata, (uint256, uint256));
         }
 
         // If no amount was specified to swap with, default to the full amount of the payment.
-        if (_amountToSwapWith == 0) _amountToSwapWith = _totalPaid;
+        if (amountToSwapWith == 0) amountToSwapWith = totalPaid;
 
         // Find the default total number of tokens to mint as if no Buyback Delegate were installed, as a fixed point
         // number with 18 decimals
 
-        uint256 _tokenCountWithoutDelegate = mulDiv(_amountToSwapWith, _weight, 10 ** _data.amount.decimals);
+        uint256 tokenCountWithoutDelegate = mulDiv(amountToSwapWith, weight, 10 ** data.amount.decimals);
 
         // Keep a reference to the project's token.
-        address _projectToken = projectTokenOf[_data.projectId];
+        address projectToken = projectTokenOf[data.projectId];
 
         // Keep a reference to the token being used by the terminal that is calling this delegate. Use weth is ETH.
-        address _terminalToken = _data.amount.token == JBConstants.NATIVE_TOKEN ? address(WETH) : _data.amount.token;
+        address terminalToken = data.amount.token == JBConstants.NATIVE_TOKEN ? address(WETH) : data.amount.token;
 
         // If a minimum amount of tokens to swap for wasn't specified, resolve a value as good as possible using a TWAP.
-        if (_minimumSwapAmountOut == 0) {
-            _minimumSwapAmountOut = _getQuote(_data.projectId, _projectToken, _amountToSwapWith, _terminalToken);
+        if (minimumSwapAmountOut == 0) {
+            minimumSwapAmountOut = _getQuote(data.projectId, projectToken, amountToSwapWith, terminalToken);
         }
 
         // If the minimum amount received from swapping is greather than received when minting, use the swap path.
-        if (_tokenCountWithoutDelegate < _minimumSwapAmountOut) {
+        if (tokenCountWithoutDelegate < minimumSwapAmountOut) {
             // Make sure the amount to swap with is at most the full amount being paid.
-            if (_amountToSwapWith > _totalPaid) revert JuiceBuyback_InsufficientPayAmount();
+            if (amountToSwapWith > totalPaid) revert JuiceBuyback_InsufficientPayAmount();
 
             // Keep a reference to a flag indicating if the pool will reference the project token as the first in the
             // pair.
-            bool _projectTokenIs0 = address(_projectToken) < _terminalToken;
+            bool projectTokenIs0 = address(projectToken) < terminalToken;
 
             // Return this delegate as the one to use, while forwarding the amount to swap with. Speficy metadata that
             // allows the swap to be executed.
             delegateAllocations = new JBPayHookPayload[](1);
             delegateAllocations[0] = JBPayHookPayload({
                 delegate: IJBPayHook(this),
-                amount: _amountToSwapWith,
+                amount: amountToSwapWith,
                 metadata: abi.encode(
-                    _quoteExists,
-                    _projectTokenIs0,
-                    _totalPaid == _amountToSwapWith ? 0 : _totalPaid - _amountToSwapWith,
-                    _minimumSwapAmountOut,
-                    _weight
+                    quoteExists,
+                    projectTokenIs0,
+                    totalPaid == amountToSwapWith ? 0 : totalPaid - amountToSwapWith,
+                    minimumSwapAmountOut,
+                    weight
                     )
             });
 
             // All the mint will be done in didPay, return 0 as weight to avoid minting via the terminal
-            return (0, _data.memo, delegateAllocations);
+            return (0, delegateAllocations);
         }
-
-        // If only minting, delegateAllocations is left uninitialised and the full weight is returned for the terminal
-        // to mint.
-        return (_data.weight, _data.memo, delegateAllocations);
     }
 
     /// @notice The timeframe to use for the pool TWAP.
-    /// @param  _projectId The ID of the project for which the value applies.
-    /// @return _secondsAgo The period over which the TWAP is computed.
-    function twapWindowOf(uint256 _projectId) external view returns (uint32) {
-        return uint32(_twapParamsOf[_projectId]);
+    /// @param  projectId The ID of the project for which the value applies.
+    /// @return secondsAgo The period over which the TWAP is computed.
+    function twapWindowOf(uint256 projectId) external view returns (uint32) {
+        return uint32(_twapParamsOf[projectId]);
     }
 
     /// @notice The TWAP max deviation acepted, out of SLIPPAGE_DENOMINATOR.
-    /// @param  _projectId The ID of the project for which the value applies.
-    /// @return _delta the maximum deviation allowed between the token amount received and the TWAP quote.
-    function twapSlippageToleranceOf(uint256 _projectId) external view returns (uint256) {
-        return _twapParamsOf[_projectId] >> 128;
+    /// @param  projectId The ID of the project for which the value applies.
+    /// @return delta the maximum deviation allowed between the token amount received and the TWAP quote.
+    function twapSlippageToleranceOf(uint256 projectId) external view returns (uint256) {
+        return _twapParamsOf[projectId] >> 128;
     }
 
     /// @notice Generic redeem params, for interface completion.
     /// @dev This is a passthrough of the redemption parameters
-    /// @param _data The redeem data passed by the terminal.
-    function redeemParams(JBRedeemParamsData calldata _data)
+    /// @param data The redeem data passed by the terminal.
+    function redeemParams(JBRedeemParamsData calldata data)
         external
         pure
         override
         returns (uint256, string memory, JBRedeemHookPayload[] memory delegateAllocations)
     {
-        return (_data.reclaimAmount.value, _data.memo, delegateAllocations);
+        return (data.reclaimAmount.value, data.memo, delegateAllocations);
     }
 
     //*********************************************************************//
     // -------------------------- public views --------------------------- //
     //*********************************************************************//
 
-    function supportsInterface(bytes4 _interfaceId) public view override(ERC165, IERC165) returns (bool) {
-        return _interfaceId == type(IJBRulesetDataHook).interfaceId || _interfaceId == type(IJBPayHook).interfaceId
-            || _interfaceId == type(IJBBuybackHook).interfaceId || super.supportsInterface(_interfaceId);
+    function supportsInterface(bytes4 interfaceId) public view override(ERC165, IERC165) returns (bool) {
+        return interfaceId == type(IJBRulesetDataHook).interfaceId || interfaceId == type(IJBPayHook).interfaceId
+            || interfaceId == type(IJBBuybackHook).interfaceId || super.supportsInterface(interfaceId);
     }
 
     //*********************************************************************//
@@ -268,138 +265,138 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     /// @dev This delegate is called only if the quote for the swap is bigger than the quote when minting.
     /// If the swap reverts (slippage, liquidity, etc), the delegate will then mint the same amount of token as if the
     /// delegate was not used.
-    /// @param _data The delegate data passed by the terminal.
-    function didPay(JBDidPayData calldata _data) external payable override {
+    /// @param data The delegate data passed by the terminal.
+    function didPay(JBDidPayData calldata data) external payable override {
         // Make sure only a payment terminal belonging to the project can access this functionality.
-        if (!DIRECTORY.isTerminalOf(_data.projectId, IJBTerminal(msg.sender))) {
+        if (!DIRECTORY.isTerminalOf(data.projectId, IJBTerminal(msg.sender))) {
             revert JuiceBuyback_Unauthorized();
         }
 
         // Parse the metadata passed in from the data source.
         (
-            bool _quoteExists,
-            bool _projectTokenIs0,
-            uint256 _amountToMintWith,
-            uint256 _minimumSwapAmountOut,
-            uint256 _weight
-        ) = abi.decode(_data.hookMetadata, (bool, bool, uint256, uint256, uint256));
+            bool quoteExists,
+            bool projectTokenIs0,
+            uint256 amountToMintWith,
+            uint256 minimumSwapAmountOut,
+            uint256 weight
+        ) = abi.decode(data.hookMetadata, (bool, bool, uint256, uint256, uint256));
 
         // Get a reference to the amount of tokens that was swapped for.
-        uint256 _exactSwapAmountOut = _swap(_data, _projectTokenIs0);
+        uint256 exactSwapAmountOut = _swap(data, projectTokenIs0);
 
         // Make sure the slippage is tolerable if passed in via an explicit quote.
-        if (_quoteExists && _exactSwapAmountOut < _minimumSwapAmountOut) revert JuiceBuyback_MaximumSlippage();
+        if (quoteExists && exactSwapAmountOut < minimumSwapAmountOut) revert JuiceBuyback_MaximumSlippage();
 
         // Get a reference to any amount of tokens paid in remaining in this contract.
-        uint256 _terminalTokenInThisContract = _data.forwardedAmount.token == JBConstants.NATIVE_TOKEN
+        uint256 terminalTokenInThisContract = data.forwardedAmount.token == JBConstants.NATIVE_TOKEN
             ? address(this).balance
-            : IERC20(_data.forwardedAmount.token).balanceOf(address(this));
+            : IERC20(data.forwardedAmount.token).balanceOf(address(this));
 
         // Use any leftover amount of tokens paid in remaining to mint.
         // Keep a reference to the number of tokens being minted.
-        uint256 _partialMintTokenCount;
-        if (_terminalTokenInThisContract != 0) {
-            _partialMintTokenCount = mulDiv(_terminalTokenInThisContract, _weight, 10 ** _data.amount.decimals);
+        uint256 partialMintTokenCount;
+        if (terminalTokenInThisContract != 0) {
+            partialMintTokenCount = mulDiv(terminalTokenInThisContract, weight, 10 ** data.amount.decimals);
 
             // If the token paid in wasn't ETH, give the terminal permission to pull them back into its balance.
-            if (_data.forwardedAmount.token != JBConstants.NATIVE_TOKEN) {
-                IERC20(_data.forwardedAmount.token).approve(msg.sender, _terminalTokenInThisContract);
+            if (data.forwardedAmount.token != JBConstants.NATIVE_TOKEN) {
+                IERC20(data.forwardedAmount.token).approve(msg.sender, terminalTokenInThisContract);
             }
 
             // Add the paid amount back to the project's terminal balance.
             IJBMultiTerminal(msg.sender).addToBalanceOf{
-                value: _data.forwardedAmount.token == JBConstants.NATIVE_TOKEN ? _terminalTokenInThisContract : 0
-            }(_data.projectId, _terminalTokenInThisContract, _data.forwardedAmount.token, "", "");
+                value: data.forwardedAmount.token == JBConstants.NATIVE_TOKEN ? terminalTokenInThisContract : 0
+            }(data.projectId, terminalTokenInThisContract, data.forwardedAmount.token, "", "");
 
-            emit BuybackDelegate_Mint(_data.projectId, _terminalTokenInThisContract, _partialMintTokenCount, msg.sender);
+            emit BuybackDelegate_Mint(data.projectId, terminalTokenInThisContract, partialMintTokenCount, msg.sender);
         }
 
         // Add amount to mint to leftover mint amount (avoiding stack too deep here)
-        _partialMintTokenCount += mulDiv(_amountToMintWith, _weight, 10 ** _data.amount.decimals);
+        partialMintTokenCount += mulDiv(amountToMintWith, weight, 10 ** data.amount.decimals);
 
         // Mint the whole amount of tokens again together with the (optional partial mint), such that the correct
         // portion of reserved tokens get taken into account.
         CONTROLLER.mintTokensOf({
-            projectId: _data.projectId,
-            tokenCount: _exactSwapAmountOut + _partialMintTokenCount,
-            beneficiary: address(_data.beneficiary),
-            memo: _data.memo,
-            preferClaimedTokens: _data.preferClaimedTokens,
+            projectId: data.projectId,
+            tokenCount: exactSwapAmountOut + partialMintTokenCount,
+            beneficiary: address(data.beneficiary),
+            memo: data.memo,
+            preferClaimedTokens: data.preferClaimedTokens,
             useReservedRate: true
         });
     }
 
     /// @notice The Uniswap V3 pool callback where the token transfer is expected to happen.
-    /// @param _amount0Delta The amount of token 0 being used for the swap.
-    /// @param _amount1Delta The amount of token 1 being used for the swap.
-    /// @param _data Data passed in by the swap operation.
+    /// @param amount0Delta The amount of token 0 being used for the swap.
+    /// @param amount1Delta The amount of token 1 being used for the swap.
+    /// @param data Data passed in by the swap operation.
     function uniswapV3SwapCallback(
-        int256 _amount0Delta,
-        int256 _amount1Delta,
-        bytes calldata _data
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
     )
         external
         override
     {
         // Unpack the data passed in through the swap hook.
-        (uint256 _projectId, address _terminalToken) = abi.decode(_data, (uint256, address));
+        (uint256 projectId, address terminalToken) = abi.decode(data, (uint256, address));
 
         // Get the terminal token, using WETH if the token paid in is ETH.
-        address _terminalTokenWithWETH = _terminalToken == JBConstants.NATIVE_TOKEN ? address(WETH) : _terminalToken;
+        address terminalTokenWithWETH = terminalToken == JBConstants.NATIVE_TOKEN ? address(WETH) : terminalToken;
 
         // Make sure this call is being made from within the swap execution.
-        if (msg.sender != address(poolOf[_projectId][_terminalTokenWithWETH])) revert JuiceBuyback_Unauthorized();
+        if (msg.sender != address(poolOf[projectId][terminalTokenWithWETH])) revert JuiceBuyback_Unauthorized();
 
         // Keep a reference to the amount of tokens that should be sent to fulfill the swap (the positive delta)
-        uint256 _amountToSendToPool = _amount0Delta < 0 ? uint256(_amount1Delta) : uint256(_amount0Delta);
+        uint256 amountToSendToPool = amount0Delta < 0 ? uint256(amount1Delta) : uint256(amount0Delta);
 
         // Wrap ETH into WETH if relevant (do not rely on ETH delegate balance to support pure WETH terminals)
-        if (_terminalToken == JBConstants.NATIVE_TOKEN) WETH.deposit{value: _amountToSendToPool}();
+        if (terminalToken == JBConstants.NATIVE_TOKEN) WETH.deposit{value: amountToSendToPool}();
 
         // Transfer the token to the pool.
-        IERC20(_terminalTokenWithWETH).transfer(msg.sender, _amountToSendToPool);
+        IERC20(terminalTokenWithWETH).transfer(msg.sender, amountToSendToPool);
     }
 
     /// @notice Add a pool for a given project. This pool the becomes the default for a given token project <-->
     /// terminal token pair.
     /// @dev Uses create2 for callback auth and allows adding a pool not deployed yet.
     /// This can be called by the project owner or an address having the SET_POOL permission in JBPermissions
-    /// @param _projectId The ID of the project having its pool set.
-    /// @param _fee The fee that is used in the pool being set.
-    /// @param _twapWindow The period over which the TWAP is computed.
-    /// @param _twapSlippageTolerance The maximum deviation allowed between amount received and TWAP.
-    /// @param _terminalToken The terminal token that payments are made in.
+    /// @param projectId The ID of the project having its pool set.
+    /// @param fee The fee that is used in the pool being set.
+    /// @param twapWindow The period over which the TWAP is computed.
+    /// @param twapSlippageTolerance The maximum deviation allowed between amount received and TWAP.
+    /// @param terminalToken The terminal token that payments are made in.
     /// @return newPool The pool that was created.
     function setPoolFor(
-        uint256 _projectId,
-        uint24 _fee,
-        uint32 _twapWindow,
-        uint256 _twapSlippageTolerance,
-        address _terminalToken
+        uint256 projectId,
+        uint24 fee,
+        uint32 twapWindow,
+        uint256 twapSlippageTolerance,
+        address terminalToken
     )
         external
-        _requirePermission(PROJECTS.ownerOf(_projectId), _projectId, JBBuybackHookPermissionIds.CHANGE_POOL)
+        _requirePermission(PROJECTS.ownerOf(projectId), projectId, JBBuybackHookPermissionIds.CHANGE_POOL)
         returns (IUniswapV3Pool newPool)
     {
         // Make sure the provided delta is within sane bounds.
         if (
-            _twapSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || _twapSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE
+            twapSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || twapSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE
         ) revert JuiceBuyback_InvalidTwapSlippageTolerance();
 
         // Make sure the provided period is within sane bounds.
-        if (_twapWindow < MIN_TWAP_WINDOW || _twapWindow > MAX_TWAP_WINDOW) revert JuiceBuyback_InvalidTwapWindow();
+        if (twapWindow < MIN_TWAP_WINDOW || twapWindow > MAX_TWAP_WINDOW) revert JuiceBuyback_InvalidTwapWindow();
 
         // Keep a reference to the project's token.
-        address _projectToken = address(CONTROLLER.tokenStore().tokenOf(_projectId));
+        address projectToken = address(CONTROLLER.tokenStore().tokenOf(projectId));
 
         // Make sure the project has issued a token.
-        if (_projectToken == address(0)) revert JuiceBuyback_NoProjectToken();
+        if (projectToken == address(0)) revert JuiceBuyback_NoProjectToken();
 
         // If the terminal token specified in ETH, use WETH instead.
-        if (_terminalToken == JBConstants.NATIVE_TOKEN) _terminalToken = address(WETH);
+        if (terminalToken == JBConstants.NATIVE_TOKEN) terminalToken = address(WETH);
 
         // Keep a reference to a flag indicating if the pool will reference the project token as the first in the pair.
-        bool _projectTokenIs0 = address(_projectToken) < _terminalToken;
+        bool projectTokenIs0 = address(projectToken) < terminalToken;
 
         // Compute the corresponding pool's address, which is a function of both tokens and the specified fee.
         newPool = IUniswapV3Pool(
@@ -412,9 +409,9 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
                                 UNISWAP_V3_FACTORY,
                                 keccak256(
                                     abi.encode(
-                                        _projectTokenIs0 ? _projectToken : _terminalToken,
-                                        _projectTokenIs0 ? _terminalToken : _projectToken,
-                                        _fee
+                                        projectTokenIs0 ? projectToken : terminalToken,
+                                        projectTokenIs0 ? terminalToken : projectToken,
+                                        fee
                                     )
                                 ),
                                 // POOL_INIT_CODE_HASH from
@@ -428,77 +425,77 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         );
 
         // Make sure this pool has yet to be specified in this delegate.
-        if (poolOf[_projectId][_terminalToken] == newPool) revert JuiceBuyback_PoolAlreadySet();
+        if (poolOf[projectId][terminalToken] == newPool) revert JuiceBuyback_PoolAlreadySet();
 
         // Store the pool.
-        poolOf[_projectId][_terminalToken] = newPool;
+        poolOf[projectId][terminalToken] = newPool;
 
         // Store the twap period and max slipage.
-        _twapParamsOf[_projectId] = _twapSlippageTolerance << 128 | _twapWindow;
-        projectTokenOf[_projectId] = address(_projectToken);
+        _twapParamsOf[projectId] = twapSlippageTolerance << 128 | twapWindow;
+        projectTokenOf[projectId] = address(projectToken);
 
-        emit BuybackDelegate_TwapWindowChanged(_projectId, 0, _twapWindow, msg.sender);
-        emit BuybackDelegate_TwapSlippageToleranceChanged(_projectId, 0, _twapSlippageTolerance, msg.sender);
-        emit BuybackDelegate_PoolAdded(_projectId, _terminalToken, address(newPool), msg.sender);
+        emit BuybackDelegate_TwapWindowChanged(projectId, 0, twapWindow, msg.sender);
+        emit BuybackDelegate_TwapSlippageToleranceChanged(projectId, 0, twapSlippageTolerance, msg.sender);
+        emit BuybackDelegate_PoolAdded(projectId, terminalToken, address(newPool), msg.sender);
     }
 
     /// @notice Increase the period over which the TWAP is computed.
     /// @dev This can be called by the project owner or an address having the SET_TWAP_PERIOD permission in
     /// JBPermissions.
-    /// @param _projectId The ID for which the new value applies.
-    /// @param _newWindow The new TWAP period.
+    /// @param projectId The ID for which the new value applies.
+    /// @param newWindow The new TWAP period.
     function setTwapWindowOf(
-        uint256 _projectId,
-        uint32 _newWindow
+        uint256 projectId,
+        uint32 newWindow
     )
         external
-        _requirePermission(PROJECTS.ownerOf(_projectId), _projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
+        _requirePermission(PROJECTS.ownerOf(projectId), projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
     {
         // Make sure the provided period is within sane bounds.
-        if (_newWindow < MIN_TWAP_WINDOW || _newWindow > MAX_TWAP_WINDOW) {
+        if (newWindow < MIN_TWAP_WINDOW || newWindow > MAX_TWAP_WINDOW) {
             revert JuiceBuyback_InvalidTwapWindow();
         }
 
         // Keep a reference to the currently stored TWAP params.
-        uint256 _twapParams = _twapParamsOf[_projectId];
+        uint256 twapParams = _twapParamsOf[projectId];
 
         // Keep a reference to the old window value.
-        uint256 _oldWindow = uint128(_twapParams);
+        uint256 oldWindow = uint128(twapParams);
 
         // Store the new packed value of the TWAP params.
-        _twapParamsOf[_projectId] = uint256(_newWindow) | ((_twapParams >> 128) << 128);
+        _twapParamsOf[projectId] = uint256(newWindow) | ((twapParams >> 128) << 128);
 
-        emit BuybackDelegate_TwapWindowChanged(_projectId, _oldWindow, _newWindow, msg.sender);
+        emit BuybackDelegate_TwapWindowChanged(projectId, oldWindow, newWindow, msg.sender);
     }
 
     /// @notice Set the maximum deviation allowed between amount received and TWAP.
     /// @dev This can be called by the project owner or an address having the SET_POOL permission in JBPermissions.
-    /// @param _projectId The ID for which the new value applies.
-    /// @param _newSlippageTolerance the new delta, out of SLIPPAGE_DENOMINATOR.
+    /// @param projectId The ID for which the new value applies.
+    /// @param newSlippageTolerance the new delta, out of SLIPPAGE_DENOMINATOR.
     function setTwapSlippageToleranceOf(
-        uint256 _projectId,
-        uint256 _newSlippageTolerance
+        uint256 projectId,
+        uint256 newSlippageTolerance
     )
         external
-        _requirePermission(PROJECTS.ownerOf(_projectId), _projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
+        _requirePermission(PROJECTS.ownerOf(projectId), projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
     {
         // Make sure the provided delta is within sane bounds.
-        if (_newSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || _newSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE)
+        if (newSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || newSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE)
         {
             revert JuiceBuyback_InvalidTwapSlippageTolerance();
         }
 
         // Keep a reference to the currently stored TWAP params.
-        uint256 _twapParams = _twapParamsOf[_projectId];
+        uint256 twapParams = _twapParamsOf[projectId];
 
         // Keep a reference to the old slippage value.
-        uint256 _oldSlippageTolerance = _twapParams >> 128;
+        uint256 oldSlippageTolerance = twapParams >> 128;
 
         // Store the new packed value of the TWAP params.
-        _twapParamsOf[_projectId] = _newSlippageTolerance << 128 | ((_twapParams << 128) >> 128);
+        _twapParamsOf[projectId] = newSlippageTolerance << 128 | ((twapParams << 128) >> 128);
 
         emit BuybackDelegate_TwapSlippageToleranceChanged(
-            _projectId, _oldSlippageTolerance, _newSlippageTolerance, msg.sender
+            projectId, oldSlippageTolerance, newSlippageTolerance, msg.sender
         );
     }
 
@@ -507,26 +504,26 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     //*********************************************************************//
 
     /// @notice Get a quote based on TWAP over a secondsAgo period, taking into account a twapDelta max deviation.
-    /// @param _projectId The ID of the project for which the swap is being made.
-    /// @param _projectToken The project's token being swapped for.
-    /// @param _amountIn The amount being used to swap.
-    /// @param _terminalToken The token paid in being used to swap.
+    /// @param projectId The ID of the project for which the swap is being made.
+    /// @param projectToken The project's token being swapped for.
+    /// @param amountIn The amount being used to swap.
+    /// @param terminalToken The token paid in being used to swap.
     /// @return amountOut the minimum amount received according to the TWAP.
     function _getQuote(
-        uint256 _projectId,
-        address _projectToken,
-        uint256 _amountIn,
-        address _terminalToken
+        uint256 projectId,
+        address projectToken,
+        uint256 amountIn,
+        address terminalToken
     )
         internal
         view
         returns (uint256 amountOut)
     {
         // Get a reference to the pool that'll be used to make the swap.
-        IUniswapV3Pool _pool = poolOf[_projectId][address(_terminalToken)];
+        IUniswapV3Pool pool = poolOf[projectId][address(terminalToken)];
 
         // Make sure the pool exists.
-        try _pool.slot0() returns (uint160, int24, uint16, uint16, uint16, uint8, bool unlocked) {
+        try pool.slot0() returns (uint160, int24, uint16, uint16, uint16, uint8, bool unlocked) {
             // If the pool hasn't been initialized, return an empty quote.
             if (!unlocked) return 0;
         } catch {
@@ -535,51 +532,51 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         }
 
         // Unpack the TWAP params and get a reference to the period and slippage.
-        uint256 _twapParams = _twapParamsOf[_projectId];
-        uint32 _quotePeriod = uint32(_twapParams);
-        uint256 _maxDelta = _twapParams >> 128;
+        uint256 twapParams = _twapParamsOf[projectId];
+        uint32 quotePeriod = uint32(twapParams);
+        uint256 maxDelta = twapParams >> 128;
 
         // Keep a reference to the TWAP tick.
-        (int24 arithmeticMeanTick,) = OracleLibrary.consult(address(_pool), _quotePeriod);
+        (int24 arithmeticMeanTick,) = OracleLibrary.consult(address(pool), quotePeriod);
 
         // Get a quote based on this TWAP tick.
         amountOut = OracleLibrary.getQuoteAtTick({
             tick: arithmeticMeanTick,
-            baseAmount: uint128(_amountIn),
-            baseToken: _terminalToken,
-            quoteToken: address(_projectToken)
+            baseAmount: uint128(amountIn),
+            baseToken: terminalToken,
+            quoteToken: address(projectToken)
         });
 
         // Return the lowest TWAP tolerable.
-        amountOut -= (amountOut * _maxDelta) / SLIPPAGE_DENOMINATOR;
+        amountOut -= (amountOut * maxDelta) / SLIPPAGE_DENOMINATOR;
     }
 
     /// @notice Swap the terminal token to receive the project token.
-    /// @param _data The didPayData passed by the terminal.
-    /// @param _projectTokenIs0 A flag indicating if the pool will reference the project token as the first in the pair.
+    /// @param data The didPayData passed by the terminal.
+    /// @param projectTokenIs0 A flag indicating if the pool will reference the project token as the first in the pair.
     /// @return amountReceived The amount of tokens received from the swap.
-    function _swap(JBDidPayData calldata _data, bool _projectTokenIs0) internal returns (uint256 amountReceived) {
+    function _swap(JBDidPayData calldata data, bool projectTokenIs0) internal returns (uint256 amountReceived) {
         // The amount of tokens that are being used with which to make the swap.
-        uint256 _amountToSwapWith = _data.forwardedAmount.value;
+        uint256 amountToSwapWith = data.forwardedAmount.value;
 
         // Get the terminal token, using WETH if the token paid in is ETH.
-        address _terminalTokenWithWETH =
-            _data.forwardedAmount.token == JBConstants.NATIVE_TOKEN ? address(WETH) : _data.forwardedAmount.token;
+        address terminalTokenWithWETH =
+            data.forwardedAmount.token == JBConstants.NATIVE_TOKEN ? address(WETH) : data.forwardedAmount.token;
 
         // Get a reference to the pool that'll be used to make the swap.
-        IUniswapV3Pool _pool = poolOf[_data.projectId][_terminalTokenWithWETH];
+        IUniswapV3Pool pool = poolOf[data.projectId][terminalTokenWithWETH];
 
         // Try swapping.
-        try _pool.swap({
+        try pool.swap({
             recipient: address(this),
-            zeroForOne: !_projectTokenIs0,
-            amountSpecified: int256(_amountToSwapWith),
-            sqrtPriceLimitX96: _projectTokenIs0 ? TickMath.MAX_SQRT_RATIO - 1 : TickMath.MIN_SQRT_RATIO + 1,
-            data: abi.encode(_data.projectId, _data.forwardedAmount.token)
+            zeroForOne: !projectTokenIs0,
+            amountSpecified: int256(amountToSwapWith),
+            sqrtPriceLimitX96: projectTokenIs0 ? TickMath.MAX_SQRT_RATIO - 1 : TickMath.MIN_SQRT_RATIO + 1,
+            data: abi.encode(data.projectId, data.forwardedAmount.token)
         }) returns (int256 amount0, int256 amount1) {
             // If the swap succeded, take note of the amount of tokens received. This will return as negative since it
             // is an exact input.
-            amountReceived = uint256(-(_projectTokenIs0 ? amount0 : amount1));
+            amountReceived = uint256(-(projectTokenIs0 ? amount0 : amount1));
         } catch {
             // If the swap failed, return.
             return 0;
@@ -588,7 +585,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         // Burn the whole amount received.
         CONTROLLER.burnTokensOf({
             holder: address(this),
-            projectId: _data.projectId,
+            projectId: data.projectId,
             tokenCount: amountReceived,
             memo: "",
             preferClaimedTokens: true
@@ -596,6 +593,6 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
 
         // We return the amount we received/burned and we will mint them to the user later
 
-        emit BuybackDelegate_Swap(_data.projectId, _amountToSwapWith, _pool, amountReceived, msg.sender);
+        emit BuybackDelegate_Swap(data.projectId, amountToSwapWith, pool, amountReceived, msg.sender);
     }
 }

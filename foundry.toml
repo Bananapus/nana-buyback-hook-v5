@@ -1,6 +1,16 @@
 [profile.default]
 solc = '0.8.23'
-fs_permissions = [{ access = "read", path = "./node_modules/@jbx-protocol/juice-contracts-v3/deployments/"}] # Get the deployment addresses for forking
+vm_version = 'paris'                   # Required for L2s (Optimism, Arbitrum, etc.)
+match_contract = "_Local"               # Do not run fork tests
+sizes = true
+verbosity = 3                           # display errors
+optimizer_runs = 200
+block_number = 14126430
+block_timestamp = 1643802347
+runs = 4096
+
+[profile.fork] # run via FOUNDRY_PROFILE=fork foundry test
+fs_permissions = [{ access = "read", path = "./node_modules/@jbx-protocol/juice-contracts-v4/deployments/"}] # Get the deployment addresses for forking
 
 [invariant] 
 fail_on_revert = false
