@@ -121,14 +121,14 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         IJBController _controller,
         bytes4 _delegateId
     )
-        JBPermissioned(IJBPermissioned(address(_controller)).operatorStore())
+        JBPermissioned(IJBPermissioned(address(_controller)).PERMISSIONS())
     {
         WETH = _weth;
         DIRECTORY = _directory;
         CONTROLLER = _controller;
         UNISWAP_V3_FACTORY = _factory;
         DELEGATE_ID = _delegateId;
-        PROJECTS = _controller.projects();
+        PROJECTS = _controller.PROJECTS();
     }
 
     //*********************************************************************//
@@ -136,12 +136,11 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     //*********************************************************************//
 
     /// @notice The DataSource implementation that determines if a swap path and/or a mint path should be taken.
-    /// @param  data The data passed to the data source in terminal.pay(..). _data.metadata can have a Uniswap quote
+    /// @param data The data passed to the data source in terminal.pay(..). _data.metadata can have a Uniswap quote
     /// and specify how much of the payment should be used to swap, otherwise a quote will be determined from a TWAP and
     /// use the full amount paid in.
     /// @return weight The weight to use, which is the original weight passed in if no swap path is taken, 0 if only the
     /// swap path is taken, and an adjusted weight if the both the swap and mint paths are taken.
-    /// @return memo the original memo passed
     /// @return delegateAllocations The amount to send to delegates instead of adding to the local balance. This is
     /// empty if only the mint path is taken.
     function payParams(JBPayParamsData calldata data)
@@ -170,7 +169,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             bytes memory metadata;
 
             // Unpack the quote from the pool, given by the frontend.
-            (quoteExists, metadata) = JBMetadataResolver.getMetadata(DELEGATE_ID, data.metadata);
+            (quoteExists, metadata) = JBMetadataResolver.getData(DELEGATE_ID, data.metadata);
             if (quoteExists) (amountToSwapWith, minimumSwapAmountOut) = abi.decode(metadata, (uint256, uint256));
         }
 
@@ -206,7 +205,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             // allows the swap to be executed.
             delegateAllocations = new JBPayHookPayload[](1);
             delegateAllocations[0] = JBPayHookPayload({
-                delegate: IJBPayHook(this),
+                hook: IJBPayHook(this),
                 amount: amountToSwapWith,
                 metadata: abi.encode(
                     quoteExists,
@@ -243,9 +242,9 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         external
         pure
         override
-        returns (uint256, string memory, JBRedeemHookPayload[] memory delegateAllocations)
+        returns (uint256, JBRedeemHookPayload[] memory delegateAllocations)
     {
-        return (data.reclaimAmount.value, data.memo, delegateAllocations);
+        return (data.reclaimAmount.value, delegateAllocations);
     }
 
     //*********************************************************************//
@@ -306,7 +305,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             // Add the paid amount back to the project's terminal balance.
             IJBMultiTerminal(msg.sender).addToBalanceOf{
                 value: data.forwardedAmount.token == JBConstants.NATIVE_TOKEN ? terminalTokenInThisContract : 0
-            }(data.projectId, terminalTokenInThisContract, data.forwardedAmount.token, "", "");
+            }({ projectId: data.projectId,token: data.forwardedAmount.token,amount: terminalTokenInThisContract, shouldUnlockHeldFees: false,memo: "", metadata: bytes("")});
 
             emit BuybackDelegate_Mint(data.projectId, terminalTokenInThisContract, partialMintTokenCount, msg.sender);
         }
@@ -320,8 +319,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             projectId: data.projectId,
             tokenCount: exactSwapAmountOut + partialMintTokenCount,
             beneficiary: address(data.beneficiary),
-            memo: data.memo,
-            preferClaimedTokens: data.preferClaimedTokens,
+            memo: "",
             useReservedRate: true
         });
     }
@@ -375,9 +373,11 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         address terminalToken
     )
         external
-        _requirePermission(PROJECTS.ownerOf(projectId), projectId, JBBuybackHookPermissionIds.CHANGE_POOL)
         returns (IUniswapV3Pool newPool)
     {
+        // Enforce permissions.
+        _requirePermission({ account: PROJECTS.ownerOf(projectId), projectId: projectId, permissionId: JBBuybackHookPermissionIds.CHANGE_POOL});
+
         // Make sure the provided delta is within sane bounds.
         if (
             twapSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || twapSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE
@@ -387,7 +387,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         if (twapWindow < MIN_TWAP_WINDOW || twapWindow > MAX_TWAP_WINDOW) revert JuiceBuyback_InvalidTwapWindow();
 
         // Keep a reference to the project's token.
-        address projectToken = address(CONTROLLER.tokenStore().tokenOf(projectId));
+        address projectToken = address(CONTROLLER.TOKENS().tokenOf(projectId));
 
         // Make sure the project has issued a token.
         if (projectToken == address(0)) revert JuiceBuyback_NoProjectToken();
@@ -449,8 +449,10 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         uint32 newWindow
     )
         external
-        _requirePermission(PROJECTS.ownerOf(projectId), projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
     {
+        // Enforce permissions.
+        _requirePermission({ account: PROJECTS.ownerOf(projectId), projectId: projectId, permissionId: JBBuybackHookPermissionIds.SET_POOL_PARAMS});
+
         // Make sure the provided period is within sane bounds.
         if (newWindow < MIN_TWAP_WINDOW || newWindow > MAX_TWAP_WINDOW) {
             revert JuiceBuyback_InvalidTwapWindow();
@@ -477,8 +479,10 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         uint256 newSlippageTolerance
     )
         external
-        _requirePermission(PROJECTS.ownerOf(projectId), projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
     {
+        // Enforce permissions.
+        _requirePermission({ account: PROJECTS.ownerOf(projectId), projectId: projectId, permissionId: JBBuybackHookPermissionIds.SET_POOL_PARAMS});
+
         // Make sure the provided delta is within sane bounds.
         if (newSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || newSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE)
         {
@@ -587,8 +591,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             holder: address(this),
             projectId: data.projectId,
             tokenCount: amountReceived,
-            memo: "",
-            preferClaimedTokens: true
+            memo: ""
         });
 
         // We return the amount we received/burned and we will mint them to the user later
