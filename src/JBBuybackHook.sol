@@ -302,9 +302,12 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
                 IERC20(data.forwardedAmount.token).approve(msg.sender, terminalTokenInThisContract);
             }
 
+            // Keep a reference to the amount being paid.
+            uint256 payValue = data.forwardedAmount.token == JBConstants.NATIVE_TOKEN ? terminalTokenInThisContract : 0;
+
             // Add the paid amount back to the project's terminal balance.
             IJBMultiTerminal(msg.sender).addToBalanceOf{
-                value: data.forwardedAmount.token == JBConstants.NATIVE_TOKEN ? terminalTokenInThisContract : 0
+                value: payValue;
             }({ projectId: data.projectId,token: data.forwardedAmount.token,amount: terminalTokenInThisContract, shouldUnlockHeldFees: false,memo: "", metadata: bytes("")});
 
             emit BuybackDelegate_Mint(data.projectId, terminalTokenInThisContract, partialMintTokenCount, msg.sender);
