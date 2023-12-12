@@ -111,11 +111,11 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
         jbTerminalStore = IJBTerminalStore(0x82129d4109625F94582bDdF6101a8Cd1a27919f5);
         vm.label(address(jbTerminalStore), "jbTerminalStore");
 
-        jbTokens = jbController.tokenStore();
-        jbRulesets = jbController.fundingCycleStore();
-        jbProjects = jbController.projects();
-        jbPermissions = IJBPermissioned(address(jbTokens)).operatorStore();
-        jbSplits = jbController.splitsStore();
+        jbTokens = jbController.TOKENS();
+        jbRulesets = jbController.RULESETS();
+        jbProjects = jbController.PROJECTS();
+        jbPermissions = IJBPermissioned(address(jbTokens)).PERMISSIONS();
+        jbSplits = jbController.SPLITS();
 
         delegate = new JBBuybackHook({
             _weth: weth,
@@ -206,7 +206,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 
         _reconfigure(1, address(delegate), _weight, 5000);
 
-        uint256 _reservedBalanceBefore = jbController.reservedTokenBalanceOf(1);
+        uint256 _reservedBalanceBefore = jbController.pendingReservedTokenBalanceOf(1);
 
         // Build the metadata using the quote at that block
         bytes[] memory _data = new bytes[](1);

@@ -211,14 +211,25 @@ contract TestBaseWorkflowV3 is Test {
         });
 
         JBSplitGroup[] memory _groupedSplits = new JBSplitGroup[](1); // Default empty
-
-        _fundAccessLimitGroup = JBFundAccessLimitGroup({
+        JBFundAccessLimitGroup[] memory _fundAccessLimitGroup = new JBFundAccessLimitGroup[](1);
+        JBCurrencyAmount[] memory _payoutLimits = new JBCurrencyAmount[](1);
+        JBCurrencyAmount[] memory _surplusAllowances = new JBCurrencyAmount[](1);
+        _payoutLimits[0] =
+            JBCurrencyAmount({amount: 2 ether, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))});
+        _surplusAllowances[0] = JBCurrencyAmount({amount: type(uint232).max, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))});
+        _fundAccessLimitGroup[0] = JBFundAccessLimitGroup({
             terminal: _jbETHPaymentTerminal,
             token: jbLibraries().ETHToken(),
             distributionLimit: 2 ether,
             overflowAllowance: type(uint232).max,
-            distributionLimitCurrency: 1, // Currency = ETH
-            overflowAllowanceCurrency: 1
+            payoutLimits: _payoutLimits,
+            surplusAllowances: _surplusAllowances
+        });
+        _fundAccessLimitGroup[0] = JBFundAccessLimitGroup({
+            terminal: address(_jbETHPaymentTerminal),
+            token: JBConstants.NATIVE_TOKEN,
+            payoutLimits: _payoutLimits,
+            surplusAllowances: _surplusAllowances
         });
 
         // Package up the ruleset configuration.
@@ -245,7 +256,7 @@ contract TestBaseWorkflowV3 is Test {
         });
 
         vm.prank(_multisig);
-        _jbTokens.issueFor(_projectId, "jbx", "jbx");
+        _jbController.deployERC20For(_projectId, "jbx", "jbx");
 
         vm.prank(_multisig);
         pool = _delegate.setPoolFor(_projectId, fee, uint32(cardinality), twapDelta, address(weth));
