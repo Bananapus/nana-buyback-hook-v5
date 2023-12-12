@@ -76,8 +76,7 @@ contract TestBaseWorkflowV3 is Test {
     JBRulesetData _dataReconfiguration;
     JBRulesetData _dataWithoutBallot;
     JBRulesetMetadata _metadata;
-    JBFundAccessLimitGroup[] _fundAccessConstraints; // Default empty
-    IJBTerminal[] _terminals; // Default empty
+    JBFundAccessLimitGroup _fundAccessLimitGroup; // Default empty
 
     // Use the L1 UniswapV3Pool jbx/eth 1% fee for create2 magic
     // IUniswapV3Pool pool = IUniswapV3Pool(0x48598Ff1Cee7b4d31f8f9050C2bbAE98e17E6b17);
@@ -185,13 +184,11 @@ contract TestBaseWorkflowV3 is Test {
             _delegateId: bytes4(hex"69")
         });
 
-        _projectMetadata = "myIPFSHash";
-
         _data = JBRulesetData({
             duration: 6 days,
             weight: weight,
-            discountRate: 0,
-            ballot: IJBFundingCycleBallot(address(0))
+            decayRate: 0,
+            hook: IJBRulesetApprovalHook(address(0))
         });
 
         _metadata = JBRulesetMetadata({
@@ -213,32 +210,39 @@ contract TestBaseWorkflowV3 is Test {
             metadata: 0
         });
 
-        _fundAccessConstraints.push(
-            JBFundAccessLimitGroup({
-                terminal: _jbETHPaymentTerminal,
-                token: jbLibraries().ETHToken(),
-                distributionLimit: 2 ether,
-                overflowAllowance: type(uint232).max,
-                distributionLimitCurrency: 1, // Currency = ETH
-                overflowAllowanceCurrency: 1
-            })
-        );
-
-        _terminals = [_jbETHPaymentTerminal];
-
         JBSplitGroup[] memory _groupedSplits = new JBSplitGroup[](1); // Default empty
 
-        _projectId = _jbController.launchProjectFor(
-            _multisig,
-            _projectMetadata,
-            _data,
-            _metadata,
-            0, // Start asap
-            _groupedSplits,
-            _fundAccessConstraints,
-            _terminals,
-            ""
-        );
+        _fundAccessLimitGroup = JBFundAccessLimitGroup({
+            terminal: _jbETHPaymentTerminal,
+            token: jbLibraries().ETHToken(),
+            distributionLimit: 2 ether,
+            overflowAllowance: type(uint232).max,
+            distributionLimitCurrency: 1, // Currency = ETH
+            overflowAllowanceCurrency: 1
+        });
+
+        // Package up the ruleset configuration.
+        JBRulesetConfig[] memory _rulesetConfigurations = new JBRulesetConfig[](1);
+        _rulesetConfigurations[0].mustStartAtOrAfter = 0;
+        _rulesetConfigurations[0].data = _data;
+        _rulesetConfigurations[0].metadata = _metadata;
+        _rulesetConfigurations[0].splitGroups = new JBSplitGroup[](0);
+        _rulesetConfigurations[0].fundAccessLimitGroups = _fundAccessLimitGroup;
+
+        JBTerminalConfig[] memory _terminalConfigurations = new JBTerminalConfig[](1);
+        JBAccountingContextConfig[] memory _accountingContextConfigs = new JBAccountingContextConfig[](1);
+        _accountingContextConfigs[0] =
+            JBAccountingContextConfig({token: JBConstants.NATIVE_TOKEN, standard: JBTokenStandards.NATIVE});
+        _terminalConfigurations[0] =
+            JBTerminalConfig({terminal: _jbETHPaymentTerminal, accountingContextConfigs: _accountingContextConfigs});
+
+        _projectId = _jbController.launchProjectFor({
+            owner: _multisig,
+            projectMetadata: "myIPFSHash",
+            rulesetConfigurations: _rulesetConfigurations,
+            terminalConfigurations: _terminalConfigurations, // Set terminals to receive fees.
+            memo: ""
+        });
 
         vm.prank(_multisig);
         _jbTokens.issueFor(_projectId, "jbx", "jbx");

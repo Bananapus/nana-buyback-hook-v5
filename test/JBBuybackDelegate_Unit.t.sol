@@ -58,12 +58,12 @@ contract TestJBBuybackHook_Units is Test {
 
     address _uniswapFactory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
 
-    IJBMultiTerminal jbxTerminal = IJBMultiTerminal(makeAddr("IJBPayoutRedemptionPaymentTerminal3_1"));
+    IJBMultiTerminal jbxTerminal = IJBMultiTerminal(makeAddr("IJBMultiTerminal"));
     IJBProjects projects = IJBProjects(makeAddr("IJBProjects"));
-    IJBPermissions operatorStore = IJBPermissions(makeAddr("IJBPermissions"));
+    IJBPermissions permissions = IJBPermissions(makeAddr("IJBPermissions"));
     IJBController controller = IJBController(makeAddr("controller"));
     IJBDirectory directory = IJBDirectory(makeAddr("directory"));
-    IJBTokens tokenStore = IJBTokens(makeAddr("tokenStore"));
+    IJBTokens tokens = IJBTokens(makeAddr("tokens"));
 
     MetadataResolverHelper metadataHelper = new MetadataResolverHelper();
 
@@ -110,7 +110,7 @@ contract TestJBBuybackHook_Units is Test {
         vm.etch(address(pool), "6969");
         vm.etch(address(jbxTerminal), "6969");
         vm.etch(address(projects), "6969");
-        vm.etch(address(operatorStore), "6969");
+        vm.etch(address(permissions), "6969");
         vm.etch(address(controller), "6969");
         vm.etch(address(directory), "6969");
 
@@ -118,15 +118,13 @@ contract TestJBBuybackHook_Units is Test {
         vm.label(address(projectToken), "projectToken");
         vm.label(address(weth), "weth");
 
-        vm.mockCall(address(jbxTerminal), abi.encodeCall(jbxTerminal.store, ()), abi.encode(terminalStore));
-        vm.mockCall(address(controller), abi.encodeCall(IJBPermissioned.operatorStore, ()), abi.encode(operatorStore));
-        vm.mockCall(address(controller), abi.encodeCall(controller.projects, ()), abi.encode(projects));
+        vm.mockCall(address(jbxTerminal), abi.encodeCall(jbxTerminal.STORE, ()), abi.encode(terminalStore));
+        vm.mockCall(address(controller), abi.encodeCall(IJBPermissioned.PERMISSIONS, ()), abi.encode(permissions));
+        vm.mockCall(address(controller), abi.encodeCall(controller.PROJECTS, ()), abi.encode(projects));
 
         vm.mockCall(address(projects), abi.encodeCall(projects.ownerOf, (projectId)), abi.encode(owner));
 
-        vm.mockCall(address(jbxTerminal), abi.encodeCall(IJBSingleTokenPaymentTerminal.token, ()), abi.encode(weth));
-
-        vm.mockCall(address(controller), abi.encodeCall(controller.tokenStore, ()), abi.encode(tokenStore));
+        vm.mockCall(address(controller), abi.encodeCall(controller.TOKENS, ()), abi.encode(tokens));
 
         vm.prank(owner);
         delegate = new ForTest_JBBuybackHook({
@@ -747,12 +745,6 @@ contract TestJBBuybackHook_Units is Test {
             JBTokenAmount({token: address(randomTerminalToken), value: _tokenCount, decimals: _decimals, currency: 1});
         didPayData.projectId = randomId;
 
-        vm.mockCall(
-            address(jbxTerminal),
-            abi.encodeCall(IJBSingleTokenPaymentTerminal.token, ()),
-            abi.encode(randomTerminalToken)
-        );
-
         // The metadata coming from payParams(..)
         didPayData.hookMetadata = abi.encode(
             false, // use quote
@@ -1081,7 +1073,7 @@ contract TestJBBuybackHook_Units is Test {
          */
 
         // Invert both contract addresses, to swap token0 and token1
-        (_projectToken, _terminalToken) = (JBToken(address(_terminalToken)), IWETH9(address(_projectToken)));
+        (_projectToken, _terminalToken) = (JBERC20(address(_terminalToken)), IWETH9(address(_projectToken)));
 
         // If project is token0, then received is delta0 (the negative value)
         (_delta0, _delta1) = address(_projectToken) < address(_terminalToken) ? (_delta0, _delta1) : (_delta1, _delta0);
@@ -1160,7 +1152,7 @@ contract TestJBBuybackHook_Units is Test {
             delegate.UNISWAP_V3_FACTORY(), PoolAddress.getPoolKey(_terminalToken, _projectToken, _fee)
         );
 
-        vm.mockCall(address(tokenStore), abi.encodeCall(tokenStore.tokenOf, (projectId)), abi.encode(_projectToken));
+        vm.mockCall(address(tokens), abi.encodeCall(tokens.tokenOf, (projectId)), abi.encode(_projectToken));
 
         // check: correct events?
         vm.expectEmit(true, true, true, true);
@@ -1219,7 +1211,7 @@ contract TestJBBuybackHook_Units is Test {
         _twapDelta = bound(_twapDelta, _MIN_TWAP_SLIPPAGE_TOLERANCE, _MAX_TWAP_SLIPPAGE_TOLERANCE);
         _secondsAgo = bound(_secondsAgo, _MIN_TWAP_WINDOW, _MAX_TWAP_WINDOW);
 
-        vm.mockCall(address(tokenStore), abi.encodeCall(tokenStore.tokenOf, (projectId)), abi.encode(_projectToken));
+        vm.mockCall(address(tokens), abi.encodeCall(tokens.tokenOf, (projectId)), abi.encode(_projectToken));
 
         vm.prank(owner);
         delegate.setPoolFor(projectId, _fee, uint32(_secondsAgo), _twapDelta, _terminalToken);
@@ -1234,27 +1226,27 @@ contract TestJBBuybackHook_Units is Test {
      */
     function test_setPoolFor_revertIfWrongCaller() public {
         vm.mockCall(
-            address(operatorStore),
+            address(permissions),
             abi.encodeCall(
-                operatorStore.hasPermission, (dude, owner, projectId, JBBuybackHookPermissionIds.CHANGE_POOL)
+                permissions.hasPermission, (dude, owner, projectId, JBBuybackHookPermissionIds.CHANGE_POOL)
             ),
             abi.encode(false)
         );
         vm.expectCall(
-            address(operatorStore),
+            address(permissions),
             abi.encodeCall(
-                operatorStore.hasPermission, (dude, owner, projectId, JBBuybackHookPermissionIds.CHANGE_POOL)
+                permissions.hasPermission, (dude, owner, projectId, JBBuybackHookPermissionIds.CHANGE_POOL)
             )
         );
 
         vm.mockCall(
-            address(operatorStore),
-            abi.encodeCall(operatorStore.hasPermission, (dude, owner, 0, JBBuybackHookPermissionIds.CHANGE_POOL)),
+            address(permissions),
+            abi.encodeCall(permissions.hasPermission, (dude, owner, 0, JBBuybackHookPermissionIds.CHANGE_POOL)),
             abi.encode(false)
         );
         vm.expectCall(
-            address(operatorStore),
-            abi.encodeCall(operatorStore.hasPermission, (dude, owner, 0, JBBuybackHookPermissionIds.CHANGE_POOL))
+            address(permissions),
+            abi.encodeCall(permissions.hasPermission, (dude, owner, 0, JBBuybackHookPermissionIds.CHANGE_POOL))
         );
 
         // check: revert?
@@ -1277,7 +1269,7 @@ contract TestJBBuybackHook_Units is Test {
         uint256 _MIN_TWAP_SLIPPAGE_TOLERANCE = delegate.MIN_TWAP_SLIPPAGE_TOLERANCE();
         uint256 _MAX_TWAP_SLIPPAGE_TOLERANCE = delegate.MAX_TWAP_SLIPPAGE_TOLERANCE();
 
-        vm.mockCall(address(tokenStore), abi.encodeCall(tokenStore.tokenOf, (projectId)), abi.encode(_projectToken));
+        vm.mockCall(address(tokens), abi.encodeCall(tokens.tokenOf, (projectId)), abi.encode(_projectToken));
 
         // Check: seconds ago too low
         vm.expectRevert(IJBBuybackHook.JuiceBuyback_InvalidTwapWindow.selector);
@@ -1332,7 +1324,7 @@ contract TestJBBuybackHook_Units is Test {
         _twapDelta = bound(_twapDelta, _MIN_TWAP_SLIPPAGE_TOLERANCE, _MAX_TWAP_SLIPPAGE_TOLERANCE);
         _secondsAgo = bound(_secondsAgo, _MIN_TWAP_WINDOW, _MAX_TWAP_WINDOW);
 
-        vm.mockCall(address(tokenStore), abi.encodeCall(tokenStore.tokenOf, (projectId)), abi.encode(address(0)));
+        vm.mockCall(address(tokens), abi.encodeCall(tokens.tokenOf, (projectId)), abi.encode(address(0)));
 
         vm.expectRevert(IJBBuybackHook.JuiceBuyback_NoProjectToken.selector);
         vm.prank(owner);
@@ -1367,30 +1359,30 @@ contract TestJBBuybackHook_Units is Test {
         vm.assume(owner != _notOwner);
 
         vm.mockCall(
-            address(operatorStore),
+            address(permissions),
             abi.encodeCall(
-                operatorStore.hasPermission, (_notOwner, owner, projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
+                permissions.hasPermission, (_notOwner, owner, projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
             ),
             abi.encode(false)
         );
         vm.expectCall(
-            address(operatorStore),
+            address(permissions),
             abi.encodeCall(
-                operatorStore.hasPermission, (_notOwner, owner, projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
+                permissions.hasPermission, (_notOwner, owner, projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
             )
         );
 
         vm.mockCall(
-            address(operatorStore),
+            address(permissions),
             abi.encodeCall(
-                operatorStore.hasPermission, (_notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
+                permissions.hasPermission, (_notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
             ),
             abi.encode(false)
         );
         vm.expectCall(
-            address(operatorStore),
+            address(permissions),
             abi.encodeCall(
-                operatorStore.hasPermission, (_notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
+                permissions.hasPermission, (_notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
             )
         );
 
@@ -1457,30 +1449,30 @@ contract TestJBBuybackHook_Units is Test {
         vm.assume(owner != _notOwner);
 
         vm.mockCall(
-            address(operatorStore),
+            address(permissions),
             abi.encodeCall(
-                operatorStore.hasPermission, (_notOwner, owner, projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
+                permissions.hasPermission, (_notOwner, owner, projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
             ),
             abi.encode(false)
         );
         vm.expectCall(
-            address(operatorStore),
+            address(permissions),
             abi.encodeCall(
-                operatorStore.hasPermission, (_notOwner, owner, projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
+                permissions.hasPermission, (_notOwner, owner, projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
             )
         );
 
         vm.mockCall(
-            address(operatorStore),
+            address(permissions),
             abi.encodeCall(
-                operatorStore.hasPermission, (_notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
+                permissions.hasPermission, (_notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
             ),
             abi.encode(false)
         );
         vm.expectCall(
-            address(operatorStore),
+            address(permissions),
             abi.encodeCall(
-                operatorStore.hasPermission, (_notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
+                permissions.hasPermission, (_notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
             )
         );
 

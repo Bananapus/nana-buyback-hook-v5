@@ -21,7 +21,7 @@ import {mulDiv, mulDiv18} from "lib/prb-math/src/Common.sol";
  * @notice Buyback fork integration tests, using $jbx v3
  */
 contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
-    using JBFundingCycleMetadataResolver for JBRuleset;
+    using JBRulesetMetadataResolver for JBRuleset;
 
     event BuybackDelegate_Swap(
         uint256 indexed projectId, uint256 amountIn, IUniswapV3Pool pool, uint256 amountOut, address caller
@@ -55,7 +55,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
     IJBProjects jbProjects;
     IJBSplits jbSplits;
     IJBMultiTerminal jbEthPaymentTerminal;
-    IJBSingleTokenPaymentTerminal terminal;
+    IJBMultiTerminal terminal;
     IJBTerminalStore jbTerminalStore;
     IJBController jbController;
     IJBTokens jbTokens;
@@ -94,7 +94,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
             )
         );
 
-        terminal = IJBSingleTokenPaymentTerminal(
+        terminal = IJBMultiTerminal(
             stdJson.readAddress(
                 vm.readFile("node_modules/lib/juice-contracts-v4/src/deployments/mainnet/JBMultiTerminal.json"), ".address"
             )
@@ -687,7 +687,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
                 _projectId,
                 _fundingCycle.configuration,
                 /*domain*/
-                JBSplitsGroups.ETH_PAYOUT /*group*/
+                uint256(uint160(JBConstants.NATIVE_TOKEN)) /*group*/
                 )
         });
 
