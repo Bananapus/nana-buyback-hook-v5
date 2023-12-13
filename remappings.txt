@@ -1,3 +1,4 @@
 @uniswap/v3-core=lib/v3-core
 ds-test/=lib/forge-std/lib/ds-test/src/
 forge-std/=lib/forge-std/src/
+lib/prb-math/src/=lib/juice-contracts-v4/lib/prb-math/src/
