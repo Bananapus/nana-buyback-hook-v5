@@ -9,6 +9,7 @@ import "lib/juice-contracts-v4/src/JBMultiTerminal.sol";
 import "lib/juice-contracts-v4/src/JBFundAccessLimits.sol";
 import "lib/juice-contracts-v4/src/JBTerminalStore.sol";
 import "lib/juice-contracts-v4/src/JBRulesets.sol";
+import "lib/juice-contracts-v4/src/JBFeelessAddresses.sol";
 import "lib/juice-contracts-v4/src/JBPermissions.sol";
 import "lib/juice-contracts-v4/src/JBPrices.sol";
 import "lib/juice-contracts-v4/src/JBProjects.sol";
@@ -48,52 +49,43 @@ contract TestBaseWorkflowV3 is Test {
     //*********************************************************************//
 
     // Multisig address used for testing.
-    address internal _multisig = makeAddr("mooltichig");
-    address internal _beneficiary = makeAddr("benefishary");
+    address internal multisig = makeAddr("mooltichig");
+    address internal beneficiary = makeAddr("benefishary");
 
-    JBPermissions internal _jbPermissions;
-    JBProjects internal _jbProjects;
-    JBPrices internal _jbPrices;
-    JBDirectory internal _jbDirectory;
-    JBFundAccessLimits internal _fundAccessConstraintsStore;
-    JBRulesets internal _jbRulesets;
-    JBTokens internal _jbTokens;
-    JBSplits internal _jbSplits;
-    JBController internal _jbController;
-    JBTerminalStore internal _jbPaymentTerminalStore;
-    JBMultiTerminal internal _jbETHPaymentTerminal;
-    AccessJBLib internal _accessJBLib;
+    JBPermissions internal jbPermissions;
+    JBProjects internal jbProjects;
+    JBPrices internal jbPrices;
+    JBDirectory internal jbDirectory;
+    JBFundAccessLimits internal jbFundAccessLimits;
+    JBRulesets internal jbRulesets;
+    JBFeelessAddresses internal jbFeelessAddresses;
+    JBTokens internal jbTokens;
+    JBSplits internal jbSplits;
+    JBController internal jbController;
+    JBTerminalStore internal jbTerminalStore;
+    JBMultiTerminal internal jbMultiTerminal;
 
-    JBBuybackHook _delegate;
+    JBBuybackHook hook;
 
-    uint256 _projectId;
+    uint256 projectId;
     uint256 reservedRate = 4500;
     uint256 weight = 10 ether; // Minting 10 token per eth
     uint32 cardinality = 1000;
     uint256 twapDelta = 500;
 
-    JBRulesetData _data;
-    JBRulesetData _dataReconfiguration;
-    JBRulesetData _dataWithoutBallot;
-    JBRulesetMetadata _metadata;
-    JBFundAccessLimitGroup _fundAccessLimitGroup; // Default empty
+    JBRulesetData data;
+    JBRulesetData dataReconfiguration;
+    JBRulesetData dataWithoutHook;
+    JBRulesetMetadata metadata;
 
     // Use the L1 UniswapV3Pool jbx/eth 1% fee for create2 magic
     // IUniswapV3Pool pool = IUniswapV3Pool(0x48598Ff1Cee7b4d31f8f9050C2bbAE98e17E6b17);
     IJBToken jbx = IJBToken(0x3abF2A4f8452cCC2CF7b4C1e4663147600646f66);
     IWETH9 weth = IWETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-    address _uniswapFactory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-    uint24 fee = 10_000;
+    address uniswapFactory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    uint24 fee = 10;
 
     IUniswapV3Pool pool;
-
-    //*********************************************************************//
-    // ------------------------- internal views -------------------------- //
-    //*********************************************************************//
-
-    function jbLibraries() internal view returns (AccessJBLib) {
-        return _accessJBLib;
-    }
 
     //*********************************************************************//
     // --------------------------- test setup ---------------------------- //
@@ -102,10 +94,10 @@ contract TestBaseWorkflowV3 is Test {
     // Deploys and initializes contracts for testing.
     function setUp() public virtual {
         // Labels
-        vm.label(_multisig, "projectOwner");
-        vm.label(_beneficiary, "beneficiary");
+        vm.label(multisig, "projectOwner");
+        vm.label(beneficiary, "beneficiary");
         vm.label(address(pool), "uniswapPool");
-        vm.label(address(_uniswapFactory), "uniswapFactory");
+        vm.label(address(uniswapFactory), "uniswapFactory");
         vm.label(address(weth), "$WETH");
         vm.label(address(jbx), "$JBX");
 
@@ -114,84 +106,83 @@ contract TestBaseWorkflowV3 is Test {
         vm.etch(address(weth), "0x69");
 
         // JBPermissions
-        _jbPermissions = new JBPermissions();
-        vm.label(address(_jbPermissions), "JBPermissions");
+        jbPermissions = new JBPermissions();
+        vm.label(address(jbPermissions), "JBPermissions");
 
         // JBProjects
-        _jbProjects = new JBProjects(_jbPermissions);
-        vm.label(address(_jbProjects), "JBProjects");
+        jbProjects = new JBProjects(jbPermissions);
+        vm.label(address(jbProjects), "JBProjects");
 
         // JBPrices
-        _jbPrices = new JBPrices(_multisig);
-        vm.label(address(_jbPrices), "JBPrices");
+        jbPrices = new JBPrices(multisig);
+        vm.label(address(jbPrices), "JBPrices");
 
         address contractAtNoncePlusOne = computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
 
         // JBRulesets
-        _jbRulesets = new JBRulesets(IJBDirectory(contractAtNoncePlusOne));
-        vm.label(address(_jbRulesets), "JBRulesets");
+        jbRulesets = new JBRulesets(IJBDirectory(contractAtNoncePlusOne));
+        vm.label(address(jbRulesets), "JBRulesets");
 
         // JBDirectory
-        _jbDirectory = new JBDirectory(_jbPermissions, _jbProjects, _jbRulesets, _multisig);
-        vm.label(address(_jbDirectory), "JBDirectory");
+        jbDirectory = new JBDirectory(jbPermissions, jbProjects, jbRulesets, multisig);
+        vm.label(address(jbDirectory), "JBDirectory");
 
         // JBTokens
-        _jbTokens = new JBTokens(_jbPermissions, _jbProjects, _jbDirectory, _jbRulesets);
-        vm.label(address(_jbTokens), "JBTokens");
+        jbTokens = new JBTokens(jbPermissions, jbProjects, jbDirectory, jbRulesets);
+        vm.label(address(jbTokens), "JBTokens");
 
         // JBSplits
-        _jbSplits = new JBSplits(_jbPermissions, _jbProjects, _jbDirectory);
-        vm.label(address(_jbSplits), "JBSplits");
+        jbSplits = new JBSplits(jbPermissions, jbProjects, jbDirectory);
+        vm.label(address(jbSplits), "JBSplits");
 
-        _fundAccessConstraintsStore = new JBFundAccessLimits(_jbDirectory);
-        vm.label(address(_fundAccessConstraintsStore), "JBFundAccessLimits");
+        jbFundAccessLimits = new JBFundAccessLimits(jbDirectory);
+        vm.label(address(jbFundAccessLimits), "JBFundAccessLimits");
+
+        jbFeelessAddresses = new JBFeelessAddresses(address(69));
+        vm.label(address(jbFeelessAddresses), "JBFeelessAddresses");
 
         // JBController
-        _jbController = new JBController(
-            _jbPermissions, _jbProjects, _jbDirectory, _jbRulesets, _jbTokens, _jbSplits, _fundAccessConstraintsStore
+        jbController = new JBController(
+            jbPermissions, jbProjects, jbDirectory, jbRulesets, jbTokens, jbSplits, jbFundAccessLimits
         );
-        vm.label(address(_jbController), "JBController");
+        vm.label(address(jbController), "JBController");
 
-        vm.prank(_multisig);
-        _jbDirectory.setIsAllowedToSetFirstController(address(_jbController), true);
+        vm.prank(multisig);
+        jbDirectory.setIsAllowedToSetFirstController(address(jbController), true);
 
         // JBETHPaymentTerminalStore
-        _jbPaymentTerminalStore = new JBTerminalStore(_jbDirectory, _jbRulesets, _jbPrices);
-        vm.label(address(_jbPaymentTerminalStore), "JBSingleTokenPaymentTerminalStore");
-
-        // AccessJBLib
-        _accessJBLib = new AccessJBLib();
+        jbTerminalStore = new JBTerminalStore(jbDirectory, jbRulesets, jbPrices);
+        vm.label(address(jbTerminalStore), "JBTerminalStore");
 
         // JBETHPaymentTerminal
-        _jbETHPaymentTerminal = new JBMultiTerminal(
-            _accessJBLib.ETH(),
-            _jbPermissions,
-            _jbProjects,
-            _jbDirectory,
-            _jbSplits,
-            _jbPrices,
-            address(_jbPaymentTerminalStore),
-            _multisig
+        jbMultiTerminal = new JBMultiTerminal(
+            jbPermissions,
+            jbProjects,
+            jbDirectory,
+            jbSplits,
+            address(jbTerminalStore),
+            address(0),
+            address(0)
         );
-        vm.label(address(_jbETHPaymentTerminal), "JBETHPaymentTerminal");
+        vm.label(address(jbMultiTerminal), "JBMultiTerminal");
 
         // Deploy the delegate
-        _delegate = new JBBuybackHook({
-            _weth: weth,
-            _factory: _uniswapFactory,
-            _directory: IJBDirectory(address(_jbDirectory)),
-            _controller: _jbController,
-            _delegateId: bytes4(hex"69")
+        hook = new JBBuybackHook({
+            weth: weth,
+            factory: uniswapFactory,
+            directory: IJBDirectory(address(jbDirectory)),
+            controller: jbController,
+            delegateId: bytes4(hex"69")
         });
 
-        _data = JBRulesetData({
+        data = JBRulesetData({
             duration: 6 days,
             weight: weight,
             decayRate: 0,
             hook: IJBRulesetApprovalHook(address(0))
         });
 
-        _metadata = JBRulesetMetadata({
+        metadata = JBRulesetMetadata({
             reservedRate: reservedRate,
             redemptionRate: 5000,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
@@ -206,59 +197,50 @@ contract TestBaseWorkflowV3 is Test {
             useTotalSurplusForRedemptions: true,
             useDataHookForPay: true,
             useDataHookForRedeem: false,
-            dataHook: address(_delegate),
+            dataHook: address(hook),
             metadata: 0
         });
 
-        JBSplitGroup[] memory _groupedSplits = new JBSplitGroup[](1); // Default empty
-        JBFundAccessLimitGroup[] memory _fundAccessLimitGroup = new JBFundAccessLimitGroup[](1);
-        JBCurrencyAmount[] memory _payoutLimits = new JBCurrencyAmount[](1);
-        JBCurrencyAmount[] memory _surplusAllowances = new JBCurrencyAmount[](1);
-        _payoutLimits[0] =
+        JBFundAccessLimitGroup[] memory fundAccessLimitGroups = new JBFundAccessLimitGroup[](1);
+        JBCurrencyAmount[] memory payoutLimits = new JBCurrencyAmount[](1);
+        JBCurrencyAmount[] memory surplusAllowances = new JBCurrencyAmount[](1);
+        payoutLimits[0] =
             JBCurrencyAmount({amount: 2 ether, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))});
-        _surplusAllowances[0] = JBCurrencyAmount({amount: type(uint232).max, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))});
-        _fundAccessLimitGroup[0] = JBFundAccessLimitGroup({
-            terminal: _jbETHPaymentTerminal,
-            token: jbLibraries().ETHToken(),
-            distributionLimit: 2 ether,
-            overflowAllowance: type(uint232).max,
-            payoutLimits: _payoutLimits,
-            surplusAllowances: _surplusAllowances
-        });
-        _fundAccessLimitGroup[0] = JBFundAccessLimitGroup({
-            terminal: address(_jbETHPaymentTerminal),
+        surplusAllowances[0] = JBCurrencyAmount({amount: type(uint232).max, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))});
+        fundAccessLimitGroups[0] = JBFundAccessLimitGroup({
+            terminal: address(jbMultiTerminal),
             token: JBConstants.NATIVE_TOKEN,
-            payoutLimits: _payoutLimits,
-            surplusAllowances: _surplusAllowances
+            payoutLimits: payoutLimits,
+            surplusAllowances: surplusAllowances
         });
 
         // Package up the ruleset configuration.
-        JBRulesetConfig[] memory _rulesetConfigurations = new JBRulesetConfig[](1);
-        _rulesetConfigurations[0].mustStartAtOrAfter = 0;
-        _rulesetConfigurations[0].data = _data;
-        _rulesetConfigurations[0].metadata = _metadata;
-        _rulesetConfigurations[0].splitGroups = new JBSplitGroup[](0);
-        _rulesetConfigurations[0].fundAccessLimitGroups = _fundAccessLimitGroup;
+        JBRulesetConfig[] memory rulesetConfigurations = new JBRulesetConfig[](1);
+        rulesetConfigurations[0].mustStartAtOrAfter = 0;
+        rulesetConfigurations[0].data = data;
+        rulesetConfigurations[0].metadata = metadata;
+        rulesetConfigurations[0].splitGroups = new JBSplitGroup[](0);
+        rulesetConfigurations[0].fundAccessLimitGroups = fundAccessLimitGroups;
 
-        JBTerminalConfig[] memory _terminalConfigurations = new JBTerminalConfig[](1);
-        JBAccountingContextConfig[] memory _accountingContextConfigs = new JBAccountingContextConfig[](1);
-        _accountingContextConfigs[0] =
+        JBTerminalConfig[] memory terminalConfigurations = new JBTerminalConfig[](1);
+        JBAccountingContextConfig[] memory accountingContextConfigs = new JBAccountingContextConfig[](1);
+        accountingContextConfigs[0] =
             JBAccountingContextConfig({token: JBConstants.NATIVE_TOKEN, standard: JBTokenStandards.NATIVE});
-        _terminalConfigurations[0] =
-            JBTerminalConfig({terminal: _jbETHPaymentTerminal, accountingContextConfigs: _accountingContextConfigs});
+        terminalConfigurations[0] =
+            JBTerminalConfig({terminal: jbMultiTerminal, accountingContextConfigs: accountingContextConfigs});
 
-        _projectId = _jbController.launchProjectFor({
-            owner: _multisig,
+        projectId = jbController.launchProjectFor({
+            owner: multisig,
             projectMetadata: "myIPFSHash",
-            rulesetConfigurations: _rulesetConfigurations,
-            terminalConfigurations: _terminalConfigurations, // Set terminals to receive fees.
+            rulesetConfigurations: rulesetConfigurations,
+            terminalConfigurations: terminalConfigurations, // Set terminals to receive fees.
             memo: ""
         });
 
-        vm.prank(_multisig);
-        _jbController.deployERC20For(_projectId, "jbx", "jbx");
+        vm.prank(multisig);
+        jbController.deployERC20For(projectId, "jbx", "jbx");
 
-        vm.prank(_multisig);
-        pool = _delegate.setPoolFor(_projectId, fee, uint32(cardinality), twapDelta, address(weth));
+        vm.prank(multisig);
+        pool = hook.setPoolFor(projectId, fee, uint32(cardinality), twapDelta, address(weth));
     }
 }

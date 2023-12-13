@@ -109,26 +109,26 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     // ---------------------------- constructor -------------------------- //
     //*********************************************************************//
 
-    /// @param _weth The WETH contract.
-    /// @param _factory The uniswap v3 factory used to reference pools from.
-    /// @param _directory The directory of terminals and controllers.
-    /// @param _controller The controller used to mint and burn tokens from.
-    /// @param _delegateId The 4bytes ID of this delegate, used for metadata parsing.
+    /// @param weth The WETH contract.
+    /// @param factory The uniswap v3 factory used to reference pools from.
+    /// @param directory The directory of terminals and controllers.
+    /// @param controller The controller used to mint and burn tokens from.
+    /// @param delegateId The 4bytes ID of this delegate, used for metadata parsing.
     constructor(
-        IWETH9 _weth,
-        address _factory,
-        IJBDirectory _directory,
-        IJBController _controller,
-        bytes4 _delegateId
+        IWETH9 weth,
+        address factory,
+        IJBDirectory directory,
+        IJBController controller,
+        bytes4 delegateId
     )
-        JBPermissioned(IJBPermissioned(address(_controller)).PERMISSIONS())
+        JBPermissioned(IJBPermissioned(address(controller)).PERMISSIONS())
     {
-        WETH = _weth;
-        DIRECTORY = _directory;
-        CONTROLLER = _controller;
-        UNISWAP_V3_FACTORY = _factory;
-        DELEGATE_ID = _delegateId;
-        PROJECTS = _controller.PROJECTS();
+        WETH = weth;
+        DIRECTORY = directory;
+        CONTROLLER = controller;
+        UNISWAP_V3_FACTORY = factory;
+        DELEGATE_ID = delegateId;
+        PROJECTS = controller.PROJECTS();
     }
 
     //*********************************************************************//

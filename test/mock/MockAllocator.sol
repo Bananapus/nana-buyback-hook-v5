@@ -25,8 +25,8 @@ contract MockAllocator is ERC165, IJBSplitHook {
             JBTokenAmount(address(this), 1 ether, 10 ** 18, 0),
             JBTokenAmount(address(this), 1 ether, 10 ** 18, 0),
             1,
+            1,
             address(this),
-            true,
             "",
             new bytes(0)
         );
