@@ -110,11 +110,11 @@ contract TestBaseWorkflowV3 is Test {
         vm.label(address(jbPermissions), "JBPermissions");
 
         // JBProjects
-        jbProjects = new JBProjects(jbPermissions);
+        jbProjects = new JBProjects(multisig);
         vm.label(address(jbProjects), "JBProjects");
 
         // JBPrices
-        jbPrices = new JBPrices(multisig);
+        jbPrices = new JBPrices(jbPermissions, jbProjects, multisig);
         vm.label(address(jbPrices), "JBPrices");
 
         address contractAtNoncePlusOne = computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
@@ -124,15 +124,15 @@ contract TestBaseWorkflowV3 is Test {
         vm.label(address(jbRulesets), "JBRulesets");
 
         // JBDirectory
-        jbDirectory = new JBDirectory(jbPermissions, jbProjects, jbRulesets, multisig);
+        jbDirectory = new JBDirectory(jbPermissions, jbProjects, multisig);
         vm.label(address(jbDirectory), "JBDirectory");
 
         // JBTokens
-        jbTokens = new JBTokens(jbPermissions, jbProjects, jbDirectory, jbRulesets);
+        jbTokens = new JBTokens(jbDirectory);
         vm.label(address(jbTokens), "JBTokens");
 
         // JBSplits
-        jbSplits = new JBSplits(jbPermissions, jbProjects, jbDirectory);
+        jbSplits = new JBSplits(jbDirectory);
         vm.label(address(jbSplits), "JBSplits");
 
         jbFundAccessLimits = new JBFundAccessLimits(jbDirectory);
@@ -143,7 +143,7 @@ contract TestBaseWorkflowV3 is Test {
 
         // JBController
         jbController = new JBController(
-            jbPermissions, jbProjects, jbDirectory, jbRulesets, jbTokens, jbSplits, jbFundAccessLimits
+            jbPermissions, jbProjects, jbDirectory, jbRulesets, jbTokens, jbSplits, jbFundAccessLimits, address(0)
         );
         vm.label(address(jbController), "JBController");
 
@@ -160,8 +160,9 @@ contract TestBaseWorkflowV3 is Test {
             jbProjects,
             jbDirectory,
             jbSplits,
-            address(jbTerminalStore),
-            address(0),
+            jbTerminalStore,
+            jbFeelessAddresses,
+            IPermit2(address(0)),
             address(0)
         );
         vm.label(address(jbMultiTerminal), "JBMultiTerminal");

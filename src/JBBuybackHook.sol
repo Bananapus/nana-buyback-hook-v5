@@ -308,7 +308,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             // Add the paid amount back to the project's terminal balance.
             IJBMultiTerminal(msg.sender).addToBalanceOf{
                 value: payValue
-            }({ projectId: data.projectId,token: data.forwardedAmount.token,amount: terminalTokenInThisContract, shouldUnlockHeldFees: false,memo: "", metadata: bytes("")});
+            }({ projectId: data.projectId,token: data.forwardedAmount.token,amount: terminalTokenInThisContract, shouldReturnHeldFees: false ,memo: "", metadata: bytes("")});
 
             emit BuybackDelegate_Mint(data.projectId, terminalTokenInThisContract, partialMintTokenCount, msg.sender);
         }
