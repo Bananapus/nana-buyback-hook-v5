@@ -1,7 +1,5 @@
 # Juicebox Buyback Hook
 
-https://github.com/Bananapus/juice-buyback
-
 When a Juicebox project that uses the buyback hook is paid, it checks whether buying tokens in a Uniswap pool or paying the project as usual would yield more tokens for the payer. If buying tokens in the pool would yield more tokens, the payment is routed there. Otherwise, the payment is sent to the project as usual. Either way, the project's reserved rate applies.
 
 The buyback hook works with any Juicebox terminal and checks the Uniswap pool specified by the project's owner.
