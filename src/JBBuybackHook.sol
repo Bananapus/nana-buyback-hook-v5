@@ -99,11 +99,11 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     /// @notice The uniswap pool corresponding to the project token <-> terminal token pair.
     /// @custom:param _projectId The ID of the project to which the pool applies.
     /// @custom:param _terminalToken The address of the token being used to make payments in.
-    mapping(uint256 _projectId => mapping(address _terminalToken => IUniswapV3Pool)) public poolOf;
+    mapping(uint256 projectId => mapping(address terminalToken => IUniswapV3Pool)) public poolOf;
 
     /// @notice Each project's token.
     /// @custom:param _projectId The ID of the project to which the token belongs.
-    mapping(uint256 _projectId => address) public projectTokenOf;
+    mapping(uint256 projectId => address) public projectTokenOf;
 
     //*********************************************************************//
     // ---------------------------- constructor -------------------------- //
