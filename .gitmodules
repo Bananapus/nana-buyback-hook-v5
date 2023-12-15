@@ -23,3 +23,6 @@
 [submodule "lib/uniswap-v3-foundry-pool"]
 	path = lib/uniswap-v3-foundry-pool
 	url = https://github.com/exhausted-pigeon-srl/uniswap-v3-foundry-pool
+[submodule "lib/openzeppelin-contracts-v3.4.1-solc-0.7"]
+	path = lib/openzeppelin-contracts-v3.4.1-solc-0.7
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
