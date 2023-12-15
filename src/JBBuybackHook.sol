@@ -169,7 +169,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             bytes memory metadata;
 
             // Unpack the quote from the pool, given by the frontend.
-            (quoteExists, metadata) = JBMetadataResolver.getData(DELEGATE_ID, data.metadata);
+            (quoteExists, metadata) = JBMetadataResolver.getDataFor(DELEGATE_ID, data.metadata);
             if (quoteExists) (amountToSwapWith, minimumSwapAmountOut) = abi.decode(metadata, (uint256, uint256));
         }
 

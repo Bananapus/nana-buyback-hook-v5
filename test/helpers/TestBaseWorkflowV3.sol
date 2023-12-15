@@ -224,11 +224,9 @@ contract TestBaseWorkflowV3 is Test {
         rulesetConfigurations[0].fundAccessLimitGroups = fundAccessLimitGroups;
 
         JBTerminalConfig[] memory terminalConfigurations = new JBTerminalConfig[](1);
-        JBAccountingContextConfig[] memory accountingContextConfigs = new JBAccountingContextConfig[](1);
-        accountingContextConfigs[0] =
-            JBAccountingContextConfig({token: JBConstants.NATIVE_TOKEN, standard: JBTokenStandards.NATIVE});
-        terminalConfigurations[0] =
-            JBTerminalConfig({terminal: jbMultiTerminal, accountingContextConfigs: accountingContextConfigs});
+        address[] memory tokensToAccept = new address[](1);
+        tokensToAccept[0] = JBConstants.NATIVE_TOKEN;
+        terminalConfigurations[0] = JBTerminalConfig({terminal: jbMultiTerminal, tokensToAccept: tokensToAccept});
 
         projectId = jbController.launchProjectFor({
             owner: multisig,
