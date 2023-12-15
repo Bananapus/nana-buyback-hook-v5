@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.16;
+// pragma solidity ^0.8.16;
 
 // import "./helpers/TestBaseWorkflowV3.sol";
 
@@ -15,7 +15,7 @@ pragma solidity ^0.8.16;
 //  */
 // contract TestJBBuybackHook_Invariant is TestBaseWorkflowV3, PoolTestHelper {
 //     BBDHandler handler;
-//     MetadataResolverHelper _metadataHelper = new MetadataResolverHelper();
+//     MetadataResolverHelper metadataHelper = new MetadataResolverHelper();
 
 //     /**
 //      * @notice Set up a new JBX project and use the buyback delegate as the datasource
@@ -25,14 +25,14 @@ pragma solidity ^0.8.16;
 //         // pool
 //         super.setUp();
 
-//         handler = new BBDHandler(_jbETHPaymentTerminal, _projectId, pool, _delegate);
+//         handler = new BBDHandler(jbMultiTerminal, projectId, pool, hook);
 
-//         PoolTestHelper _helper = new PoolTestHelper();
-//         IUniswapV3Pool _newPool = IUniswapV3Pool(
+//         PoolTestHelper helper = new PoolTestHelper();
+//         IUniswapV3Pool newPool = IUniswapV3Pool(
 //             address(
-//                 _helper.createPool(
+//                 helper.createPool(
 //                     address(weth),
-//                     address(_jbController.tokenStore().tokenOf(_projectId)),
+//                     address(jbController.tokenStore().tokenOf(projectId)),
 //                     fee,
 //                     1000 ether,
 //                     PoolTestHelper.Chains.Mainnet
@@ -44,9 +44,9 @@ pragma solidity ^0.8.16;
 //     }
 
 //     function invariant_BBD1() public {
-//         uint256 _amountIn = handler.ghost_accumulatorAmountIn();
+//         uint256 amountIn = handler.ghost_accumulatorAmountIn();
 
-//         assertEq(_jbController.totalOutstandingTokensOf(_projectId), _amountIn * weight / 10 ** 18);
+//         assertEq(jbController.totalOutstandingTokensOf(projectId), amountIn * weight / 10 ** 18);
 //     }
 
 //     function test_inv() public {
@@ -55,13 +55,13 @@ pragma solidity ^0.8.16;
 // }
 
 // contract BBDHandler is Test {
-//     MetadataResolverHelper immutable metadataHelper;
-//     JBMultiTerminal immutable jbETHPaymentTerminal;
-//     IUniswapV3Pool immutable pool;
-//     IJBBuybackHook immutable delegate;
-//     uint256 immutable projectId;
+//     MetadataResolverHelper immutable METADATa_HELPER;
+//     JBMultiTerminal immutable TERMINAL;
+//     IUniswapV3Pool immutable POOL;
+//     IJBBuybackHook immutable HOOK;
+//     uint256 immutable PROJECT_ID;
 
-//     address public _beneficiary;
+//     address public BENEFICIARY;
 
 //     uint256 public ghost_accumulatorAmountIn;
 //     uint256 public ghost_liquidityProvided;
@@ -72,60 +72,60 @@ pragma solidity ^0.8.16;
 //         _;
 //     }
 
-//     constructor(JBMultiTerminal _terminal, uint256 _projectId, IUniswapV3Pool _pool, IJBBuybackHook _delegate) {
+//     constructor(JBMultiTerminal terminal, uint256 projectId, IUniswapV3Pool pool, IJBBuybackHook hook) {
 //         metadataHelper = new MetadataResolverHelper();
 
-//         jbETHPaymentTerminal = _terminal;
-//         projectId = _projectId;
-//         pool = _pool;
-//         delegate = _delegate;
+//         TERMINAL = terminal;
+//         PROJECT_ID = projectId;
+//         POOL = pool;
+//         HOOK = hook;
 
-//         _beneficiary = makeAddr("_beneficiary");
+//         BENEFICIARY = makeAddr("_beneficiary");
 //     }
 
-//     function trigger_pay(uint256 _amountIn) public {
-//         _amountIn = bound(_amountIn, 0, 10_000 ether);
+//     function trigger_pay(uint256 amountIn) public {
+//         amountIn = bound(amountIn, 0, 10_000 ether);
 
-//         // bool zeroForOne = jbETHPaymentTerminal.token() > address(JBConstants.NATIVE_TOKEN);
+//         bool zeroForOne = TERMINAL.token() > address(JBConstants.NATIVE_TOKEN);
 
-//         // vm.mockCall(
-//         //     address(pool),
-//         //     abi.encodeCall(
-//         //         IUniswapV3PoolActions.swap,
-//         //         (
-//         //             address(delegate),
-//         //             zeroForOne,
-//         //             int256(_amountIn),
-//         //             zeroForOne
-//         //                 ? TickMath.MIN_SQRT_RATIO + 1
-//         //                 : TickMath.MAX_SQRT_RATIO - 1,
-//         //             abi.encode(projectId, JBConstants.NATIVE_TOKEN)
-//         //         )
-//         //     ),
-//         //     abi.encode(0, 0)
-//         // );
+//         vm.mockCall(
+//             address(POOL),
+//             abi.encodeCall(
+//                 IUniswapV3PoolActions.swap,
+//                 (
+//                     address(HOOK),
+//                     zeroForOne,
+//                     int256(amountIn),
+//                     zeroForOne
+//                         ? TickMath.MIN_SQRT_RATIO + 1
+//                         : TickMath.MAX_SQRT_RATIO - 1,
+//                     abi.encode(PROJECT_ID, JBConstants.NATIVE_TOKEN)
+//                 )
+//             ),
+//             abi.encode(0, 0)
+//         );
 
-//         vm.deal(address(this), _amountIn);
-//         ghost_accumulatorAmountIn += _amountIn;
+//         vm.deal(address(this), amountIn);
+//         ghost_accumulatorAmountIn += amountIn;
 
-//         uint256 _quote = 1;
+//         uint256 quote = 1;
 
 //         // set only valid metadata
-//         bytes[] memory _quoteData = new bytes[](1);
-//         _quoteData[0] = abi.encode(_amountIn, _quote);
+//         bytes[] memory quoteData = new bytes[](1);
+//         quoteData[0] = abi.encode(amountIn, quote);
 
 //         // Pass the delegate id
-//         bytes4[] memory _ids = new bytes4[](1);
-//         _ids[0] = bytes4(hex"69");
+//         bytes4[] memory ids = new bytes4[](1);
+//         ids[0] = bytes4(hex"69");
 
 //         // Generate the metadata
-//         bytes memory _delegateMetadata = metadataHelper.createMetadata(_ids, _quoteData);
+//         bytes memory delegateMetadata = metadataHelper.createMetadata(ids, quoteData);
 
-//         jbETHPaymentTerminal.pay{value: _amountIn}(
-//             projectId,
-//             _amountIn,
+//         TERMINAL.pay{value: amountIn}(
+//             PROJECT_ID,
+//             amountIn,
 //             address(0),
-//             _beneficiary,
+//             BENEFICIARY,
 //             /* _minReturnedTokens */
 //             0,
 //             /* _preferClaimedTokens */
@@ -133,7 +133,7 @@ pragma solidity ^0.8.16;
 //             /* _memo */
 //             "Take my money!",
 //             /* _delegateMetadata */
-//             _delegateMetadata
+//             delegateMetadata
 //         );
 //     }
 

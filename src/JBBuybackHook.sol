@@ -211,8 +211,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
                     quoteExists,
                     projectTokenIs0,
                     totalPaid == amountToSwapWith ? 0 : totalPaid - amountToSwapWith,
-                    minimumSwapAmountOut,
-                    weight
+                    minimumSwapAmountOut
                     )
             });
 
@@ -276,9 +275,8 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             bool quoteExists,
             bool projectTokenIs0,
             uint256 amountToMintWith,
-            uint256 minimumSwapAmountOut,
-            uint256 weight
-        ) = abi.decode(data.hookMetadata, (bool, bool, uint256, uint256, uint256));
+            uint256 minimumSwapAmountOut
+        ) = abi.decode(data.hookMetadata, (bool, bool, uint256, uint256));
 
         // Get a reference to the amount of tokens that was swapped for.
         uint256 exactSwapAmountOut = _swap(data, projectTokenIs0);
@@ -295,7 +293,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         // Keep a reference to the number of tokens being minted.
         uint256 partialMintTokenCount;
         if (terminalTokenInThisContract != 0) {
-            partialMintTokenCount = mulDiv(terminalTokenInThisContract, weight, 10 ** data.amount.decimals);
+            partialMintTokenCount = mulDiv(terminalTokenInThisContract, data.weight, 10 ** data.amount.decimals);
 
             // If the token paid in wasn't ETH, give the terminal permission to pull them back into its balance.
             if (data.forwardedAmount.token != JBConstants.NATIVE_TOKEN) {
@@ -314,7 +312,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         }
 
         // Add amount to mint to leftover mint amount (avoiding stack too deep here)
-        partialMintTokenCount += mulDiv(amountToMintWith, weight, 10 ** data.amount.decimals);
+        partialMintTokenCount += mulDiv(amountToMintWith, data.weight, 10 ** data.amount.decimals);
 
         // Mint the whole amount of tokens again together with the (optional partial mint), such that the correct
         // portion of reserved tokens get taken into account.
