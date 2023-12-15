@@ -8,7 +8,7 @@ import {MetadataResolverHelper} from "lib/juice-contracts-v4/test/helpers/Metada
 
 import "lib/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import "lib/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
-import "lib/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+// import "lib/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import "lib/v3-core/contracts/libraries/TickMath.sol";
 
 import "lib/uniswap-v3-foundry-quote/src/UniswapV3ForgeQuoter.sol";

@@ -1,6 +1,3 @@
-[submodule "lib/forge-std"]
-	path = lib/forge-std
-	url = https://github.com/foundry-rs/forge-std
 [submodule "lib/juice-contracts-v4"]
 	path = lib/juice-contracts-v4
 	url = https://github.com/Bananapus/juice-contracts-v4
@@ -10,9 +7,11 @@
 [submodule "lib/v3-core"]
 	path = lib/v3-core
 	url = https://github.com/uniswap/v3-core
+	branch = 0.8
 [submodule "lib/v3-periphery"]
 	path = lib/v3-periphery
 	url = https://github.com/uniswap/v3-periphery
+	branch = 0.8
 [submodule "lib/uniswap-v3-foundry-quote"]
 	path = lib/uniswap-v3-foundry-quote
 	url = https://github.com/exhausted-pigeon-srl/uniswap-v3-foundry-quote
@@ -22,3 +21,6 @@
 [submodule "lib/openzeppelin-contracts-v3.4.1-solc-0.7"]
 	path = lib/openzeppelin-contracts-v3.4.1-solc-0.7
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "lib/forge-std"]
+	path = lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
