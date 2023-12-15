@@ -34,11 +34,11 @@ import "@jbx-protocol/juice-contracts-v3/contracts/libraries/JBConstants.sol";
 
 import "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBSingleTokenPaymentTerminalStore.sol";
 
-import "@paulrberg/contracts/math/PRBMath.sol";
+import "@paulrberg/contracts/math/Common.sol";
 
 import "./AccessJBLib.sol";
 import "../../interfaces/external/IWETH9.sol";
-import "../../JBBuybackDelegate.sol";
+import "../../JBBuybackHook.sol";
 
 
 
