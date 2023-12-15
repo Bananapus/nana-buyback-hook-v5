@@ -14,7 +14,7 @@ import {MetadataResolverHelper} from "lib/juice-contracts-v4/src/../test/helpers
 import "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165Checker.sol";
 import "lib/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import "forge-std/Test.sol";
+import "lib/forge-std/src/Test.sol";
 
 import "./helpers/PoolAddress.sol";
 import "src/JBBuybackHook.sol";
