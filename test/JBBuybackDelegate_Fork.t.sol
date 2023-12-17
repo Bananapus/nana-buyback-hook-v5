@@ -4,18 +4,18 @@ pragma solidity ^0.8.16;
 import "src/interfaces/external/IWETH9.sol";
 import "./helpers/TestBaseWorkflowV3.sol";
 
-import {MetadataResolverHelper} from "../lib/juice-contracts-v4/test/helpers/MetadataResolverHelper.sol";
+import {MetadataResolverHelper} from "lib/juice-contracts-v4/test/helpers/MetadataResolverHelper.sol";
 
-import "../lib/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import "../lib/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
-// import "../lib/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
-import "../lib/v3-core/contracts/libraries/TickMath.sol";
+import "lib/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import "lib/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+// import "lib/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import "lib/v3-core/contracts/libraries/TickMath.sol";
 
-import "../lib/uniswap-v3-foundry-quote/src/UniswapV3ForgeQuoter.sol";
+import "lib/uniswap-v3-foundry-quote/src/UniswapV3ForgeQuoter.sol";
 
 import "src/JBBuybackHook.sol";
 
-import {mulDiv, mulDiv18} from "../lib/prb-math/src/Common.sol";
+import {mulDiv, mulDiv18} from "lib/prb-math/src/Common.sol";
 
 /**
  * @notice Buyback fork integration tests, using $jbx v3

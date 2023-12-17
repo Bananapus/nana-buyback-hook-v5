@@ -1,38 +1,38 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.16;
 
-import "../../lib/forge-std/src/Test.sol";
+import "lib/forge-std/src/Test.sol";
 
-import "../../lib/juice-contracts-v4/src/JBController.sol";
-import "../../lib/juice-contracts-v4/src/JBDirectory.sol";
-import "../../lib/juice-contracts-v4/src/JBMultiTerminal.sol";
-import "../../lib/juice-contracts-v4/src/JBFundAccessLimits.sol";
-import "../../lib/juice-contracts-v4/src/JBTerminalStore.sol";
-import "../../lib/juice-contracts-v4/src/JBRulesets.sol";
-import "../../lib/juice-contracts-v4/src/JBFeelessAddresses.sol";
-import "../../lib/juice-contracts-v4/src/JBPermissions.sol";
-import "../../lib/juice-contracts-v4/src/JBPrices.sol";
-import "../../lib/juice-contracts-v4/src/JBProjects.sol";
-import "../../lib/juice-contracts-v4/src/JBSplits.sol";
-import "../../lib/juice-contracts-v4/src/JBTokens.sol";
+import "lib/juice-contracts-v4/src/JBController.sol";
+import "lib/juice-contracts-v4/src/JBDirectory.sol";
+import "lib/juice-contracts-v4/src/JBMultiTerminal.sol";
+import "lib/juice-contracts-v4/src/JBFundAccessLimits.sol";
+import "lib/juice-contracts-v4/src/JBTerminalStore.sol";
+import "lib/juice-contracts-v4/src/JBRulesets.sol";
+import "lib/juice-contracts-v4/src/JBFeelessAddresses.sol";
+import "lib/juice-contracts-v4/src/JBPermissions.sol";
+import "lib/juice-contracts-v4/src/JBPrices.sol";
+import "lib/juice-contracts-v4/src/JBProjects.sol";
+import "lib/juice-contracts-v4/src/JBSplits.sol";
+import "lib/juice-contracts-v4/src/JBTokens.sol";
 
-import "../../lib/juice-contracts-v4/src/structs/JBDidPayData.sol";
-import "../../lib/juice-contracts-v4/src/structs/JBDidRedeemData.sol";
-import "../../lib/juice-contracts-v4/src/structs/JBFee.sol";
-import "../../lib/juice-contracts-v4/src/structs/JBFundAccessLimitGroup.sol";
-import "../../lib/juice-contracts-v4/src/structs/JBRuleset.sol";
-import "../../lib/juice-contracts-v4/src/structs/JBRulesetData.sol";
-import "../../lib/juice-contracts-v4/src/structs/JBRulesetMetadata.sol";
-import "../../lib/juice-contracts-v4/src/structs/JBSplitGroup.sol";
-import "../../lib/juice-contracts-v4/src/structs/JBPermissionsData.sol";
-import "../../lib/juice-contracts-v4/src/structs/JBPayParamsData.sol";
-import "../../lib/juice-contracts-v4/src/structs/JBRedeemParamsData.sol";
-import "../../lib/juice-contracts-v4/src/structs/JBSplit.sol";
-import "../../lib/juice-contracts-v4/src/interfaces/terminal/IJBTerminal.sol";
-import "../../lib/juice-contracts-v4/src/interfaces/IJBToken.sol";
-import "../../lib/juice-contracts-v4/src/libraries/JBConstants.sol";
+import "lib/juice-contracts-v4/src/structs/JBDidPayData.sol";
+import "lib/juice-contracts-v4/src/structs/JBDidRedeemData.sol";
+import "lib/juice-contracts-v4/src/structs/JBFee.sol";
+import "lib/juice-contracts-v4/src/structs/JBFundAccessLimitGroup.sol";
+import "lib/juice-contracts-v4/src/structs/JBRuleset.sol";
+import "lib/juice-contracts-v4/src/structs/JBRulesetData.sol";
+import "lib/juice-contracts-v4/src/structs/JBRulesetMetadata.sol";
+import "lib/juice-contracts-v4/src/structs/JBSplitGroup.sol";
+import "lib/juice-contracts-v4/src/structs/JBPermissionsData.sol";
+import "lib/juice-contracts-v4/src/structs/JBPayParamsData.sol";
+import "lib/juice-contracts-v4/src/structs/JBRedeemParamsData.sol";
+import "lib/juice-contracts-v4/src/structs/JBSplit.sol";
+import "lib/juice-contracts-v4/src/interfaces/terminal/IJBTerminal.sol";
+import "lib/juice-contracts-v4/src/interfaces/IJBToken.sol";
+import "lib/juice-contracts-v4/src/libraries/JBConstants.sol";
 
-import "../../lib/juice-contracts-v4/src/interfaces/IJBTerminalStore.sol";
+import "lib/juice-contracts-v4/src/interfaces/IJBTerminalStore.sol";
 
 import "./AccessJBLib.sol";
 import "src/interfaces/external/IWETH9.sol";
