@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.16;
 
-import "lib/juice-contracts-v4/src/libraries/JBCurrencyIds.sol";
-import "lib/juice-contracts-v4/src/libraries/JBConstants.sol";
-import "lib/juice-contracts-v4/src/libraries/JBConstants.sol";
+import "../../lib/juice-contracts-v4/src/libraries/JBCurrencyIds.sol";
+import "../../lib/juice-contracts-v4/src/libraries/JBConstants.sol";
+import "../../lib/juice-contracts-v4/src/libraries/JBConstants.sol";
 
 contract AccessJBLib {
     function ETH() external pure returns (uint256) {

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "lib/forge-std/src/Script.sol";
+import "../lib/forge-std/src/Script.sol";
 
-import "src/JBBuybackHook.sol";
+import "../src/JBBuybackHook.sol";
 
 contract Deploy is Script {
     uint256 _chainId = block.chainid;
