@@ -11,8 +11,7 @@ import {IUniswapV3SwapCallback} from "lib/v3-core/contracts/interfaces/callback/
 
 import {IWETH9} from "./external/IWETH9.sol";
 
-interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallback { 
-
+interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallback {
     event BuybackDelegate_Swap(
         uint256 indexed projectId, uint256 amountIn, IUniswapV3Pool pool, uint256 amountOut, address caller
     );

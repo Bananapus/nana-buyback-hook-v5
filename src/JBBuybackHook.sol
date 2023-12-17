@@ -284,12 +284,8 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         }
 
         // Parse the metadata passed in from the data source.
-        (
-            bool quoteExists,
-            bool projectTokenIs0,
-            uint256 amountToMintWith,
-            uint256 minimumSwapAmountOut
-        ) = abi.decode(data.hookMetadata, (bool, bool, uint256, uint256));
+        (bool quoteExists, bool projectTokenIs0, uint256 amountToMintWith, uint256 minimumSwapAmountOut) =
+            abi.decode(data.hookMetadata, (bool, bool, uint256, uint256));
 
         // Get a reference to the amount of tokens that was swapped for.
         uint256 exactSwapAmountOut = _swap(data, projectTokenIs0);
@@ -317,9 +313,14 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             uint256 payValue = data.forwardedAmount.token == JBConstants.NATIVE_TOKEN ? terminalTokenInThisContract : 0;
 
             // Add the paid amount back to the project's terminal balance.
-            IJBMultiTerminal(msg.sender).addToBalanceOf{
-                value: payValue
-            }({ projectId: data.projectId,token: data.forwardedAmount.token,amount: terminalTokenInThisContract, shouldReturnHeldFees: false ,memo: "", metadata: bytes("")});
+            IJBMultiTerminal(msg.sender).addToBalanceOf{value: payValue}({
+                projectId: data.projectId,
+                token: data.forwardedAmount.token,
+                amount: terminalTokenInThisContract,
+                shouldReturnHeldFees: false,
+                memo: "",
+                metadata: bytes("")
+            });
 
             emit BuybackDelegate_Mint(data.projectId, terminalTokenInThisContract, partialMintTokenCount, msg.sender);
         }
@@ -342,14 +343,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     /// @param amount0Delta The amount of token 0 being used for the swap.
     /// @param amount1Delta The amount of token 1 being used for the swap.
     /// @param data Data passed in by the swap operation.
-    function uniswapV3SwapCallback(
-        int256 amount0Delta,
-        int256 amount1Delta,
-        bytes calldata data
-    )
-        external
-        override
-    {
+    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
         // Unpack the data passed in through the swap hook.
         (uint256 projectId, address terminalToken) = abi.decode(data, (uint256, address));
 
@@ -390,12 +384,17 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         returns (IUniswapV3Pool newPool)
     {
         // Enforce permissions.
-        _requirePermissionFrom({ account: PROJECTS.ownerOf(projectId), projectId: projectId, permissionId: JBBuybackHookPermissionIds.CHANGE_POOL});
+        _requirePermissionFrom({
+            account: PROJECTS.ownerOf(projectId),
+            projectId: projectId,
+            permissionId: JBBuybackHookPermissionIds.CHANGE_POOL
+        });
 
         // Make sure the provided delta is within sane bounds.
-        if (
-            twapSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || twapSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE
-        ) revert JuiceBuyback_InvalidTwapSlippageTolerance();
+        if (twapSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || twapSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE)
+        {
+            revert JuiceBuyback_InvalidTwapSlippageTolerance();
+        }
 
         // Make sure the provided period is within sane bounds.
         if (twapWindow < MIN_TWAP_WINDOW || twapWindow > MAX_TWAP_WINDOW) revert JuiceBuyback_InvalidTwapWindow();
@@ -458,14 +457,13 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     /// JBPermissions.
     /// @param projectId The ID for which the new value applies.
     /// @param newWindow The new TWAP period.
-    function setTwapWindowOf(
-        uint256 projectId,
-        uint32 newWindow
-    )
-        external
-    {
+    function setTwapWindowOf(uint256 projectId, uint32 newWindow) external {
         // Enforce permissions.
-        _requirePermissionFrom({ account: PROJECTS.ownerOf(projectId), projectId: projectId, permissionId: JBBuybackHookPermissionIds.SET_POOL_PARAMS});
+        _requirePermissionFrom({
+            account: PROJECTS.ownerOf(projectId),
+            projectId: projectId,
+            permissionId: JBBuybackHookPermissionIds.SET_POOL_PARAMS
+        });
 
         // Make sure the provided period is within sane bounds.
         if (newWindow < MIN_TWAP_WINDOW || newWindow > MAX_TWAP_WINDOW) {
@@ -488,18 +486,16 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     /// @dev This can be called by the project owner or an address having the SET_POOL permission in JBPermissions.
     /// @param projectId The ID for which the new value applies.
     /// @param newSlippageTolerance the new delta, out of SLIPPAGE_DENOMINATOR.
-    function setTwapSlippageToleranceOf(
-        uint256 projectId,
-        uint256 newSlippageTolerance
-    )
-        external
-    {
+    function setTwapSlippageToleranceOf(uint256 projectId, uint256 newSlippageTolerance) external {
         // Enforce permissions.
-        _requirePermissionFrom({ account: PROJECTS.ownerOf(projectId), projectId: projectId, permissionId: JBBuybackHookPermissionIds.SET_POOL_PARAMS});
+        _requirePermissionFrom({
+            account: PROJECTS.ownerOf(projectId),
+            projectId: projectId,
+            permissionId: JBBuybackHookPermissionIds.SET_POOL_PARAMS
+        });
 
         // Make sure the provided delta is within sane bounds.
-        if (newSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || newSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE)
-        {
+        if (newSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || newSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE) {
             revert JuiceBuyback_InvalidTwapSlippageTolerance();
         }
 
@@ -601,12 +597,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         }
 
         // Burn the whole amount received.
-        CONTROLLER.burnTokensOf({
-            holder: address(this),
-            projectId: data.projectId,
-            tokenCount: amountReceived,
-            memo: ""
-        });
+        CONTROLLER.burnTokensOf({holder: address(this), projectId: data.projectId, tokenCount: amountReceived, memo: ""});
 
         // We return the amount we received/burned and we will mint them to the user later
 

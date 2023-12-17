@@ -176,12 +176,7 @@ contract TestBaseWorkflowV3 is Test {
             delegateId: bytes4(hex"69")
         });
 
-        data = JBRulesetData({
-            duration: 6 days,
-            weight: weight,
-            decayRate: 0,
-            hook: IJBRulesetApprovalHook(address(0))
-        });
+        data = JBRulesetData({duration: 6 days, weight: weight, decayRate: 0, hook: IJBRulesetApprovalHook(address(0))});
 
         metadata = JBRulesetMetadata({
             reservedRate: reservedRate,
@@ -205,9 +200,9 @@ contract TestBaseWorkflowV3 is Test {
         JBFundAccessLimitGroup[] memory fundAccessLimitGroups = new JBFundAccessLimitGroup[](1);
         JBCurrencyAmount[] memory payoutLimits = new JBCurrencyAmount[](1);
         JBCurrencyAmount[] memory surplusAllowances = new JBCurrencyAmount[](1);
-        payoutLimits[0] =
-            JBCurrencyAmount({amount: 2 ether, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))});
-        surplusAllowances[0] = JBCurrencyAmount({amount: type(uint232).max, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))});
+        payoutLimits[0] = JBCurrencyAmount({amount: 2 ether, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))});
+        surplusAllowances[0] =
+            JBCurrencyAmount({amount: type(uint232).max, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))});
         fundAccessLimitGroups[0] = JBFundAccessLimitGroup({
             terminal: address(jbMultiTerminal),
             token: JBConstants.NATIVE_TOKEN,

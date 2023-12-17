@@ -205,12 +205,7 @@ contract TestJBBuybackHook_Units is Test {
             assertEq(allocationsReturned[0].amount, amountIn, "worng amount in returned");
             assertEq(
                 allocationsReturned[0].metadata,
-                abi.encode(
-                    true,
-                    address(projectToken) < address(weth),
-                    payParams.amount.value - amountIn,
-                    swapOutCount
-                ),
+                abi.encode(true, address(projectToken) < address(weth), payParams.amount.value - amountIn, swapOutCount),
                 "wrong metadata"
             );
 
@@ -246,9 +241,7 @@ contract TestJBBuybackHook_Units is Test {
         tickCumulatives[1] = 1000;
 
         vm.mockCall(
-            address(pool),
-            abi.encodeCall(pool.observe, (secondsAgos)),
-            abi.encode(tickCumulatives, secondPerLiquidity)
+            address(pool), abi.encodeCall(pool.observe, (secondsAgos)), abi.encode(tickCumulatives, secondPerLiquidity)
         );
         vm.expectCall(address(pool), abi.encodeCall(pool.observe, (secondsAgos)));
 
@@ -428,21 +421,19 @@ contract TestJBBuybackHook_Units is Test {
         // mock the minting call
         vm.mockCall(
             address(controller),
-            abi.encodeCall(
-                controller.mintTokensOf, (didPayData.projectId, twapQuote, address(dude), "", true)
-            ),
+            abi.encodeCall(controller.mintTokensOf, (didPayData.projectId, twapQuote, address(dude), "", true)),
             abi.encode(true)
         );
         vm.expectCall(
             address(controller),
-            abi.encodeCall(
-                controller.mintTokensOf, (didPayData.projectId, twapQuote, address(dude), "", true)
-            )
+            abi.encodeCall(controller.mintTokensOf, (didPayData.projectId, twapQuote, address(dude), "", true))
         );
 
         // expect event
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_Swap(didPayData.projectId, didPayData.amount.value, pool, twapQuote, address(multiTerminal));
+        emit BuybackDelegate_Swap(
+            didPayData.projectId, didPayData.amount.value, pool, twapQuote, address(multiTerminal)
+        );
 
         vm.prank(address(multiTerminal));
         hook.didPay(didPayData);
@@ -520,21 +511,19 @@ contract TestJBBuybackHook_Units is Test {
         // mock the minting call
         vm.mockCall(
             address(controller),
-            abi.encodeCall(
-                controller.mintTokensOf, (didPayData.projectId, twapQuote, address(dude), "", true)
-            ),
+            abi.encodeCall(controller.mintTokensOf, (didPayData.projectId, twapQuote, address(dude), "", true)),
             abi.encode(true)
         );
         vm.expectCall(
             address(controller),
-            abi.encodeCall(
-                controller.mintTokensOf, (didPayData.projectId, twapQuote, address(dude), "", true)
-            )
+            abi.encodeCall(controller.mintTokensOf, (didPayData.projectId, twapQuote, address(dude), "", true))
         );
 
         // expect event
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_Swap(didPayData.projectId, didPayData.amount.value, pool, twapQuote, address(multiTerminal));
+        emit BuybackDelegate_Swap(
+            didPayData.projectId, didPayData.amount.value, pool, twapQuote, address(multiTerminal)
+        );
 
         vm.prank(address(multiTerminal));
         hook.didPay(didPayData);
@@ -623,23 +612,17 @@ contract TestJBBuybackHook_Units is Test {
         // mock the minting call
         vm.mockCall(
             address(controller),
-            abi.encodeCall(
-                controller.mintTokensOf, (didPayData.projectId, twapQuote, address(dude), "", true)
-            ),
+            abi.encodeCall(controller.mintTokensOf, (didPayData.projectId, twapQuote, address(dude), "", true)),
             abi.encode(true)
         );
         vm.expectCall(
             address(controller),
-            abi.encodeCall(
-                controller.mintTokensOf, (didPayData.projectId, twapQuote, address(dude), "", true)
-            )
+            abi.encodeCall(controller.mintTokensOf, (didPayData.projectId, twapQuote, address(dude), "", true))
         );
 
         // No leftover
         vm.mockCall(
-            address(randomTerminalToken),
-            abi.encodeCall(randomTerminalToken.balanceOf, (address(hook))),
-            abi.encode(0)
+            address(randomTerminalToken), abi.encodeCall(randomTerminalToken.balanceOf, (address(hook))), abi.encode(0)
         );
         vm.expectCall(address(randomTerminalToken), abi.encodeCall(randomTerminalToken.balanceOf, (address(hook))));
 
@@ -823,7 +806,7 @@ contract TestJBBuybackHook_Units is Test {
             address(multiTerminal),
             abi.encodeCall(
                 IJBTerminal(address(multiTerminal)).addToBalanceOf,
-                (didPayData.projectId,  address(randomTerminalToken), tokenCount, false, "", "")
+                (didPayData.projectId, address(randomTerminalToken), tokenCount, false, "", "")
             ),
             ""
         );
@@ -831,7 +814,7 @@ contract TestJBBuybackHook_Units is Test {
             address(multiTerminal),
             abi.encodeCall(
                 IJBTerminal(address(multiTerminal)).addToBalanceOf,
-                (didPayData.projectId, address(randomTerminalToken), tokenCount,false, "", "")
+                (didPayData.projectId, address(randomTerminalToken), tokenCount, false, "", "")
             )
         );
 
@@ -1019,9 +1002,7 @@ contract TestJBBuybackHook_Units is Test {
         });
 
         // Init with weth (as weth is stored in the pool of mapping)
-        hook.ForTest_initPool(
-            pool, projectId, secondsAgo, twapDelta, address(projectToken), address(terminalToken)
-        );
+        hook.ForTest_initPool(pool, projectId, secondsAgo, twapDelta, address(projectToken), address(terminalToken));
 
         // If project is token0, then received is delta0 (the negative value)
         (delta0, delta1) = address(projectToken) < address(terminalToken) ? (delta0, delta1) : (delta1, delta0);
@@ -1069,9 +1050,7 @@ contract TestJBBuybackHook_Units is Test {
             id: bytes4(hex"69")
         });
 
-        hook.ForTest_initPool(
-            pool, projectId, secondsAgo, twapDelta, address(projectToken), address(terminalToken)
-        );
+        hook.ForTest_initPool(pool, projectId, secondsAgo, twapDelta, address(projectToken), address(terminalToken));
 
         vm.mockCall(
             address(terminalToken),
@@ -1102,9 +1081,7 @@ contract TestJBBuybackHook_Units is Test {
         int256 delta1 = 1 ether;
 
         vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.JuiceBuyback_Unauthorized.selector));
-        hook.uniswapV3SwapCallback(
-            delta0, delta1, abi.encode(projectId, weth, address(projectToken) < address(weth))
-        );
+        hook.uniswapV3SwapCallback(delta0, delta1, abi.encode(projectId, weth, address(projectToken) < address(weth)));
     }
 
     /**
@@ -1153,16 +1130,13 @@ contract TestJBBuybackHook_Units is Test {
         );
 
         vm.prank(owner);
-        address newPool =
-            address(hook.setPoolFor(projectId, _fee, uint32(_secondsAgo), _twapDelta, _terminalToken));
+        address newPool = address(hook.setPoolFor(projectId, _fee, uint32(_secondsAgo), _twapDelta, _terminalToken));
 
         // Check: correct params stored?
         assertEq(hook.twapWindowOf(projectId), _secondsAgo);
         assertEq(hook.twapSlippageToleranceOf(projectId), _twapDelta);
         assertEq(
-            address(
-                hook.poolOf(projectId, _terminalToken == JBConstants.NATIVE_TOKEN ? address(weth) : _terminalToken)
-            ),
+            address(hook.poolOf(projectId, _terminalToken == JBConstants.NATIVE_TOKEN ? address(weth) : _terminalToken)),
             _pool
         );
         assertEq(newPool, _pool);
@@ -1210,16 +1184,12 @@ contract TestJBBuybackHook_Units is Test {
     function test_setPoolFor_revertIfWrongCaller() public {
         vm.mockCall(
             address(permissions),
-            abi.encodeCall(
-                permissions.hasPermission, (dude, owner, projectId, JBBuybackHookPermissionIds.CHANGE_POOL)
-            ),
+            abi.encodeCall(permissions.hasPermission, (dude, owner, projectId, JBBuybackHookPermissionIds.CHANGE_POOL)),
             abi.encode(false)
         );
         vm.expectCall(
             address(permissions),
-            abi.encodeCall(
-                permissions.hasPermission, (dude, owner, projectId, JBBuybackHookPermissionIds.CHANGE_POOL)
-            )
+            abi.encodeCall(permissions.hasPermission, (dude, owner, projectId, JBBuybackHookPermissionIds.CHANGE_POOL))
         );
 
         vm.mockCall(
@@ -1257,30 +1227,22 @@ contract TestJBBuybackHook_Units is Test {
         // Check: seconds ago too low
         vm.expectRevert(JBBuybackHook.JuiceBuyback_InvalidTwapWindow.selector);
         vm.prank(owner);
-        hook.setPoolFor(
-            projectId, _fee, uint32(MIN_TWAP_WINDOW - 1), MIN_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken
-        );
+        hook.setPoolFor(projectId, _fee, uint32(MIN_TWAP_WINDOW - 1), MIN_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken);
 
         // Check: seconds ago too high
         vm.expectRevert(JBBuybackHook.JuiceBuyback_InvalidTwapWindow.selector);
         vm.prank(owner);
-        hook.setPoolFor(
-            projectId, _fee, uint32(MAX_TWAP_WINDOW + 1), MIN_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken
-        );
+        hook.setPoolFor(projectId, _fee, uint32(MAX_TWAP_WINDOW + 1), MIN_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken);
 
         // Check: min twap deviation too low
         vm.expectRevert(JBBuybackHook.JuiceBuyback_InvalidTwapSlippageTolerance.selector);
         vm.prank(owner);
-        hook.setPoolFor(
-            projectId, _fee, uint32(MIN_TWAP_WINDOW + 1), MIN_TWAP_SLIPPAGE_TOLERANCE - 1, _terminalToken
-        );
+        hook.setPoolFor(projectId, _fee, uint32(MIN_TWAP_WINDOW + 1), MIN_TWAP_SLIPPAGE_TOLERANCE - 1, _terminalToken);
 
         // Check: max twap deviation too high
         vm.expectRevert(JBBuybackHook.JuiceBuyback_InvalidTwapSlippageTolerance.selector);
         vm.prank(owner);
-        hook.setPoolFor(
-            projectId, _fee, uint32(MIN_TWAP_WINDOW + 1), MAX_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken
-        );
+        hook.setPoolFor(projectId, _fee, uint32(MIN_TWAP_WINDOW + 1), MAX_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken);
     }
 
     /**
@@ -1357,16 +1319,12 @@ contract TestJBBuybackHook_Units is Test {
 
         vm.mockCall(
             address(permissions),
-            abi.encodeCall(
-                permissions.hasPermission, (notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
-            ),
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS)),
             abi.encode(false)
         );
         vm.expectCall(
             address(permissions),
-            abi.encodeCall(
-                permissions.hasPermission, (notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
-            )
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS))
         );
 
         // check: revert?
@@ -1447,16 +1405,12 @@ contract TestJBBuybackHook_Units is Test {
 
         vm.mockCall(
             address(permissions),
-            abi.encodeCall(
-                permissions.hasPermission, (notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
-            ),
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS)),
             abi.encode(false)
         );
         vm.expectCall(
             address(permissions),
-            abi.encodeCall(
-                permissions.hasPermission, (notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
-            )
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS))
         );
 
         // check: revert?
@@ -1509,8 +1463,7 @@ contract TestJBBuybackHook_Units is Test {
             metadata: ""
         });
 
-        (uint256 amountOut, JBRedeemHookPayload[] memory allocationOut) =
-            hook.redeemParams(data);
+        (uint256 amountOut, JBRedeemHookPayload[] memory allocationOut) = hook.redeemParams(data);
 
         assertEq(amountOut, amountIn);
         assertEq(allocationOut.length, 0);
