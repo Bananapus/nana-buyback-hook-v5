@@ -377,7 +377,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         returns (IUniswapV3Pool newPool)
     {
         // Enforce permissions.
-        _requirePermission({ account: PROJECTS.ownerOf(projectId), projectId: projectId, permissionId: JBBuybackHookPermissionIds.CHANGE_POOL});
+        _requirePermissionFrom({ account: PROJECTS.ownerOf(projectId), projectId: projectId, permissionId: JBBuybackHookPermissionIds.CHANGE_POOL});
 
         // Make sure the provided delta is within sane bounds.
         if (
@@ -452,7 +452,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         external
     {
         // Enforce permissions.
-        _requirePermission({ account: PROJECTS.ownerOf(projectId), projectId: projectId, permissionId: JBBuybackHookPermissionIds.SET_POOL_PARAMS});
+        _requirePermissionFrom({ account: PROJECTS.ownerOf(projectId), projectId: projectId, permissionId: JBBuybackHookPermissionIds.SET_POOL_PARAMS});
 
         // Make sure the provided period is within sane bounds.
         if (newWindow < MIN_TWAP_WINDOW || newWindow > MAX_TWAP_WINDOW) {
@@ -482,7 +482,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         external
     {
         // Enforce permissions.
-        _requirePermission({ account: PROJECTS.ownerOf(projectId), projectId: projectId, permissionId: JBBuybackHookPermissionIds.SET_POOL_PARAMS});
+        _requirePermissionFrom({ account: PROJECTS.ownerOf(projectId), projectId: projectId, permissionId: JBBuybackHookPermissionIds.SET_POOL_PARAMS});
 
         // Make sure the provided delta is within sane bounds.
         if (newSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || newSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE)
