@@ -29,12 +29,25 @@ import {IJBBuybackHook} from "./interfaces/IJBBuybackHook.sol";
 import {IWETH9} from "./interfaces/external/IWETH9.sol";
 
 /// @custom:benediction DEVS BENEDICAT ET PROTEGAT CONTRACTVS MEAM
-/// @title JBBuybackHook
-/// @notice Generic Buyback Delegate compatible with any Juicebox payment terminal and any project token that can be
-/// pooled.
-/// @notice Functions as a Data Source and Delegate allowing beneficiaries of payments to get the highest amount
+/// @notice Generic Buyback Hook compatible with any Juicebox payment terminal and any project token that can be pooled.
+/// @notice Functions as a Data Hook and Pay Hook allowing beneficiaries of payments to get the highest amount
 /// of a project's token between minting using the project weight and swapping in a given Uniswap V3 pool.
 contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
+    //*********************************************************************//
+    // --------------------------- custom errors ------------------------- //
+    //*********************************************************************//
+
+    error JuiceBuyback_MaximumSlippage();
+    error JuiceBuyback_InsufficientPayAmount();
+    error JuiceBuyback_NotEnoughTokensReceived();
+    error JuiceBuyback_NewSecondsAgoTooLow();
+    error JuiceBuyback_NoProjectToken();
+    error JuiceBuyback_PoolAlreadySet();
+    error JuiceBuyback_TransferFailed();
+    error JuiceBuyback_InvalidTwapSlippageTolerance();
+    error JuiceBuyback_InvalidTwapWindow();
+    error JuiceBuyback_Unauthorized();
+
     //*********************************************************************//
     // --------------------- internal stored properties ------------------ //
     //*********************************************************************//

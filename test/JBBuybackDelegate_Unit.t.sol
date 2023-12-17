@@ -349,7 +349,7 @@ contract TestJBBuybackHook_Units is Test {
         JBPayHookPayload[] memory allocationsReturned;
         uint256 weightReturned;
 
-        vm.expectRevert(IJBBuybackHook.JuiceBuyback_InsufficientPayAmount.selector);
+        vm.expectRevert(JBBuybackHook.JuiceBuyback_InsufficientPayAmount.selector);
 
         // Test: call payParams
         vm.prank(terminalStore);
@@ -696,7 +696,7 @@ contract TestJBBuybackHook_Units is Test {
             abi.encodeCall(directory.isTerminalOf, (didPayData.projectId, IJBTerminal(address(multiTerminal))))
         );
 
-        vm.expectRevert(IJBBuybackHook.JuiceBuyback_MaximumSlippage.selector);
+        vm.expectRevert(JBBuybackHook.JuiceBuyback_MaximumSlippage.selector);
 
         vm.prank(address(multiTerminal));
         hook.didPay(didPayData);
@@ -990,7 +990,7 @@ contract TestJBBuybackHook_Units is Test {
             abi.encodeCall(directory.isTerminalOf, (didPayData.projectId, IJBTerminal(address(notTerminal))))
         );
 
-        vm.expectRevert(abi.encodeWithSelector(IJBBuybackHook.JuiceBuyback_Unauthorized.selector));
+        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.JuiceBuyback_Unauthorized.selector));
 
         vm.prank(notTerminal);
         hook.didPay(didPayData);
@@ -1101,7 +1101,7 @@ contract TestJBBuybackHook_Units is Test {
         int256 delta0 = -1 ether;
         int256 delta1 = 1 ether;
 
-        vm.expectRevert(abi.encodeWithSelector(IJBBuybackHook.JuiceBuyback_Unauthorized.selector));
+        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.JuiceBuyback_Unauthorized.selector));
         hook.uniswapV3SwapCallback(
             delta0, delta1, abi.encode(projectId, weth, address(projectToken) < address(weth))
         );
@@ -1199,7 +1199,7 @@ contract TestJBBuybackHook_Units is Test {
         vm.prank(owner);
         hook.setPoolFor(projectId, _fee, uint32(_secondsAgo), _twapDelta, _terminalToken);
 
-        vm.expectRevert(IJBBuybackHook.JuiceBuyback_PoolAlreadySet.selector);
+        vm.expectRevert(JBBuybackHook.JuiceBuyback_PoolAlreadySet.selector);
         vm.prank(owner);
         hook.setPoolFor(projectId, _fee, uint32(_secondsAgo), _twapDelta, _terminalToken);
     }
@@ -1255,28 +1255,28 @@ contract TestJBBuybackHook_Units is Test {
         vm.mockCall(address(tokens), abi.encodeCall(tokens.tokenOf, (projectId)), abi.encode(_projectToken));
 
         // Check: seconds ago too low
-        vm.expectRevert(IJBBuybackHook.JuiceBuyback_InvalidTwapWindow.selector);
+        vm.expectRevert(JBBuybackHook.JuiceBuyback_InvalidTwapWindow.selector);
         vm.prank(owner);
         hook.setPoolFor(
             projectId, _fee, uint32(MIN_TWAP_WINDOW - 1), MIN_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken
         );
 
         // Check: seconds ago too high
-        vm.expectRevert(IJBBuybackHook.JuiceBuyback_InvalidTwapWindow.selector);
+        vm.expectRevert(JBBuybackHook.JuiceBuyback_InvalidTwapWindow.selector);
         vm.prank(owner);
         hook.setPoolFor(
             projectId, _fee, uint32(MAX_TWAP_WINDOW + 1), MIN_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken
         );
 
         // Check: min twap deviation too low
-        vm.expectRevert(IJBBuybackHook.JuiceBuyback_InvalidTwapSlippageTolerance.selector);
+        vm.expectRevert(JBBuybackHook.JuiceBuyback_InvalidTwapSlippageTolerance.selector);
         vm.prank(owner);
         hook.setPoolFor(
             projectId, _fee, uint32(MIN_TWAP_WINDOW + 1), MIN_TWAP_SLIPPAGE_TOLERANCE - 1, _terminalToken
         );
 
         // Check: max twap deviation too high
-        vm.expectRevert(IJBBuybackHook.JuiceBuyback_InvalidTwapSlippageTolerance.selector);
+        vm.expectRevert(JBBuybackHook.JuiceBuyback_InvalidTwapSlippageTolerance.selector);
         vm.prank(owner);
         hook.setPoolFor(
             projectId, _fee, uint32(MIN_TWAP_WINDOW + 1), MAX_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken
@@ -1309,7 +1309,7 @@ contract TestJBBuybackHook_Units is Test {
 
         vm.mockCall(address(tokens), abi.encodeCall(tokens.tokenOf, (projectId)), abi.encode(address(0)));
 
-        vm.expectRevert(IJBBuybackHook.JuiceBuyback_NoProjectToken.selector);
+        vm.expectRevert(JBBuybackHook.JuiceBuyback_NoProjectToken.selector);
         vm.prank(owner);
         hook.setPoolFor(projectId, _fee, uint32(_secondsAgo), _twapDelta, _terminalToken);
     }
@@ -1387,7 +1387,7 @@ contract TestJBBuybackHook_Units is Test {
         uint256 newValue = bound(newValueSeed, MAX_TWAP_WINDOW + 1, type(uint32).max);
 
         // Check: revert?
-        vm.expectRevert(abi.encodeWithSelector(IJBBuybackHook.JuiceBuyback_InvalidTwapWindow.selector));
+        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.JuiceBuyback_InvalidTwapWindow.selector));
 
         // Test: try to change seconds ago
         vm.prank(owner);
@@ -1396,7 +1396,7 @@ contract TestJBBuybackHook_Units is Test {
         newValue = bound(newValueSeed, 0, MIN_TWAP_WINDOW - 1);
 
         // Check: revert?
-        vm.expectRevert(abi.encodeWithSelector(IJBBuybackHook.JuiceBuyback_InvalidTwapWindow.selector));
+        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.JuiceBuyback_InvalidTwapWindow.selector));
 
         // Test: try to change seconds ago
         vm.prank(owner);
@@ -1476,7 +1476,7 @@ contract TestJBBuybackHook_Units is Test {
 
         uint256 newDelta = bound(newDeltaSeed, 0, MIN_TWAP_SLIPPAGE_TOLERANCE - 1);
 
-        vm.expectRevert(abi.encodeWithSelector(IJBBuybackHook.JuiceBuyback_InvalidTwapSlippageTolerance.selector));
+        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.JuiceBuyback_InvalidTwapSlippageTolerance.selector));
 
         // Test: set the twap
         vm.prank(owner);
@@ -1484,7 +1484,7 @@ contract TestJBBuybackHook_Units is Test {
 
         newDelta = bound(newDeltaSeed, MAX_TWAP_SLIPPAGE_TOLERANCE + 1, type(uint256).max);
 
-        vm.expectRevert(abi.encodeWithSelector(IJBBuybackHook.JuiceBuyback_InvalidTwapSlippageTolerance.selector));
+        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.JuiceBuyback_InvalidTwapSlippageTolerance.selector));
 
         // Test: set the twap
         vm.prank(owner);
