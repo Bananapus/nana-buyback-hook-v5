@@ -5,7 +5,7 @@ import "lib/forge-std/src/Script.sol";
 
 import "src/JBBuybackHook.sol";
 
-contract DeployGeneric is Script {
+contract DeployEthereumSepolia is Script {
     uint256 _chainId = block.chainid;
     string _network;
 
