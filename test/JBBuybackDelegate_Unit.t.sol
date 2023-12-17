@@ -1454,7 +1454,7 @@ contract TestJBBuybackHook_Units is Test {
             holder: makeAddr("hooldooor"),
             projectId: 69,
             rulesetId: 420,
-            tokenCount: 4,
+            redeemCount: 4,
             totalSupply: 5,
             surplus: 6,
             reclaimAmount: JBTokenAmount(address(1), amountIn, 2, 3),
