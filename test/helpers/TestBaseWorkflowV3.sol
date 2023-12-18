@@ -16,17 +16,16 @@ import "lib/juice-contracts-v4/src/JBProjects.sol";
 import "lib/juice-contracts-v4/src/JBSplits.sol";
 import "lib/juice-contracts-v4/src/JBTokens.sol";
 
-import "lib/juice-contracts-v4/src/structs/JBDidPayData.sol";
-import "lib/juice-contracts-v4/src/structs/JBDidRedeemData.sol";
+import "lib/juice-contracts-v4/src/structs/JBAfterPayRecordedContext.sol";
+import "lib/juice-contracts-v4/src/structs/JBAfterRedeemRecordedContext.sol";
 import "lib/juice-contracts-v4/src/structs/JBFee.sol";
 import "lib/juice-contracts-v4/src/structs/JBFundAccessLimitGroup.sol";
 import "lib/juice-contracts-v4/src/structs/JBRuleset.sol";
-import "lib/juice-contracts-v4/src/structs/JBRulesetData.sol";
 import "lib/juice-contracts-v4/src/structs/JBRulesetMetadata.sol";
 import "lib/juice-contracts-v4/src/structs/JBSplitGroup.sol";
 import "lib/juice-contracts-v4/src/structs/JBPermissionsData.sol";
-import "lib/juice-contracts-v4/src/structs/JBPayParamsData.sol";
-import "lib/juice-contracts-v4/src/structs/JBRedeemParamsData.sol";
+import "lib/juice-contracts-v4/src/structs/JBBeforePayRecordedContext.sol";
+import "lib/juice-contracts-v4/src/structs/JBBeforeRedeemRecordedContext.sol";
 import "lib/juice-contracts-v4/src/structs/JBSplit.sol";
 import "lib/juice-contracts-v4/src/interfaces/terminal/IJBTerminal.sol";
 import "lib/juice-contracts-v4/src/interfaces/IJBToken.sol";
@@ -73,9 +72,6 @@ contract TestBaseWorkflowV3 is Test {
     uint32 cardinality = 1000;
     uint256 twapDelta = 500;
 
-    JBRulesetData data;
-    JBRulesetData dataReconfiguration;
-    JBRulesetData dataWithoutHook;
     JBRulesetMetadata metadata;
 
     // Use the L1 UniswapV3Pool jbx/eth 1% fee for create2 magic
@@ -176,8 +172,6 @@ contract TestBaseWorkflowV3 is Test {
             delegateId: bytes4(hex"69")
         });
 
-        data = JBRulesetData({duration: 6 days, weight: weight, decayRate: 0, hook: IJBRulesetApprovalHook(address(0))});
-
         metadata = JBRulesetMetadata({
             reservedRate: reservedRate,
             redemptionRate: 5000,
@@ -213,7 +207,11 @@ contract TestBaseWorkflowV3 is Test {
         // Package up the ruleset configuration.
         JBRulesetConfig[] memory rulesetConfigurations = new JBRulesetConfig[](1);
         rulesetConfigurations[0].mustStartAtOrAfter = 0;
-        rulesetConfigurations[0].data = data;
+        rulesetConfigurations[0].duration = 6 days;
+        rulesetConfigurations[0].weight = weight;
+        rulesetConfigurations[0].decayRate = 0;
+        rulesetConfigurations[0].approvalHook = IJBRulesetApprovalHook(address(0));
+
         rulesetConfigurations[0].metadata = metadata;
         rulesetConfigurations[0].splitGroups = new JBSplitGroup[](0);
         rulesetConfigurations[0].fundAccessLimitGroups = fundAccessLimitGroups;

@@ -64,7 +64,6 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 // MetadataResolverHelper metadataHelper;
 
 // // Structure needed
-// JBRulesetData data;
 // JBRulesetMetadata metadata;
 // JBFundAccessLimitGroup[] fundAccessLimitGroups;
 // IJBTerminal[] terminals;
