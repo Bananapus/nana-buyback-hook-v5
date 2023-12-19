@@ -26,7 +26,7 @@ contract Deploy is Script {
         } else if (chainId == 420) {
             chain = "420";
             wethAddress = 0x4200000000000000000000000000000000000006;
-            factoryAddress = 0x1F98431c8aD98523631AE4a59f267346ea31F984
+            factoryAddress = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
             // Optimism Sepolia
         } else if (chainId == 11_155_420) {
             chain = "11155420";
@@ -36,12 +36,12 @@ contract Deploy is Script {
         } else if (chainId == 137) {
             chain = "137";
             wethAddress = 0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619;
-            factoryAddress = 0x1F98431c8aD98523631AE4a59f267346ea31F984
+            factoryAddress = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
             // Polygon Mumbai
         } else if (chainId == 80_001) {
             chain = "80001"; 
             wethAddress = 0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa;
-            factoryAddress = 0x1F98431c8aD98523631AE4a59f267346ea31F984
+            factoryAddress = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
         } else {
             revert("Invalid RPC / no juice contracts deployed on this network");
         }
