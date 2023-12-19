@@ -168,8 +168,7 @@ contract TestBaseWorkflowV3 is Test {
             weth: weth,
             factory: uniswapFactory,
             directory: IJBDirectory(address(jbDirectory)),
-            controller: jbController,
-            delegateId: bytes4(hex"69")
+            controller: jbController
         });
 
         metadata = JBRulesetMetadata({

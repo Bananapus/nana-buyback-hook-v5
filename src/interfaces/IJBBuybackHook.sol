@@ -46,8 +46,6 @@ interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallba
 
     function WETH() external view returns (IWETH9);
 
-    function DELEGATE_ID() external view returns (bytes4);
-
     function poolOf(uint256 projectId, address terminalToken) external view returns (IUniswapV3Pool pool);
 
     function twapWindowOf(uint256 projectId) external view returns (uint32 window);

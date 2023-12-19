@@ -15,7 +15,7 @@ contract MockSplitHook is ERC165, IJBSplitHook {
         payDelegate = _payDelegate;
     }
 
-    function process(JBSplitHookContext calldata) external payable override {
+    function processSplitWith(JBSplitHookContext calldata) external payable override {
         JBAfterPayRecordedContext memory _didPaydata = JBAfterPayRecordedContext(
             address(this),
             1,

@@ -102,9 +102,6 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     /// @notice The WETH contract.
     IWETH9 public immutable WETH;
 
-    /// @notice The 4bytes ID of this delegate, used for metadata parsing.
-    bytes4 public immutable DELEGATE_ID;
-
     //*********************************************************************//
     // --------------------- public stored properties -------------------- //
     //*********************************************************************//
@@ -126,13 +123,11 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     /// @param factory The uniswap v3 factory used to reference pools from.
     /// @param directory The directory of terminals and controllers.
     /// @param controller The controller used to mint and burn tokens from.
-    /// @param delegateId The 4bytes ID of this delegate, used for metadata parsing.
     constructor(
         IWETH9 weth,
         address factory,
         IJBDirectory directory,
-        IJBController controller,
-        bytes4 delegateId
+        IJBController controller
     )
         JBPermissioned(IJBPermissioned(address(controller)).PERMISSIONS())
     {
@@ -140,7 +135,6 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         DIRECTORY = directory;
         CONTROLLER = controller;
         UNISWAP_V3_FACTORY = factory;
-        DELEGATE_ID = delegateId;
         PROJECTS = controller.PROJECTS();
     }
 
@@ -181,8 +175,11 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         {
             bytes memory metadata;
 
+            // The metadata ID is the first 4 bytes of this contract's address.
+            bytes4 metadataId = bytes4(bytes20(address(this)));
+
             // Unpack the quote from the pool, given by the frontend.
-            (quoteExists, metadata) = JBMetadataResolver.getDataFor(DELEGATE_ID, context.metadata);
+            (quoteExists, metadata) = JBMetadataResolver.getDataFor(metadataId, context.metadata);
             if (quoteExists) (amountToSwapWith, minimumSwapAmountOut) = abi.decode(metadata, (uint256, uint256));
         }
 

@@ -129,8 +129,7 @@ contract TestJBBuybackHook_Units is Test {
             weth: weth,
             factory: uniswapFactory,
             directory: directory,
-            controller: controller,
-            id: bytes4(hex"69")
+            controller: controller
         });
 
         hook.ForTest_initPool(pool, projectId, secondsAgo, twapDelta, address(projectToken), address(weth));
@@ -172,7 +171,7 @@ contract TestJBBuybackHook_Units is Test {
 
         // Pass the delegate id
         bytes4[] memory ids = new bytes4[](1);
-        ids[0] = bytes4(hex"69");
+        ids[0] = bytes4(bytes20(address(hook)));
 
         // Generate the metadata
         bytes memory metadata = metadataHelper.createMetadata(ids, data);
@@ -329,7 +328,7 @@ contract TestJBBuybackHook_Units is Test {
 
         // Pass the delegate id
         bytes4[] memory ids = new bytes4[](1);
-        ids[0] = bytes4(hex"69");
+        ids[0] = bytes4(bytes20(address(hook)));
 
         // Generate the metadata
         bytes memory metadata = metadataHelper.createMetadata(ids, data);
@@ -997,8 +996,7 @@ contract TestJBBuybackHook_Units is Test {
             weth: terminalToken,
             factory: uniswapFactory,
             directory: directory,
-            controller: controller,
-            id: bytes4(hex"69")
+            controller: controller
         });
 
         // Init with weth (as weth is stored in the pool of mapping)
@@ -1046,8 +1044,7 @@ contract TestJBBuybackHook_Units is Test {
             weth: terminalToken,
             factory: uniswapFactory,
             directory: directory,
-            controller: controller,
-            id: bytes4(hex"69")
+            controller: controller
         });
 
         hook.ForTest_initPool(pool, projectId, secondsAgo, twapDelta, address(projectToken), address(terminalToken));
@@ -1489,10 +1486,9 @@ contract ForTest_JBBuybackHook is JBBuybackHook {
         IWETH9 weth,
         address factory,
         IJBDirectory directory,
-        IJBController controller,
-        bytes4 id
+        IJBController controller
     )
-        JBBuybackHook(weth, factory, directory, controller, id)
+        JBBuybackHook(weth, factory, directory, controller)
     {}
 
     function ForTest_getQuote(
