@@ -8,7 +8,6 @@ import {IJBController} from "lib/juice-contracts-v4/src/interfaces/IJBController
 import {IJBProjects} from "lib/juice-contracts-v4/src/interfaces/IJBProjects.sol";
 import {IUniswapV3Pool} from "lib/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IUniswapV3SwapCallback} from "lib/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
-
 import {IWETH9} from "./external/IWETH9.sol";
 
 interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallback {
