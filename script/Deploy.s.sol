@@ -22,6 +22,26 @@ contract Deploy is Script {
             chain = "11155111";
             wethAddress = 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9;
             factoryAddress = 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
+           // Optimism Mainnet
+        } else if (chainId == 420) {
+            chain = "420";
+            wethAddress = 0x4200000000000000000000000000000000000006;
+            factoryAddress = 0x1F98431c8aD98523631AE4a59f267346ea31F984
+            // Optimism Sepolia
+        } else if (chainId == 11_155_420) {
+            chain = "11155420";
+            wethAddress = 0x4200000000000000000000000000000000000006;
+            factoryAddress = address(0);
+            // Polygon Mainnet
+        } else if (chainId == 137) {
+            chain = "137";
+            wethAddress = 0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619;
+            factoryAddress = 0x1F98431c8aD98523631AE4a59f267346ea31F984
+            // Polygon Mumbai
+        } else if (chainId == 80_001) {
+            chain = "80001"; 
+            wethAddress = 0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa;
+            factoryAddress = 0x1F98431c8aD98523631AE4a59f267346ea31F984
         } else {
             revert("Invalid RPC / no juice contracts deployed on this network");
         }
