@@ -113,15 +113,13 @@ contract TestBaseWorkflowV3 is Test {
         jbPrices = new JBPrices(jbPermissions, jbProjects, multisig);
         vm.label(address(jbPrices), "JBPrices");
 
-        address contractAtNoncePlusOne = computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
-
-        // JBRulesets
-        jbRulesets = new JBRulesets(IJBDirectory(contractAtNoncePlusOne));
-        vm.label(address(jbRulesets), "JBRulesets");
-
         // JBDirectory
         jbDirectory = new JBDirectory(jbPermissions, jbProjects, multisig);
         vm.label(address(jbDirectory), "JBDirectory");
+
+        // JBRulesets
+        jbRulesets = new JBRulesets(jbDirectory);
+        vm.label(address(jbRulesets), "JBRulesets");
 
         // JBTokens
         jbTokens = new JBTokens(jbDirectory);

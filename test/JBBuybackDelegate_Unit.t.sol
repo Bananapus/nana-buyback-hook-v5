@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.16;
 
+import "lib/forge-std/Test.sol";
+
 import "src/interfaces/external/IWETH9.sol";
 import "./helpers/TestBaseWorkflowV3.sol";
 
@@ -13,8 +15,6 @@ import {MetadataResolverHelper} from "lib/juice-contracts-v4/src/../test/helpers
 
 import "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165Checker.sol";
 import "lib/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-
-import "lib/forge-std/src/Test.sol";
 
 import "./helpers/PoolAddress.sol";
 import "src/JBBuybackHook.sol";
@@ -179,7 +179,8 @@ contract TestJBBuybackHook_Units is Test {
         // Set the relevant context
         beforePayRecordedContext.weight = weight;
         beforePayRecordedContext.metadata = metadata;
-        beforePayRecordedContext.amount = JBTokenAmount({token: address(weth), value: 1 ether, decimals: decimals, currency: 1});
+        beforePayRecordedContext.amount =
+            JBTokenAmount({token: address(weth), value: 1 ether, decimals: decimals, currency: 1});
 
         // Returned values to catch:
         JBPayHookSpecification[] memory allocationsReturned;
@@ -204,7 +205,12 @@ contract TestJBBuybackHook_Units is Test {
             assertEq(allocationsReturned[0].amount, amountIn, "worng amount in returned");
             assertEq(
                 allocationsReturned[0].metadata,
-                abi.encode(true, address(projectToken) < address(weth), beforePayRecordedContext.amount.value - amountIn, swapOutCount),
+                abi.encode(
+                    true,
+                    address(projectToken) < address(weth),
+                    beforePayRecordedContext.amount.value - amountIn,
+                    swapOutCount
+                ),
                 "wrong metadata"
             );
 
@@ -349,7 +355,8 @@ contract TestJBBuybackHook_Units is Test {
     }
 
     /**
-     * @notice Test afterPayRecordedWith with token received from swapping, within slippage and no leftover in the delegate
+     * @notice Test afterPayRecordedWith with token received from swapping, within slippage and no leftover in the
+     * delegate
      */
     function test_didPay_swap_ETH(uint256 tokenCount, uint256 twapQuote) public {
         // Bound to avoid overflow and insure swap quote > mint quote
@@ -398,12 +405,16 @@ contract TestJBBuybackHook_Units is Test {
         // mock call to pass the authorization check
         vm.mockCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))),
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            ),
             abi.encode(true)
         );
         vm.expectCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal))))
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            )
         );
 
         // mock the burn call
@@ -420,18 +431,26 @@ contract TestJBBuybackHook_Units is Test {
         // mock the minting call
         vm.mockCall(
             address(controller),
-            abi.encodeCall(controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)),
+            abi.encodeCall(
+                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)
+            ),
             abi.encode(true)
         );
         vm.expectCall(
             address(controller),
-            abi.encodeCall(controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true))
+            abi.encodeCall(
+                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)
+            )
         );
 
         // expect event
         vm.expectEmit(true, true, true, true);
         emit BuybackDelegate_Swap(
-            afterPayRecordedContext.projectId, afterPayRecordedContext.amount.value, pool, twapQuote, address(multiTerminal)
+            afterPayRecordedContext.projectId,
+            afterPayRecordedContext.amount.value,
+            pool,
+            twapQuote,
+            address(multiTerminal)
         );
 
         vm.prank(address(multiTerminal));
@@ -439,7 +458,8 @@ contract TestJBBuybackHook_Units is Test {
     }
 
     /**
-     * @notice Test afterPayRecordedWith with token received from swapping, within slippage and no leftover in the delegate
+     * @notice Test afterPayRecordedWith with token received from swapping, within slippage and no leftover in the
+     * delegate
      */
     function test_didPay_swap_ETH_with_extrafunds(uint256 tokenCount, uint256 twapQuote) public {
         // Bound to avoid overflow and insure swap quote > mint quote
@@ -488,12 +508,16 @@ contract TestJBBuybackHook_Units is Test {
         // mock call to pass the authorization check
         vm.mockCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))),
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            ),
             abi.encode(true)
         );
         vm.expectCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal))))
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            )
         );
 
         // mock the burn call
@@ -510,18 +534,26 @@ contract TestJBBuybackHook_Units is Test {
         // mock the minting call
         vm.mockCall(
             address(controller),
-            abi.encodeCall(controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)),
+            abi.encodeCall(
+                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)
+            ),
             abi.encode(true)
         );
         vm.expectCall(
             address(controller),
-            abi.encodeCall(controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true))
+            abi.encodeCall(
+                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)
+            )
         );
 
         // expect event
         vm.expectEmit(true, true, true, true);
         emit BuybackDelegate_Swap(
-            afterPayRecordedContext.projectId, afterPayRecordedContext.amount.value, pool, twapQuote, address(multiTerminal)
+            afterPayRecordedContext.projectId,
+            afterPayRecordedContext.amount.value,
+            pool,
+            twapQuote,
+            address(multiTerminal)
         );
 
         vm.prank(address(multiTerminal));
@@ -589,12 +621,16 @@ contract TestJBBuybackHook_Units is Test {
         // mock call to pass the authorization check
         vm.mockCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))),
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            ),
             abi.encode(true)
         );
         vm.expectCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal))))
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            )
         );
 
         // mock the burn call
@@ -611,12 +647,16 @@ contract TestJBBuybackHook_Units is Test {
         // mock the minting call
         vm.mockCall(
             address(controller),
-            abi.encodeCall(controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)),
+            abi.encodeCall(
+                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)
+            ),
             abi.encode(true)
         );
         vm.expectCall(
             address(controller),
-            abi.encodeCall(controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true))
+            abi.encodeCall(
+                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)
+            )
         );
 
         // No leftover
@@ -628,7 +668,11 @@ contract TestJBBuybackHook_Units is Test {
         // expect event
         vm.expectEmit(true, true, true, true);
         emit BuybackDelegate_Swap(
-            afterPayRecordedContext.projectId, afterPayRecordedContext.amount.value, randomPool, twapQuote, address(multiTerminal)
+            afterPayRecordedContext.projectId,
+            afterPayRecordedContext.amount.value,
+            randomPool,
+            twapQuote,
+            address(multiTerminal)
         );
 
         vm.prank(address(multiTerminal));
@@ -670,12 +714,16 @@ contract TestJBBuybackHook_Units is Test {
         // mock call to pass the authorization check
         vm.mockCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))),
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            ),
             abi.encode(true)
         );
         vm.expectCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal))))
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            )
         );
 
         vm.expectRevert(JBBuybackHook.JuiceBuyback_MaximumSlippage.selector);
@@ -685,7 +733,8 @@ contract TestJBBuybackHook_Units is Test {
     }
 
     /**
-     * @notice Test afterPayRecordedWith with swap reverting while using the twap, should then mint with the delegate balance, random
+     * @notice Test afterPayRecordedWith with swap reverting while using the twap, should then mint with the delegate
+     * balance, random
      * erc20 is terminal token
      */
     function test_didPay_swapRevertWithoutQuote_ERC20(
@@ -744,12 +793,16 @@ contract TestJBBuybackHook_Units is Test {
         // mock call to pass the authorization check
         vm.mockCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))),
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            ),
             abi.encode(true)
         );
         vm.expectCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal))))
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            )
         );
 
         // Mock the balance check
@@ -820,7 +873,10 @@ contract TestJBBuybackHook_Units is Test {
         // expect event - only for the non-extra mint
         vm.expectEmit(true, true, true, true);
         emit BuybackDelegate_Mint(
-            afterPayRecordedContext.projectId, tokenCount, mulDiv(tokenCount, weight, 10 ** decimals), address(multiTerminal)
+            afterPayRecordedContext.projectId,
+            tokenCount,
+            mulDiv(tokenCount, weight, 10 ** decimals),
+            address(multiTerminal)
         );
 
         vm.prank(address(multiTerminal));
@@ -828,7 +884,8 @@ contract TestJBBuybackHook_Units is Test {
     }
 
     /**
-     * @notice Test afterPayRecordedWith with swap reverting while using the twap, should then mint with the delegate balance, random
+     * @notice Test afterPayRecordedWith with swap reverting while using the twap, should then mint with the delegate
+     * balance, random
      * erc20 is terminal token
      */
     function test_didPay_swapRevertWithoutQuote_ETH(
@@ -886,12 +943,16 @@ contract TestJBBuybackHook_Units is Test {
         // mock call to pass the authorization check
         vm.mockCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))),
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            ),
             abi.encode(true)
         );
         vm.expectCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal))))
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            )
         );
 
         // Mock the balance check
@@ -948,7 +1009,10 @@ contract TestJBBuybackHook_Units is Test {
         // expect event
         vm.expectEmit(true, true, true, true);
         emit BuybackDelegate_Mint(
-            afterPayRecordedContext.projectId, tokenCount, mulDiv(tokenCount, weight, 10 ** decimals), address(multiTerminal)
+            afterPayRecordedContext.projectId,
+            tokenCount,
+            mulDiv(tokenCount, weight, 10 ** decimals),
+            address(multiTerminal)
         );
 
         vm.prank(address(multiTerminal));
@@ -964,12 +1028,16 @@ contract TestJBBuybackHook_Units is Test {
         // mock call to fail at the authorization check since directory has no bytecode
         vm.mockCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(notTerminal)))),
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(notTerminal)))
+            ),
             abi.encode(false)
         );
         vm.expectCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(notTerminal))))
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(notTerminal)))
+            )
         );
 
         vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.JuiceBuyback_Unauthorized.selector));
@@ -1460,7 +1528,8 @@ contract TestJBBuybackHook_Units is Test {
             metadata: ""
         });
 
-        (uint256 amountOut, JBRedeemHookSpecification[] memory allocationOut) = hook.beforeRedeemRecordedWith(beforeRedeemRecordedContext);
+        (uint256 amountOut, JBRedeemHookSpecification[] memory allocationOut) =
+            hook.beforeRedeemRecordedWith(beforeRedeemRecordedContext);
 
         assertEq(amountOut, amountIn);
         assertEq(allocationOut.length, 0);
