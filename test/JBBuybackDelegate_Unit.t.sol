@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.16;
 
-import "lib/forge-std/Test.sol";
-
 import "src/interfaces/external/IWETH9.sol";
 import "./helpers/TestBaseWorkflowV3.sol";
 
@@ -15,6 +13,8 @@ import {MetadataResolverHelper} from "lib/juice-contracts-v4/src/../test/helpers
 
 import "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165Checker.sol";
 import "lib/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+
+import "lib/forge-std/src/Test.sol";
 
 import "./helpers/PoolAddress.sol";
 import "src/JBBuybackHook.sol";
