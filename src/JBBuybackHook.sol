@@ -115,6 +115,11 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     /// @custom:param _projectId The ID of the project to which the token belongs.
     mapping(uint256 projectId => address) public projectTokenOf;
 
+    /// @notice Required by the IJBRulesetDataHook interfaces. Return false to not leak any permissions.
+    function hasMintPermissionFor(uint256, address) external pure returns (bool) {
+        return false;
+    }
+
     //*********************************************************************//
     // ---------------------------- constructor -------------------------- //
     //*********************************************************************//
@@ -143,7 +148,8 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     //*********************************************************************//
 
     /// @notice The DataSource implementation that determines if a swap path and/or a mint path should be taken.
-    /// @param context The context passed to the data hook in terminalStore.recordPaymentFrom(..). context.metadata can have a Uniswap quote
+    /// @param context The context passed to the data hook in terminalStore.recordPaymentFrom(..). context.metadata can
+    /// have a Uniswap quote
     /// and specify how much of the payment should be used to swap, otherwise a quote will be determined from a TWAP and
     /// use the full amount paid in.
     /// @return weight The weight to use, which is the original weight passed in if no swap path is taken, 0 if only the
@@ -307,7 +313,8 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             }
 
             // Keep a reference to the amount being paid.
-            uint256 payValue = context.forwardedAmount.token == JBConstants.NATIVE_TOKEN ? terminalTokenInThisContract : 0;
+            uint256 payValue =
+                context.forwardedAmount.token == JBConstants.NATIVE_TOKEN ? terminalTokenInThisContract : 0;
 
             // Add the paid amount back to the project's terminal balance.
             IJBMultiTerminal(msg.sender).addToBalanceOf{value: payValue}({
@@ -566,7 +573,13 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     /// @param data The afterPayRecordedContext passed by the terminal.
     /// @param projectTokenIs0 A flag indicating if the pool will reference the project token as the first in the pair.
     /// @return amountReceived The amount of tokens received from the swap.
-    function _swap(JBAfterPayRecordedContext calldata data, bool projectTokenIs0) internal returns (uint256 amountReceived) {
+    function _swap(
+        JBAfterPayRecordedContext calldata data,
+        bool projectTokenIs0
+    )
+        internal
+        returns (uint256 amountReceived)
+    {
         // The amount of tokens that are being used with which to make the swap.
         uint256 amountToSwapWith = data.forwardedAmount.value;
 

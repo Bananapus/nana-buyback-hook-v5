@@ -33,7 +33,6 @@ import "lib/juice-contracts-v4/src/libraries/JBConstants.sol";
 
 import "lib/juice-contracts-v4/src/interfaces/IJBTerminalStore.sol";
 
-import "./AccessJBLib.sol";
 import "src/interfaces/external/IWETH9.sol";
 import "src/JBBuybackHook.sol";
 
