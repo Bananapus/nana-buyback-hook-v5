@@ -5,24 +5,23 @@ import "lib/forge-std/src/Script.sol";
 import "../src/JBBuybackHook.sol";
 
 contract Deploy is Script {
-
     function run() public {
         uint256 chainId = block.chainid;
         string memory chain;
         address wethAddress;
         address factoryAddress;
 
-           // Ethereum Mainnet
+        // Ethereum Mainnet
         if (chainId == 1) {
             chain = "1";
             wethAddress = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
             factoryAddress = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-           // Ethereum Sepolia
+            // Ethereum Sepolia
         } else if (chainId == 11_155_111) {
             chain = "11155111";
             wethAddress = 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9;
             factoryAddress = 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
-           // Optimism Mainnet
+            // Optimism Mainnet
         } else if (chainId == 420) {
             chain = "420";
             wethAddress = 0x4200000000000000000000000000000000000006;
@@ -39,35 +38,46 @@ contract Deploy is Script {
             factoryAddress = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
             // Polygon Mumbai
         } else if (chainId == 80_001) {
-            chain = "80001"; 
+            chain = "80001";
             wethAddress = 0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa;
             factoryAddress = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
         } else {
             revert("Invalid RPC / no juice contracts deployed on this network");
         }
 
-        address directoryAddress =
-            stdJson.readAddress(
-            vm.readFile(
-                string.concat(
-                    "lib/juice-contracts-v4/broadcast/Deploy.s.sol/", chain, "/run-latest.json"
-                )
-            ),
-            ".transactions[2].contractAddress"
+        address directoryAddress = _getDeploymentAddress(
+            "lib/juice-contracts-v4/broadcast/Deploy.s.sol/", chain, "/run-latest.json", "JBDirectory"
         );
 
-        address controllerAddress = (
-            stdJson.readAddress(
-            vm.readFile(
-                string.concat(
-                    "lib/juice-contracts-v4/broadcast/Deploy.s.sol/", chain, "/run-latest.json"
-                )
-            ),
-            ".transactions[7].contractAddress"
-            )
+        address controllerAddress = _getDeploymentAddress(
+            "lib/juice-contracts-v4/broadcast/Deploy.s.sol/", chain, "/run-latest.json", "JBController"
         );
 
         vm.broadcast();
-        new JBBuybackHook(IWETH9(wethAddress), factoryAddress, IJBDirectory(directoryAddress), IJBController(controllerAddress));
+        new JBBuybackHook(
+            IWETH9(wethAddress), factoryAddress, IJBDirectory(directoryAddress), IJBController(controllerAddress)
+        );
+    }
+
+    /// @notice Get the address of a contract that was deployed by the Deploy script.
+    /// @dev Reverts if the contract was not found.
+    /// @param _path The path to the deployment file.
+    /// @param _contractName The name of the contract to get the address of.
+    /// @return The address of the contract.
+    function _getDeploymentAddress(string memory path, string memory contractName) internal view returns (address) {
+        string memory deploymentJson = vm.readFile(path);
+        uint256 nOfTransactions = stdJson.readStringArray(deploymentJson, ".transactions").length;
+
+        for (uint256 i = 0; i < nOfTransactions; i++) {
+            string memory currentKey = string.concat(".transactions", "[", Strings.toString(i), "]");
+            string memory currentContractName =
+                stdJson.readString(deploymentJson, string.concat(currentKey, ".contractName"));
+
+            if (keccak256(abi.encodePacked(currentContractName)) == keccak256(abi.encodePacked(contractName))) {
+                return stdJson.readAddress(deploymentJson, string.concat(currentKey, ".contractAddress"));
+            }
+        }
+
+        revert(string.concat("Could not find contract with name '", _contractName, "' in deployment file '", path, "'"));
     }
 }
