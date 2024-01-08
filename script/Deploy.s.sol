@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "lib/forge-std/src/Script.sol";
+import "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 import "../src/JBBuybackHook.sol";
 
 contract Deploy is Script {
@@ -46,11 +47,11 @@ contract Deploy is Script {
         }
 
         address directoryAddress = _getDeploymentAddress(
-            "lib/juice-contracts-v4/broadcast/Deploy.s.sol/", chain, "/run-latest.json", "JBDirectory"
+            string.concat("lib/juice-contracts-v4/broadcast/Deploy.s.sol/", chain, "/run-latest.json"), "JBDirectory"
         );
 
         address controllerAddress = _getDeploymentAddress(
-            "lib/juice-contracts-v4/broadcast/Deploy.s.sol/", chain, "/run-latest.json", "JBController"
+            string.concat("lib/juice-contracts-v4/broadcast/Deploy.s.sol/", chain, "/run-latest.json"), "JBController"
         );
 
         vm.broadcast();
@@ -61,8 +62,8 @@ contract Deploy is Script {
 
     /// @notice Get the address of a contract that was deployed by the Deploy script.
     /// @dev Reverts if the contract was not found.
-    /// @param _path The path to the deployment file.
-    /// @param _contractName The name of the contract to get the address of.
+    /// @param path The path to the deployment file.
+    /// @param contractName The name of the contract to get the address of.
     /// @return The address of the contract.
     function _getDeploymentAddress(string memory path, string memory contractName) internal view returns (address) {
         string memory deploymentJson = vm.readFile(path);
@@ -78,6 +79,6 @@ contract Deploy is Script {
             }
         }
 
-        revert(string.concat("Could not find contract with name '", _contractName, "' in deployment file '", path, "'"));
+        revert(string.concat("Could not find contract with name '", contractName, "' in deployment file '", path, "'"));
     }
 }
