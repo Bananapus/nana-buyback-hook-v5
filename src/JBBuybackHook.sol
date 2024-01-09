@@ -115,37 +115,14 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     /// @custom:param _projectId The ID of the project to which the token belongs.
     mapping(uint256 projectId => address) public projectTokenOf;
 
+    //*********************************************************************//
+    // ------------------------- external views -------------------------- //
+    //*********************************************************************//
+
     /// @notice Required by the IJBRulesetDataHook interfaces. Return false to not leak any permissions.
     function hasMintPermissionFor(uint256, address) external pure returns (bool) {
         return false;
     }
-
-    //*********************************************************************//
-    // ---------------------------- constructor -------------------------- //
-    //*********************************************************************//
-
-    /// @param weth The WETH contract.
-    /// @param factory The uniswap v3 factory used to reference pools from.
-    /// @param directory The directory of terminals and controllers.
-    /// @param controller The controller used to mint and burn tokens from.
-    constructor(
-        IWETH9 weth,
-        address factory,
-        IJBDirectory directory,
-        IJBController controller
-    )
-        JBPermissioned(IJBPermissioned(address(controller)).PERMISSIONS())
-    {
-        WETH = weth;
-        DIRECTORY = directory;
-        CONTROLLER = controller;
-        UNISWAP_V3_FACTORY = factory;
-        PROJECTS = controller.PROJECTS();
-    }
-
-    //*********************************************************************//
-    // ------------------------- external views -------------------------- //
-    //*********************************************************************//
 
     /// @notice The DataSource implementation that determines if a swap path and/or a mint path should be taken.
     /// @param context The context passed to the data hook in terminalStore.recordPaymentFrom(..). context.metadata can
@@ -269,6 +246,29 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     function supportsInterface(bytes4 interfaceId) public view override(ERC165, IERC165) returns (bool) {
         return interfaceId == type(IJBRulesetDataHook).interfaceId || interfaceId == type(IJBPayHook).interfaceId
             || interfaceId == type(IJBBuybackHook).interfaceId || super.supportsInterface(interfaceId);
+    }
+
+    //*********************************************************************//
+    // ---------------------------- constructor -------------------------- //
+    //*********************************************************************//
+
+    /// @param weth The WETH contract.
+    /// @param factory The uniswap v3 factory used to reference pools from.
+    /// @param directory The directory of terminals and controllers.
+    /// @param controller The controller used to mint and burn tokens from.
+    constructor(
+        IWETH9 weth,
+        address factory,
+        IJBDirectory directory,
+        IJBController controller
+    )
+        JBPermissioned(IJBPermissioned(address(controller)).PERMISSIONS())
+    {
+        WETH = weth;
+        DIRECTORY = directory;
+        CONTROLLER = controller;
+        UNISWAP_V3_FACTORY = factory;
+        PROJECTS = controller.PROJECTS();
     }
 
     //*********************************************************************//
