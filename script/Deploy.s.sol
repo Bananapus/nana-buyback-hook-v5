@@ -5,8 +5,9 @@ import {Script, stdJson} from "lib/forge-std/src/Script.sol";
 import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 import {IJBDirectory} from "lib/juice-contracts-v4/src/interfaces/IJBDirectory.sol";
 import {IJBController} from "lib/juice-contracts-v4/src/interfaces/IJBController.sol";
-import {JBBuybackHook} from "../src/JBBuybackHook.sol";
-import {IWETH9} from "../src/interfaces/external/IWETH9.sol";
+
+import {JBBuybackHook} from "src/JBBuybackHook.sol";
+import {IWETH9} from "src/interfaces/external/IWETH9.sol";
 
 contract Deploy is Script {
     function run() public {
