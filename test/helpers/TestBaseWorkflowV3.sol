@@ -30,7 +30,6 @@ import "lib/juice-contracts-v4/src/structs/JBSplit.sol";
 import "lib/juice-contracts-v4/src/interfaces/terminal/IJBTerminal.sol";
 import "lib/juice-contracts-v4/src/interfaces/IJBToken.sol";
 import "lib/juice-contracts-v4/src/libraries/JBConstants.sol";
-
 import "lib/juice-contracts-v4/src/interfaces/IJBTerminalStore.sol";
 
 import "src/interfaces/external/IWETH9.sol";
