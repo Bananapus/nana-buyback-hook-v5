@@ -597,7 +597,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 // //     // Generate the metadata
 // //     bytes memory _delegateMetadata = metadataHelper.createMetadata(_ids, _data);
 
-// //     vm.expectRevert(IJBBuybackHook.JuiceBuyback_MaximumSlippage.selector);
+// //     vm.expectRevert(IJBBuybackHook.MaximumSlippage.selector);
 
 // //     // Pay the project
 // //     jbEthPaymentTerminal.pay{value: 1 ether}(

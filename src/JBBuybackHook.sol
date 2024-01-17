@@ -37,16 +37,16 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     // --------------------------- custom errors ------------------------- //
     //*********************************************************************//
 
-    error JuiceBuyback_MaximumSlippage();
-    error JuiceBuyback_InsufficientPayAmount();
-    error JuiceBuyback_NotEnoughTokensReceived();
-    error JuiceBuyback_NewSecondsAgoTooLow();
-    error JuiceBuyback_NoProjectToken();
-    error JuiceBuyback_PoolAlreadySet();
-    error JuiceBuyback_TransferFailed();
-    error JuiceBuyback_InvalidTwapSlippageTolerance();
-    error JuiceBuyback_InvalidTwapWindow();
-    error JuiceBuyback_Unauthorized();
+    error MaximumSlippage();
+    error InsufficientPayAmount();
+    error NotEnoughTokensReceived();
+    error NewSecondsAgoTooLow();
+    error NoProjectToken();
+    error PoolAlreadySet();
+    error TransferFailed();
+    error InvalidTwapSlippageTolerance();
+    error InvalidTwapWindow();
+    error Unauthorized();
 
     //*********************************************************************//
     // --------------------- internal stored properties ------------------ //
@@ -188,7 +188,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         // If the minimum amount received from swapping is greather than received when minting, use the swap path.
         if (tokenCountWithoutDelegate < minimumSwapAmountOut) {
             // Make sure the amount to swap with is at most the full amount being paid.
-            if (amountToSwapWith > totalPaid) revert JuiceBuyback_InsufficientPayAmount();
+            if (amountToSwapWith > totalPaid) revert InsufficientPayAmount();
 
             // Keep a reference to a flag indicating if the pool will reference the project token as the first in the
             // pair.
@@ -283,7 +283,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     function afterPayRecordedWith(JBAfterPayRecordedContext calldata context) external payable override {
         // Make sure only a payment terminal belonging to the project can access this functionality.
         if (!DIRECTORY.isTerminalOf(context.projectId, IJBTerminal(msg.sender))) {
-            revert JuiceBuyback_Unauthorized();
+            revert Unauthorized();
         }
 
         // Parse the metadata passed in from the data source.
@@ -294,7 +294,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         uint256 exactSwapAmountOut = _swap(context, projectTokenIs0);
 
         // Make sure the slippage is tolerable if passed in via an explicit quote.
-        if (quoteExists && exactSwapAmountOut < minimumSwapAmountOut) revert JuiceBuyback_MaximumSlippage();
+        if (quoteExists && exactSwapAmountOut < minimumSwapAmountOut) revert MaximumSlippage();
 
         // Get a reference to any amount of tokens paid in remaining in this contract.
         uint256 terminalTokenInThisContract = context.forwardedAmount.token == JBConstants.NATIVE_TOKEN
@@ -355,7 +355,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         address terminalTokenWithWETH = terminalToken == JBConstants.NATIVE_TOKEN ? address(WETH) : terminalToken;
 
         // Make sure this call is being made from within the swap execution.
-        if (msg.sender != address(poolOf[projectId][terminalTokenWithWETH])) revert JuiceBuyback_Unauthorized();
+        if (msg.sender != address(poolOf[projectId][terminalTokenWithWETH])) revert Unauthorized();
 
         // Keep a reference to the amount of tokens that should be sent to fulfill the swap (the positive delta)
         uint256 amountToSendToPool = amount0Delta < 0 ? uint256(amount1Delta) : uint256(amount0Delta);
@@ -397,17 +397,17 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         // Make sure the provided delta is within sane bounds.
         if (twapSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || twapSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE)
         {
-            revert JuiceBuyback_InvalidTwapSlippageTolerance();
+            revert InvalidTwapSlippageTolerance();
         }
 
         // Make sure the provided period is within sane bounds.
-        if (twapWindow < MIN_TWAP_WINDOW || twapWindow > MAX_TWAP_WINDOW) revert JuiceBuyback_InvalidTwapWindow();
+        if (twapWindow < MIN_TWAP_WINDOW || twapWindow > MAX_TWAP_WINDOW) revert InvalidTwapWindow();
 
         // Keep a reference to the project's token.
         address projectToken = address(CONTROLLER.TOKENS().tokenOf(projectId));
 
         // Make sure the project has issued a token.
-        if (projectToken == address(0)) revert JuiceBuyback_NoProjectToken();
+        if (projectToken == address(0)) revert NoProjectToken();
 
         // If the terminal token specified in ETH, use WETH instead.
         if (terminalToken == JBConstants.NATIVE_TOKEN) terminalToken = address(WETH);
@@ -442,7 +442,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         );
 
         // Make sure this pool has yet to be specified in this delegate.
-        if (poolOf[projectId][terminalToken] == newPool) revert JuiceBuyback_PoolAlreadySet();
+        if (poolOf[projectId][terminalToken] == newPool) revert PoolAlreadySet();
 
         // Store the pool.
         poolOf[projectId][terminalToken] = newPool;
@@ -471,7 +471,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
 
         // Make sure the provided period is within sane bounds.
         if (newWindow < MIN_TWAP_WINDOW || newWindow > MAX_TWAP_WINDOW) {
-            revert JuiceBuyback_InvalidTwapWindow();
+            revert InvalidTwapWindow();
         }
 
         // Keep a reference to the currently stored TWAP params.
@@ -500,7 +500,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
 
         // Make sure the provided delta is within sane bounds.
         if (newSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || newSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE) {
-            revert JuiceBuyback_InvalidTwapSlippageTolerance();
+            revert InvalidTwapSlippageTolerance();
         }
 
         // Keep a reference to the currently stored TWAP params.
