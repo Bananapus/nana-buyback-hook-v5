@@ -23,7 +23,7 @@ import {mulDiv, mulDiv18} from "lib/prb-math/src/Common.sol";
 contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 // using JBRulesetMetadataResolver for JBRuleset;
 
-// event BuybackDelegate_Swap(
+// event Swap(
 //     uint256 indexed projectId, uint256 amountIn, IUniswapV3Pool pool, uint256 amountOut, address caller
 // );
 // event Mint(
@@ -293,7 +293,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 // //     uint256 _balBeforePayment = jbx.balanceOf(beneficiary);
 
 // //     vm.expectEmit(true, true, true, true);
-// //     emit BuybackDelegate_Swap(1, _amountIn, pool, _amountOutQuoted, address(jbEthPaymentTerminal));
+// //     emit Swap(1, _amountIn, pool, _amountOutQuoted, address(jbEthPaymentTerminal));
 
 // //     // Pay the project
 // //     jbEthPaymentTerminal.pay{value: _amountIn}(
@@ -431,7 +431,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 // //     bytes memory _delegateMetadata = metadataHelper.createMetadata(_ids, _data);
 
 // //     vm.expectEmit(true, true, true, true);
-// //     emit BuybackDelegate_Swap(1, _amountIn, pool, _quote, address(jbEthPaymentTerminal));
+// //     emit Swap(1, _amountIn, pool, _quote, address(jbEthPaymentTerminal));
 
 // //     uint256 _balBeforePayment = jbx.balanceOf(beneficiary);
 
@@ -643,7 +643,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 // //     uint256 _balBeforePayment = jbx.balanceOf(beneficiary);
 
 // //     vm.expectEmit(true, true, true, true);
-// //     emit BuybackDelegate_Swap(1, _amountIn, pool, amountOutQuoted, address(jbEthPaymentTerminal));
+// //     emit Swap(1, _amountIn, pool, amountOutQuoted, address(jbEthPaymentTerminal));
 
 // //     // Pay the project
 // //     jbEthPaymentTerminal.pay{value: _amountIn + _amountInExtra}(

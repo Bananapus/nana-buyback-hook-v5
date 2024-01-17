@@ -326,7 +326,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
                 metadata: bytes("")
             });
 
-            emit BuybackDelegate_Mint(context.projectId, terminalTokenInThisContract, partialMintTokenCount, msg.sender);
+            emit Mint(context.projectId, terminalTokenInThisContract, partialMintTokenCount, msg.sender);
         }
 
         // Add amount to mint to leftover mint amount (avoiding stack too deep here)
@@ -451,9 +451,9 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         _twapParamsOf[projectId] = twapSlippageTolerance << 128 | twapWindow;
         projectTokenOf[projectId] = address(projectToken);
 
-        emit BuybackDelegate_TwapWindowChanged(projectId, 0, twapWindow, msg.sender);
-        emit BuybackDelegate_TwapSlippageToleranceChanged(projectId, 0, twapSlippageTolerance, msg.sender);
-        emit BuybackDelegate_PoolAdded(projectId, terminalToken, address(newPool), msg.sender);
+        emit TwapWindowChanged(projectId, 0, twapWindow, msg.sender);
+        emit TwapSlippageToleranceChanged(projectId, 0, twapSlippageTolerance, msg.sender);
+        emit PoolAdded(projectId, terminalToken, address(newPool), msg.sender);
     }
 
     /// @notice Increase the period over which the TWAP is computed.
@@ -483,7 +483,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         // Store the new packed value of the TWAP params.
         _twapParamsOf[projectId] = uint256(newWindow) | ((twapParams >> 128) << 128);
 
-        emit BuybackDelegate_TwapWindowChanged(projectId, oldWindow, newWindow, msg.sender);
+        emit TwapWindowChanged(projectId, oldWindow, newWindow, msg.sender);
     }
 
     /// @notice Set the maximum deviation allowed between amount received and TWAP.
@@ -512,7 +512,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         // Store the new packed value of the TWAP params.
         _twapParamsOf[projectId] = newSlippageTolerance << 128 | ((twapParams << 128) >> 128);
 
-        emit BuybackDelegate_TwapSlippageToleranceChanged(
+        emit TwapSlippageToleranceChanged(
             projectId, oldSlippageTolerance, newSlippageTolerance, msg.sender
         );
     }
@@ -611,6 +611,6 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
 
         // We return the amount we received/burned and we will mint them to the user later
 
-        emit BuybackDelegate_Swap(data.projectId, amountToSwapWith, pool, amountReceived, msg.sender);
+        emit Swap(data.projectId, amountToSwapWith, pool, amountReceived, msg.sender);
     }
 }

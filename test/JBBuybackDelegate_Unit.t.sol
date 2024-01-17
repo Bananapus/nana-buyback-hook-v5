@@ -29,17 +29,17 @@ contract TestJBBuybackHook_Units is Test {
 
     ForTest_JBBuybackHook hook;
 
-    event BuybackDelegate_Swap(
+    event Swap(
         uint256 indexed projectId, uint256 amountIn, IUniswapV3Pool pool, uint256 amountOut, address caller
     );
-    event BuybackDelegate_Mint(uint256 indexed projectId, uint256 amount, uint256 tokenCount, address caller);
-    event BuybackDelegate_TwapWindowChanged(
+    event Mint(uint256 indexed projectId, uint256 amount, uint256 tokenCount, address caller);
+    event TwapWindowChanged(
         uint256 indexed projectId, uint256 oldSecondsAgo, uint256 newSecondsAgo, address caller
     );
-    event BuybackDelegate_TwapSlippageToleranceChanged(
+    event TwapSlippageToleranceChanged(
         uint256 indexed projectId, uint256 oldTwapDelta, uint256 newTwapDelta, address caller
     );
-    event BuybackDelegate_PoolAdded(
+    event PoolAdded(
         uint256 indexed projectId, address indexed terminalToken, address newPool, address caller
     );
 
@@ -445,7 +445,7 @@ contract TestJBBuybackHook_Units is Test {
 
         // expect event
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_Swap(
+        emit Swap(
             afterPayRecordedContext.projectId,
             afterPayRecordedContext.amount.value,
             pool,
@@ -548,7 +548,7 @@ contract TestJBBuybackHook_Units is Test {
 
         // expect event
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_Swap(
+        emit Swap(
             afterPayRecordedContext.projectId,
             afterPayRecordedContext.amount.value,
             pool,
@@ -667,7 +667,7 @@ contract TestJBBuybackHook_Units is Test {
 
         // expect event
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_Swap(
+        emit Swap(
             afterPayRecordedContext.projectId,
             afterPayRecordedContext.amount.value,
             randomPool,
@@ -872,7 +872,7 @@ contract TestJBBuybackHook_Units is Test {
 
         // expect event - only for the non-extra mint
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_Mint(
+        emit Mint(
             afterPayRecordedContext.projectId,
             tokenCount,
             mulDiv(tokenCount, weight, 10 ** decimals),
@@ -1008,7 +1008,7 @@ contract TestJBBuybackHook_Units is Test {
 
         // expect event
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_Mint(
+        emit Mint(
             afterPayRecordedContext.projectId,
             tokenCount,
             mulDiv(tokenCount, weight, 10 ** decimals),
@@ -1181,13 +1181,13 @@ contract TestJBBuybackHook_Units is Test {
 
         // check: correct events?
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_TwapWindowChanged(projectId, 0, _secondsAgo, owner);
+        emit TwapWindowChanged(projectId, 0, _secondsAgo, owner);
 
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_TwapSlippageToleranceChanged(projectId, 0, _twapDelta, owner);
+        emit TwapSlippageToleranceChanged(projectId, 0, _twapDelta, owner);
 
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_PoolAdded(
+        emit PoolAdded(
             projectId,
             _terminalToken == JBConstants.NATIVE_TOKEN ? address(weth) : _terminalToken,
             address(_pool),
@@ -1352,7 +1352,7 @@ contract TestJBBuybackHook_Units is Test {
 
         // check: correct event?
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_TwapWindowChanged(projectId, hook.twapWindowOf(projectId), _newValue, owner);
+        emit TwapWindowChanged(projectId, hook.twapWindowOf(projectId), _newValue, owner);
 
         // Test: change seconds ago
         vm.prank(owner);
@@ -1436,7 +1436,7 @@ contract TestJBBuybackHook_Units is Test {
 
         // Check: correct event?
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_TwapSlippageToleranceChanged(
+        emit TwapSlippageToleranceChanged(
             projectId, hook.twapSlippageToleranceOf(projectId), newDelta, owner
         );
 
