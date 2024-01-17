@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 /// @notice Permission IDs for `JBPermissions`. These grant permissions scoped to the `JBBuybackHook`.
-library JBBuybackHookPermissionIds {
+library JBBuybackPermissionIds {
     // 1-20 - `JBPermissionIds`
     // 21 - `JBHandlePermissionIds`
     // 22-24 - `JB721PermissionIds`

@@ -24,7 +24,7 @@ import {JBBeforeRedeemRecordedContext} from "lib/juice-contracts-v4/src/structs/
 import {JBRedeemHookSpecification} from "lib/juice-contracts-v4/src/structs/JBRedeemHookSpecification.sol";
 import {JBConstants} from "lib/juice-contracts-v4/src/libraries/JBConstants.sol";
 import {JBMetadataResolver} from "lib/juice-contracts-v4/src/libraries/JBMetadataResolver.sol";
-import {JBBuybackHookPermissionIds} from "./libraries/JBBuybackHookPermissionIds.sol";
+import {JBBuybackPermissionIds} from "./libraries/JBBuybackPermissionIds.sol";
 import {IJBBuybackHook} from "./interfaces/IJBBuybackHook.sol";
 import {IWETH9} from "./interfaces/external/IWETH9.sol";
 
@@ -367,7 +367,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
 
     /// @notice Set the pool to use for a given project and terminal token (the default for the project's token <-> terminal token pair).
     /// @dev Uses create2 for callback auth and to allow adding pools which haven't been deployed yet.
-    /// This can be called by the project's owner or an address which has the `JBBuybackHookPermissionIds.SET_POOL` permission from the owner.
+    /// This can be called by the project's owner or an address which has the `JBBuybackPermissionIds.SET_POOL` permission from the owner.
     /// @param projectId The ID of the project to set the pool for.
     /// @param fee The fee used in the pool being set.
     /// @param twapWindow The period of time over which the TWAP is computed.
@@ -388,7 +388,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         _requirePermissionFrom({
             account: PROJECTS.ownerOf(projectId),
             projectId: projectId,
-            permissionId: JBBuybackHookPermissionIds.CHANGE_POOL
+            permissionId: JBBuybackPermissionIds.CHANGE_POOL
         });
 
         // Make sure the provided TWAP slippage tolerance is within reasonable bounds.
@@ -455,7 +455,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
 
     /// @notice Change the TWAP window for a project.
     /// The TWAP window is the period of time over which the TWAP is computed.
-    /// @dev This can be called by the project's owner or an address with `JBBuybackHookPermissionIds.SET_POOL_PARAMS` permission from the owner.
+    /// @dev This can be called by the project's owner or an address with `JBBuybackPermissionIds.SET_POOL_PARAMS` permission from the owner.
     /// @param projectId The ID of the project to set the TWAP window of.
     /// @param newWindow The new TWAP window.
     function setTwapWindowOf(uint256 projectId, uint32 newWindow) external {
@@ -463,7 +463,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         _requirePermissionFrom({
             account: PROJECTS.ownerOf(projectId),
             projectId: projectId,
-            permissionId: JBBuybackHookPermissionIds.SET_POOL_PARAMS
+            permissionId: JBBuybackPermissionIds.SET_POOL_PARAMS
         });
 
         // Make sure the specified window is within reasonable bounds.
@@ -485,7 +485,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
 
     /// @notice Set the TWAP slippage tolerance for a project.
     /// The TWAP slippage tolerance is the maximum spread allowed between the amount received and the TWAP.
-    /// @dev This can be called by the project's owner or an address with `JBBuybackHookPermissionIds.SET_POOL_PARAMS` permission from the owner.
+    /// @dev This can be called by the project's owner or an address with `JBBuybackPermissionIds.SET_POOL_PARAMS` permission from the owner.
     /// @param projectId The ID of the project to set the TWAP slippage tolerance of.
     /// @param newSlippageTolerance The new TWAP slippage tolerance, out of `TWAP_SLIPPAGE_DENOMINATOR`.
     function setTwapSlippageToleranceOf(uint256 projectId, uint256 newSlippageTolerance) external {
@@ -493,7 +493,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         _requirePermissionFrom({
             account: PROJECTS.ownerOf(projectId),
             projectId: projectId,
-            permissionId: JBBuybackHookPermissionIds.SET_POOL_PARAMS
+            permissionId: JBBuybackPermissionIds.SET_POOL_PARAMS
         });
 
         // Make sure the provided TWAP slippage tolerance is within reasonable bounds.

@@ -18,7 +18,7 @@ import "lib/forge-std/src/Test.sol";
 
 import "./helpers/PoolAddress.sol";
 import "src/JBBuybackHook.sol";
-import "src/libraries/JBBuybackHookPermissionIds.sol";
+import "src/libraries/JBBuybackPermissionIds.sol";
 
 /**
  * @notice Unit tests for the JBBuybackHook contract.
@@ -1249,22 +1249,22 @@ contract TestJBBuybackHook_Units is Test {
     function test_setPoolFor_revertIfWrongCaller() public {
         vm.mockCall(
             address(permissions),
-            abi.encodeCall(permissions.hasPermission, (dude, owner, projectId, JBBuybackHookPermissionIds.CHANGE_POOL)),
+            abi.encodeCall(permissions.hasPermission, (dude, owner, projectId, JBBuybackPermissionIds.CHANGE_POOL)),
             abi.encode(false)
         );
         vm.expectCall(
             address(permissions),
-            abi.encodeCall(permissions.hasPermission, (dude, owner, projectId, JBBuybackHookPermissionIds.CHANGE_POOL))
+            abi.encodeCall(permissions.hasPermission, (dude, owner, projectId, JBBuybackPermissionIds.CHANGE_POOL))
         );
 
         vm.mockCall(
             address(permissions),
-            abi.encodeCall(permissions.hasPermission, (dude, owner, 0, JBBuybackHookPermissionIds.CHANGE_POOL)),
+            abi.encodeCall(permissions.hasPermission, (dude, owner, 0, JBBuybackPermissionIds.CHANGE_POOL)),
             abi.encode(false)
         );
         vm.expectCall(
             address(permissions),
-            abi.encodeCall(permissions.hasPermission, (dude, owner, 0, JBBuybackHookPermissionIds.CHANGE_POOL))
+            abi.encodeCall(permissions.hasPermission, (dude, owner, 0, JBBuybackPermissionIds.CHANGE_POOL))
         );
 
         // check: revert?
@@ -1371,25 +1371,25 @@ contract TestJBBuybackHook_Units is Test {
         vm.mockCall(
             address(permissions),
             abi.encodeCall(
-                permissions.hasPermission, (notOwner, owner, projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
+                permissions.hasPermission, (notOwner, owner, projectId, JBBuybackPermissionIds.SET_POOL_PARAMS)
             ),
             abi.encode(false)
         );
         vm.expectCall(
             address(permissions),
             abi.encodeCall(
-                permissions.hasPermission, (notOwner, owner, projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
+                permissions.hasPermission, (notOwner, owner, projectId, JBBuybackPermissionIds.SET_POOL_PARAMS)
             )
         );
 
         vm.mockCall(
             address(permissions),
-            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS)),
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBBuybackPermissionIds.SET_POOL_PARAMS)),
             abi.encode(false)
         );
         vm.expectCall(
             address(permissions),
-            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS))
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBBuybackPermissionIds.SET_POOL_PARAMS))
         );
 
         // check: revert?
@@ -1457,25 +1457,25 @@ contract TestJBBuybackHook_Units is Test {
         vm.mockCall(
             address(permissions),
             abi.encodeCall(
-                permissions.hasPermission, (notOwner, owner, projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
+                permissions.hasPermission, (notOwner, owner, projectId, JBBuybackPermissionIds.SET_POOL_PARAMS)
             ),
             abi.encode(false)
         );
         vm.expectCall(
             address(permissions),
             abi.encodeCall(
-                permissions.hasPermission, (notOwner, owner, projectId, JBBuybackHookPermissionIds.SET_POOL_PARAMS)
+                permissions.hasPermission, (notOwner, owner, projectId, JBBuybackPermissionIds.SET_POOL_PARAMS)
             )
         );
 
         vm.mockCall(
             address(permissions),
-            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS)),
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBBuybackPermissionIds.SET_POOL_PARAMS)),
             abi.encode(false)
         );
         vm.expectCall(
             address(permissions),
-            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBBuybackHookPermissionIds.SET_POOL_PARAMS))
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBBuybackPermissionIds.SET_POOL_PARAMS))
         );
 
         // check: revert?
