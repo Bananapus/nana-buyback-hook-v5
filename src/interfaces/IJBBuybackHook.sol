@@ -25,7 +25,7 @@ interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallba
         uint256 indexed projectId, address indexed terminalToken, address newPool, address caller
     );
 
-    function SLIPPAGE_DENOMINATOR() external view returns (uint256);
+    function TWAP_SLIPPAGE_DENOMINATOR() external view returns (uint256);
 
     function MIN_TWAP_SLIPPAGE_TOLERANCE() external view returns (uint256);
 

@@ -726,7 +726,7 @@ contract TestJBBuybackHook_Units is Test {
             )
         );
 
-        vm.expectRevert(JBBuybackHook.MaximumSlippage.selector);
+        vm.expectRevert(JBBuybackHook.SpecifiedSlippageExceeded.selector);
 
         vm.prank(address(multiTerminal));
         hook.afterPayRecordedWith(afterPayRecordedContext);
@@ -1583,7 +1583,7 @@ contract ForTest_JBBuybackHook is JBBuybackHook {
     )
         external
     {
-        _twapParamsOf[projectId] = twapDelta << 128 | secondsAgo;
+        twapParamsOf[projectId] = twapDelta << 128 | secondsAgo;
         projectTokenOf[projectId] = projectToken;
         poolOf[projectId][terminalToken] = pool;
     }

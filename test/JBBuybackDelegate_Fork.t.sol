@@ -36,7 +36,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 // );
 
 // // Constants
-// uint256 constant SLIPPAGE_DENOMINATOR = 10_000;
+// uint256 constant TWAP_SLIPPAGE_DENOMINATOR = 10_000;
 
 // IUniswapV3Factory constant factory = IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984);
 // IERC20 constant jbx = IERC20(0x4554CC10898f92D45378b98D6D6c2dD54c687Fb2); // 0 - 69420*10**18
@@ -190,7 +190,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 //     _amountOut = OracleLibrary.getQuoteAtTick(arithmeticMeanTick, uint128(_amountIn), address(weth), address(jbx));
 
 //     // Return the lowest twap accepted
-//     _amountOut -= (_amountOut * _twapDelta) / SLIPPAGE_DENOMINATOR;
+//     _amountOut -= (_amountOut * _twapDelta) / TWAP_SLIPPAGE_DENOMINATOR;
 // }
 
 // /**
@@ -597,7 +597,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 // //     // Generate the metadata
 // //     bytes memory _delegateMetadata = metadataHelper.createMetadata(_ids, _data);
 
-// //     vm.expectRevert(IJBBuybackHook.MaximumSlippage.selector);
+// //     vm.expectRevert(IJBBuybackHook.SpecifiedSlippageExceeded.selector);
 
 // //     // Pay the project
 // //     jbEthPaymentTerminal.pay{value: 1 ether}(

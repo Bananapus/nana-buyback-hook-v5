@@ -29,21 +29,20 @@ import {IJBBuybackHook} from "./interfaces/IJBBuybackHook.sol";
 import {IWETH9} from "./interfaces/external/IWETH9.sol";
 
 /// @custom:benediction DEVS BENEDICAT ET PROTEGAT CONTRACTVS MEAM
-/// @notice Generic Buyback Hook compatible with any Juicebox payment terminal and any project token that can be pooled.
-/// @notice Functions as a Data Hook and Pay Hook allowing beneficiaries of payments to get the highest amount
-/// of a project's token between minting using the project weight and swapping in a given Uniswap V3 pool.
+/// @notice The buyback hook allows beneficiaries of a payment to a project to either:
+/// - Get tokens by paying the project through its terminal OR
+/// - Buy tokens from the configured Uniswap v3 pool.
+/// Depending on which route would yield more tokens for the beneficiary. The project's reserved rate applies to either route.
+/// @dev Compatible with any `JBTerminal` and any project token that can be pooled on Uniswap v3.
 contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     //*********************************************************************//
     // --------------------------- custom errors ------------------------- //
     //*********************************************************************//
 
-    error MaximumSlippage();
+    error SpecifiedSlippageExceeded();
     error InsufficientPayAmount();
-    error NotEnoughTokensReceived();
-    error NewSecondsAgoTooLow();
     error NoProjectToken();
     error PoolAlreadySet();
-    error TransferFailed();
     error InvalidTwapSlippageTolerance();
     error InvalidTwapWindow();
     error Unauthorized();
@@ -52,150 +51,146 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     // --------------------- internal stored properties ------------------ //
     //*********************************************************************//
 
-    /// @notice The TWAP max deviation acepted and timeframe to use for the pool twap, packed in a uint256.
-    /// @custom:param _projectId The ID of the project to which the TWAP params apply.
-    mapping(uint256 _projectId => uint256) internal _twapParamsOf;
+    /// @notice The TWAP parameters used for the given project when the payer does not specify a quote.
+    /// See the README for further information.
+    /// @dev This includes the TWAP slippage tolerance and TWAP window, packed into a `uint256`.
+    /// @custom:param projectId The ID of the project to get the twap parameters for.
+    mapping(uint256 projectId => uint256) internal twapParamsOf;
 
     //*********************************************************************//
     // --------------------- public constant properties ------------------ //
     //*********************************************************************//
 
-    /// @notice The unit of the max slippage.
-    uint256 public constant SLIPPAGE_DENOMINATOR = 10_000;
+    /// @notice The denominator used when calculating TWAP slippage percent values.
+    uint256 public constant TWAP_SLIPPAGE_DENOMINATOR = 10_000;
 
-    /// @notice The minimum twap deviation allowed, out of MAX_SLIPPAGE.
-    /// @dev This serves to avoid operators settings values that force the bypassing the swap when a quote is not
-    /// provided in payment metadata.
+    /// @notice Projects cannot specify a TWAP slippage tolerance smaller than this constant (out of `MAX_SLIPPAGE`).
+    /// @dev This prevents TWAP slippage tolerances so low that the swap always reverts to default behavior unless a quote is specified in the payment metadata.
     uint256 public constant MIN_TWAP_SLIPPAGE_TOLERANCE = 100;
 
-    /// @notice The maximum twap deviation allowed, out of MAX_SLIPPAGE.
-    /// @dev This serves to avoid operators settings values that force the bypassing the swap when a quote is not
-    /// provided in payment metadata.
+    /// @notice Projects cannot specify a TWAP slippage tolerance larger than this constant (out of `MAX_SLIPPAGE`).
+    /// @dev This prevents TWAP slippage tolerances so high that they would result in highly unfavorable trade conditions for the payer unless a quote was specified in the payment metadata.
     uint256 public constant MAX_TWAP_SLIPPAGE_TOLERANCE = 9000;
 
-    /// @notice The smallest TWAP period allowed, in seconds.
-    /// @dev This serves to avoid operators settings values that force the bypassing the swap when a quote is not
-    /// provided in payment metadata.
+    /// @notice Projects cannot specify a TWAP window shorter than this constant.
+    /// @dev This serves to avoid  extremely short TWAP windows that could be manipulated or subject to high volatility.
     uint256 public constant MIN_TWAP_WINDOW = 2 minutes;
 
-    /// @notice The largest TWAP period allowed, in seconds.
-    /// @dev This serves to avoid operators settings values that force the bypassing the swap when a quote is not
-    /// provided in payment metadata.
+    /// @notice Projects cannot specify a TWAP window longer than this constant.
+    /// @dev This serves to avoid excessively long TWAP windows that could lead to outdated pricing information and higher gas costs due to increased computational requirements.
     uint256 public constant MAX_TWAP_WINDOW = 2 days;
 
     //*********************************************************************//
     // -------------------- public immutable properties ------------------ //
     //*********************************************************************//
 
-    /// @notice The uniswap v3 factory used to reference pools from.
+    /// @notice The address of the Uniswap v3 factory. Used to calculate pool addresses.
     address public immutable UNISWAP_V3_FACTORY;
 
     /// @notice The directory of terminals and controllers.
     IJBDirectory public immutable DIRECTORY;
 
-    /// @notice The controller used to mint and burn tokens from.
+    /// @notice The controller used to mint and burn tokens.
     IJBController public immutable CONTROLLER;
 
     /// @notice The project registry.
     IJBProjects public immutable PROJECTS;
 
-    /// @notice The WETH contract.
+    /// @notice The wETH contract.
     IWETH9 public immutable WETH;
 
     //*********************************************************************//
     // --------------------- public stored properties -------------------- //
     //*********************************************************************//
 
-    /// @notice The uniswap pool corresponding to the project token <-> terminal token pair.
-    /// @custom:param _projectId The ID of the project to which the pool applies.
-    /// @custom:param _terminalToken The address of the token being used to make payments in.
+    /// @notice The Uniswap pool where a given project's token and terminal token pair are traded.
+    /// @custom:param projectId The ID of the project whose token is traded in the pool.
+    /// @custom:param terminalToken The address of the terminal token that the project accepts for payments (and is traded in the pool).
     mapping(uint256 projectId => mapping(address terminalToken => IUniswapV3Pool)) public poolOf;
 
-    /// @notice Each project's token.
-    /// @custom:param _projectId The ID of the project to which the token belongs.
+    /// @notice The address of each project's token.
+    /// @custom:param projectId The ID of the project the token belongs to.
     mapping(uint256 projectId => address) public projectTokenOf;
 
     //*********************************************************************//
     // ------------------------- external views -------------------------- //
     //*********************************************************************//
 
-    /// @notice Required by the IJBRulesetDataHook interfaces. Return false to not leak any permissions.
+    /// @notice Required by the `IJBRulesetDataHook` interfaces. Return false to not leak any permissions.
     function hasMintPermissionFor(uint256, address) external pure returns (bool) {
         return false;
-    }
+    } // TODO: I think this can be removed.
 
-    /// @notice The DataSource implementation that determines if a swap path and/or a mint path should be taken.
-    /// @param context The context passed to the data hook in terminalStore.recordPaymentFrom(..). context.metadata can
-    /// have a Uniswap quote
-    /// and specify how much of the payment should be used to swap, otherwise a quote will be determined from a TWAP and
-    /// use the full amount paid in.
-    /// @return weight The weight to use, which is the original weight passed in if no swap path is taken, 0 if only the
-    /// swap path is taken, and an adjusted weight if the both the swap and mint paths are taken.
-    /// @return hookSpecifications The amount to send to delegates instead of adding to the local balance. This is
-    /// empty if only the mint path is taken.
+    /// @notice The `IJBRulesetDataHook` implementation which determines whether tokens should be minted from the project or bought from the pool.
+    /// @param context Payment context passed to the data hook by `terminalStore.recordPaymentFrom(...)`.
+    /// `context.metadata` can specify a Uniswap quote and specify how much of the payment should be used to swap.
+    /// If `context.metadata` does not specify a quote, one will be calculated based on the TWAP.
+    /// If `context.metadata` does not specify how much of the payment should be used, the hook uses the full amount paid in.
+    /// @return weight The weight to use. If tokens are being minted from the project, this is the original weight.
+    /// If tokens are being bought from the pool, the weight is 0.
+    /// If tokens are being minted AND bought from the pool, this weight is adjusted to take both into account.
+    /// @return hookSpecifications Specifications containing pay hooks, as well as the amount and metadata to send to them. Fulfilled by the terminal.
+    /// If tokens are only being minted, `hookSpecifications` will be empty.
     function beforePayRecordedWith(JBBeforePayRecordedContext calldata context)
         external
         view
         override
         returns (uint256 weight, JBPayHookSpecification[] memory hookSpecifications)
     {
-        // Keep a reference to the payment total
+        // Keep a reference to the amount paid in.
         uint256 totalPaid = context.amount.value;
 
-        // Keep a reference to the weight
+        // Keep a reference to the weight.
         weight = context.weight;
 
-        // Keep a reference to the minimum number of tokens expected to be swapped for.
+        // Keep a reference to the minimum number of tokens expected from the swap.
         uint256 minimumSwapAmountOut;
 
-        // Keep a reference to the amount from the payment to allocate towards a swap.
+        // Keep a reference to the amount to be used to swap (out of `totalPaid`).
         uint256 amountToSwapWith;
 
-        // Keep a reference to a flag indicating if the quote passed into the metadata exists.
+        // Keep a reference to a flag indicating whether a quote was specified in the payment metadata.
         bool quoteExists;
 
-        // Scoped section to prevent Stack Too Deep.
+        // Scoped section to prevent stack too deep.
         {
             bytes memory metadata;
 
             // The metadata ID is the first 4 bytes of this contract's address.
             bytes4 metadataId = bytes4(bytes20(address(this)));
 
-            // Unpack the quote from the pool, given by the frontend.
+            // Unpack the quote specified by the payer/client (typically from the pool).
             (quoteExists, metadata) = JBMetadataResolver.getDataFor(metadataId, context.metadata);
             if (quoteExists) (amountToSwapWith, minimumSwapAmountOut) = abi.decode(metadata, (uint256, uint256));
         }
 
-        // If no amount was specified to swap with, default to the full amount of the payment.
+        // If the payer/client did not specify an amount to use towards the swap, use the `totalPaid`.
         if (amountToSwapWith == 0) amountToSwapWith = totalPaid;
 
-        // Find the default total number of tokens to mint as if no Buyback Delegate were installed, as a fixed point
-        // number with 18 decimals
-
-        uint256 tokenCountWithoutDelegate = mulDiv(amountToSwapWith, weight, 10 ** context.amount.decimals);
+        // Calculate how many tokens would be minted by a direct payment to the project.
+        // `tokenCountWithoutHook` is a fixed point number with 18 decimals.
+        uint256 tokenCountWithoutHook = mulDiv(amountToSwapWith, weight, 10 ** context.amount.decimals);
 
         // Keep a reference to the project's token.
         address projectToken = projectTokenOf[context.projectId];
 
-        // Keep a reference to the token being used by the terminal that is calling this delegate. Use weth is ETH.
+        // Keep a reference to the token being used by the terminal that is calling this hook. Default to wETH if the terminal uses the native token.
         address terminalToken = context.amount.token == JBConstants.NATIVE_TOKEN ? address(WETH) : context.amount.token;
 
-        // If a minimum amount of tokens to swap for wasn't specified, resolve a value as good as possible using a TWAP.
+        // If a minimum amount of tokens to swap for wasn't specified by the player/client, calculate a minimum based on the TWAP.
         if (minimumSwapAmountOut == 0) {
             minimumSwapAmountOut = _getQuote(context.projectId, projectToken, amountToSwapWith, terminalToken);
         }
 
-        // If the minimum amount received from swapping is greather than received when minting, use the swap path.
-        if (tokenCountWithoutDelegate < minimumSwapAmountOut) {
-            // Make sure the amount to swap with is at most the full amount being paid.
+        // If the minimum amount of tokens from the swap exceeds the amount that paying the project directly would yield, swap.
+        if (tokenCountWithoutHook < minimumSwapAmountOut) {
+            // If the amount to swap with is greater than the actual amount paid in, revert.
             if (amountToSwapWith > totalPaid) revert InsufficientPayAmount();
 
-            // Keep a reference to a flag indicating if the pool will reference the project token as the first in the
-            // pair.
+            // Keep a reference to a flag indicating whether the Uniswap pool will reference the project token first in the pair.
             bool projectTokenIs0 = address(projectToken) < terminalToken;
 
-            // Return this delegate as the one to use, while forwarding the amount to swap with. Speficy metadata that
-            // allows the swap to be executed.
+            // Specify this hook as the one to use, the amount to swap with, and metadata which allows the swap to be executed.
             hookSpecifications = new JBPayHookSpecification[](1);
             hookSpecifications[0] = JBPayHookSpecification({
                 hook: IJBPayHook(this),
@@ -208,28 +203,31 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
                     )
             });
 
-            // All the mint will be done in afterPayRecordedWith, return 0 as weight to avoid minting via the terminal
+            // All the minting will be done in `afterPayRecordedWith`. Return a weight of 0 to any additional minting from the terminal.
             return (0, hookSpecifications);
         }
     }
 
-    /// @notice The timeframe to use for the pool TWAP.
-    /// @param  projectId The ID of the project for which the value applies.
-    /// @return secondsAgo The period over which the TWAP is computed.
+    /// @notice Get the TWAP window for a given project ID.
+    /// @dev The "TWAP window" is the period over which the TWAP is computed.
+    /// @param  projectId The ID of the project which the TWAP window applies to.
+    /// @return secondsAgo The TWAP window in seconds.
     function twapWindowOf(uint256 projectId) external view returns (uint32) {
-        return uint32(_twapParamsOf[projectId]);
+        return uint32(twapParamsOf[projectId]);
     }
 
-    /// @notice The TWAP max deviation acepted, out of SLIPPAGE_DENOMINATOR.
-    /// @param  projectId The ID of the project for which the value applies.
-    /// @return delta the maximum deviation allowed between the token amount received and the TWAP quote.
+    /// @notice Get the TWAP slippage tolerance for a given project ID.
+    /// @dev The "TWAP slippage tolerance" is the maximum negative spread between the TWAP and the expected return from a swap.
+    /// If the expected return unfavourably exceeds the TWAP slippage tolerance, the swap will revert.
+    /// @param  projectId The ID of the project which the TWAP slippage tolerance applies to.
+    /// @return tolerance The maximum slippage allowed relative to the TWAP, as a percent out of `TWAP_SLIPPAGE_DENOMINATOR`.
     function twapSlippageToleranceOf(uint256 projectId) external view returns (uint256) {
-        return _twapParamsOf[projectId] >> 128;
+        return twapParamsOf[projectId] >> 128;
     }
 
-    /// @notice For interface completion.
-    /// @dev This is a passthrough of the redemption parameters
-    /// @param context The redeem data passed by the terminal.
+    /// @notice To fulfill the `IJBRulesetDataHook` interface.
+    /// @dev Pass redeem context back to the terminal without changes.
+    /// @param context The redeem context passed in by the terminal.
     function beforeRedeemRecordedWith(JBBeforeRedeemRecordedContext calldata context)
         external
         pure
@@ -253,9 +251,9 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     //*********************************************************************//
 
     /// @param weth The WETH contract.
-    /// @param factory The uniswap v3 factory used to reference pools from.
+    /// @param factory The address of the Uniswap v3 factory. Used to calculate pool addresses.
     /// @param directory The directory of terminals and controllers.
-    /// @param controller The controller used to mint and burn tokens from.
+    /// @param controller The controller used to mint and burn tokens.
     constructor(
         IWETH9 weth,
         address factory,
@@ -294,7 +292,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         uint256 exactSwapAmountOut = _swap(context, projectTokenIs0);
 
         // Make sure the slippage is tolerable if passed in via an explicit quote.
-        if (quoteExists && exactSwapAmountOut < minimumSwapAmountOut) revert MaximumSlippage();
+        if (quoteExists && exactSwapAmountOut < minimumSwapAmountOut) revert SpecifiedSlippageExceeded();
 
         // Get a reference to any amount of tokens paid in remaining in this contract.
         uint256 terminalTokenInThisContract = context.forwardedAmount.token == JBConstants.NATIVE_TOKEN
@@ -448,7 +446,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         poolOf[projectId][terminalToken] = newPool;
 
         // Store the twap period and max slipage.
-        _twapParamsOf[projectId] = twapSlippageTolerance << 128 | twapWindow;
+        twapParamsOf[projectId] = twapSlippageTolerance << 128 | twapWindow;
         projectTokenOf[projectId] = address(projectToken);
 
         emit TwapWindowChanged(projectId, 0, twapWindow, msg.sender);
@@ -475,13 +473,13 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         }
 
         // Keep a reference to the currently stored TWAP params.
-        uint256 twapParams = _twapParamsOf[projectId];
+        uint256 twapParams = twapParamsOf[projectId];
 
         // Keep a reference to the old window value.
         uint256 oldWindow = uint128(twapParams);
 
         // Store the new packed value of the TWAP params.
-        _twapParamsOf[projectId] = uint256(newWindow) | ((twapParams >> 128) << 128);
+        twapParamsOf[projectId] = uint256(newWindow) | ((twapParams >> 128) << 128);
 
         emit TwapWindowChanged(projectId, oldWindow, newWindow, msg.sender);
     }
@@ -489,7 +487,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     /// @notice Set the maximum deviation allowed between amount received and TWAP.
     /// @dev This can be called by the project owner or an address having the SET_POOL permission in JBPermissions.
     /// @param projectId The ID for which the new value applies.
-    /// @param newSlippageTolerance the new delta, out of SLIPPAGE_DENOMINATOR.
+    /// @param newSlippageTolerance the new delta, out of TWAP_SLIPPAGE_DENOMINATOR.
     function setTwapSlippageToleranceOf(uint256 projectId, uint256 newSlippageTolerance) external {
         // Enforce permissions.
         _requirePermissionFrom({
@@ -504,13 +502,13 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         }
 
         // Keep a reference to the currently stored TWAP params.
-        uint256 twapParams = _twapParamsOf[projectId];
+        uint256 twapParams = twapParamsOf[projectId];
 
         // Keep a reference to the old slippage value.
         uint256 oldSlippageTolerance = twapParams >> 128;
 
         // Store the new packed value of the TWAP params.
-        _twapParamsOf[projectId] = newSlippageTolerance << 128 | ((twapParams << 128) >> 128);
+        twapParamsOf[projectId] = newSlippageTolerance << 128 | ((twapParams << 128) >> 128);
 
         emit TwapSlippageToleranceChanged(
             projectId, oldSlippageTolerance, newSlippageTolerance, msg.sender
@@ -550,7 +548,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         }
 
         // Unpack the TWAP params and get a reference to the period and slippage.
-        uint256 twapParams = _twapParamsOf[projectId];
+        uint256 twapParams = twapParamsOf[projectId];
         uint32 quotePeriod = uint32(twapParams);
         uint256 maxDelta = twapParams >> 128;
 
@@ -566,7 +564,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         });
 
         // Return the lowest TWAP tolerable.
-        amountOut -= (amountOut * maxDelta) / SLIPPAGE_DENOMINATOR;
+        amountOut -= (amountOut * maxDelta) / TWAP_SLIPPAGE_DENOMINATOR;
     }
 
     /// @notice Swap the terminal token to receive the project token.
