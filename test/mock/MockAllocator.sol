@@ -9,14 +9,14 @@ import "lib/juice-contracts-v4/src/interfaces/IJBSplitHook.sol";
 import "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165.sol";
 
 contract MockSplitHook is ERC165, IJBSplitHook {
-    IJBPayHook public immutable payDelegate;
+    IJBPayHook public immutable PAY_HOOK;
 
-    constructor(IJBPayHook _payDelegate) {
-        payDelegate = _payDelegate;
+    constructor(IJBPayHook payHook) {
+        PAY_HOOK = payHook;
     }
 
     function processSplitWith(JBSplitHookContext calldata) external payable override {
-        JBAfterPayRecordedContext memory _didPaydata = JBAfterPayRecordedContext(
+        JBAfterPayRecordedContext memory context = JBAfterPayRecordedContext(
             address(this),
             1,
             2,
@@ -29,13 +29,13 @@ contract MockSplitHook is ERC165, IJBSplitHook {
             new bytes(0)
         );
 
-        // makes a malicious delegate call to the buyback delegate
+        // Make a malicious delegate call to the buyback hook.
         (bool success,) =
-            address(payDelegate).delegatecall(abi.encodeWithSignature("afterPayRecordedWith(JBAfterPayRecordedContext)", _didPaydata));
+            address(PAY_HOOK).delegatecall(abi.encodeWithSignature("afterPayRecordedWith(JBAfterPayRecordedContext)", context));
         assert(success);
     }
 
-    function supportsInterface(bytes4 _interfaceId) public view override(IERC165, ERC165) returns (bool) {
-        return _interfaceId == type(IJBSplitHook).interfaceId || super.supportsInterface(_interfaceId);
+    function supportsInterface(bytes4 interfaceId) public view override(IERC165, ERC165) returns (bool) {
+        return interfaceId == type(IJBSplitHook).interfaceId || super.supportsInterface(interfaceId);
     }
 }

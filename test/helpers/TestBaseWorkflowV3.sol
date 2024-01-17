@@ -35,9 +35,7 @@ import "lib/juice-contracts-v4/src/interfaces/IJBTerminalStore.sol";
 import "src/interfaces/external/IWETH9.sol";
 import "src/JBBuybackHook.sol";
 
-// Base contract for Juicebox system tests.
-//
-// Provides common functionality, such as deploying contracts on test setup for v3.
+/// @notice Basic test setup for buyback hook tests. Deploys and pre-configures common contracts.
 contract TestBaseWorkflowV3 is Test {
     using stdStorage for StdStorage;
 
@@ -45,7 +43,7 @@ contract TestBaseWorkflowV3 is Test {
     // -------------------- internal stored properties ------------------- //
     //*********************************************************************//
 
-    // Multisig address used for testing.
+    // Multisig (project owner) and beneficiary addresses used for testing.
     address internal multisig = makeAddr("mooltichig");
     address internal beneficiary = makeAddr("benefishary");
 
@@ -72,7 +70,7 @@ contract TestBaseWorkflowV3 is Test {
 
     JBRulesetMetadata metadata;
 
-    // Use the L1 UniswapV3Pool jbx/eth 1% fee for create2 magic
+    // Use the old JBX<->ETH pair with a 1% fee as the `UniswapV3Pool` throughout tests.
     // IUniswapV3Pool pool = IUniswapV3Pool(0x48598Ff1Cee7b4d31f8f9050C2bbAE98e17E6b17);
     IJBToken jbx = IJBToken(0x3abF2A4f8452cCC2CF7b4C1e4663147600646f66);
     IWETH9 weth = IWETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
@@ -87,7 +85,7 @@ contract TestBaseWorkflowV3 is Test {
 
     // Deploys and initializes contracts for testing.
     function setUp() public virtual {
-        // Labels
+        // Labels.
         vm.label(multisig, "projectOwner");
         vm.label(beneficiary, "beneficiary");
         vm.label(address(pool), "uniswapPool");
@@ -95,7 +93,7 @@ contract TestBaseWorkflowV3 is Test {
         vm.label(address(weth), "$WETH");
         vm.label(address(jbx), "$JBX");
 
-        // mock
+        // Mock.
         vm.etch(address(pool), "0x69");
         vm.etch(address(weth), "0x69");
 
@@ -127,9 +125,11 @@ contract TestBaseWorkflowV3 is Test {
         jbSplits = new JBSplits(jbDirectory);
         vm.label(address(jbSplits), "JBSplits");
 
+        // JBFundAccessLimits
         jbFundAccessLimits = new JBFundAccessLimits(jbDirectory);
         vm.label(address(jbFundAccessLimits), "JBFundAccessLimits");
 
+        // JBFeelessAddresses
         jbFeelessAddresses = new JBFeelessAddresses(address(69));
         vm.label(address(jbFeelessAddresses), "JBFeelessAddresses");
 
@@ -142,11 +142,11 @@ contract TestBaseWorkflowV3 is Test {
         vm.prank(multisig);
         jbDirectory.setIsAllowedToSetFirstController(address(jbController), true);
 
-        // JBETHPaymentTerminalStore
+        // JBTerminalStore
         jbTerminalStore = new JBTerminalStore(jbDirectory, jbRulesets, jbPrices);
         vm.label(address(jbTerminalStore), "JBTerminalStore");
 
-        // JBETHPaymentTerminal
+        // JBMultiTerminal
         jbMultiTerminal = new JBMultiTerminal(
             jbPermissions,
             jbProjects,
@@ -159,7 +159,7 @@ contract TestBaseWorkflowV3 is Test {
         );
         vm.label(address(jbMultiTerminal), "JBMultiTerminal");
 
-        // Deploy the delegate
+        // Deploy the buyback hook.
         hook = new JBBuybackHook({
             weth: weth,
             factory: uniswapFactory,
@@ -167,6 +167,7 @@ contract TestBaseWorkflowV3 is Test {
             controller: jbController
         });
 
+        // Ruleset metadata: use the hook for payments.
         metadata = JBRulesetMetadata({
             reservedRate: reservedRate,
             redemptionRate: 5000,
@@ -186,6 +187,7 @@ contract TestBaseWorkflowV3 is Test {
             metadata: 0
         });
 
+        // More ruleset configuration.
         JBFundAccessLimitGroup[] memory fundAccessLimitGroups = new JBFundAccessLimitGroup[](1);
         JBCurrencyAmount[] memory payoutLimits = new JBCurrencyAmount[](1);
         JBCurrencyAmount[] memory surplusAllowances = new JBCurrencyAmount[](1);
@@ -216,6 +218,7 @@ contract TestBaseWorkflowV3 is Test {
         tokensToAccept[0] = JBConstants.NATIVE_TOKEN;
         terminalConfigurations[0] = JBTerminalConfig({terminal: jbMultiTerminal, tokensToAccept: tokensToAccept});
 
+        // Launch the project with the `multisig` as the owner.
         projectId = jbController.launchProjectFor({
             owner: multisig,
             projectMetadata: "myIPFSHash",
@@ -224,9 +227,11 @@ contract TestBaseWorkflowV3 is Test {
             memo: ""
         });
 
+        // Deploy the JBX ERC-20 for the project.
         vm.prank(multisig);
         jbController.deployERC20For(projectId, "jbx", "jbx");
 
+        // Set the buyback hook pool up for the project.
         vm.prank(multisig);
         pool = hook.setPoolFor(projectId, fee, uint32(cardinality), twapDelta, address(weth));
     }
