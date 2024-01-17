@@ -273,48 +273,48 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     // ---------------------- external transactions ---------------------- //
     //*********************************************************************//
 
-    /// @notice Hooks used to swap a provided amount to the beneficiary, using any leftover amount to mint.
-    /// @dev This hook is called only if the quote for the swap is bigger than the quote when minting.
-    /// If the swap reverts (slippage, liquidity, etc), the delegate will then mint the same amount of token as if the
-    /// delegate was not used.
-    /// @param context The hook context passed by the terminal.
+    /// @notice Swap the specified amount of terminal tokens for project tokens, using any leftover terminal tokens to mint from the project.
+    /// @dev This function is only called if the minimum return from the swap exceeds the return from minting by paying the project.
+    /// If the swap reverts (due to slippage, insufficient liquidity, or something else),
+    /// then the hook mints the number of tokens which a payment to the project would have minted.
+    /// @param context The pay context passed in by the terminal.
     function afterPayRecordedWith(JBAfterPayRecordedContext calldata context) external payable override {
-        // Make sure only a payment terminal belonging to the project can access this functionality.
+        // Make sure only the project's payment terminals can access this function.
         if (!DIRECTORY.isTerminalOf(context.projectId, IJBTerminal(msg.sender))) {
             revert Unauthorized();
         }
 
-        // Parse the metadata passed in from the data source.
+        // Parse the metadata forwarded from the data hook.
         (bool quoteExists, bool projectTokenIs0, uint256 amountToMintWith, uint256 minimumSwapAmountOut) =
             abi.decode(context.hookMetadata, (bool, bool, uint256, uint256));
 
-        // Get a reference to the amount of tokens that was swapped for.
+        // Get a reference to the number of project tokens that was swapped for.
         uint256 exactSwapAmountOut = _swap(context, projectTokenIs0);
 
-        // Make sure the slippage is tolerable if passed in via an explicit quote.
+        // If the payer/client specified a minimum amount to receive, make sure the swap meets that minimum.
         if (quoteExists && exactSwapAmountOut < minimumSwapAmountOut) revert SpecifiedSlippageExceeded();
 
-        // Get a reference to any amount of tokens paid in remaining in this contract.
+        // Get a reference to any terminal tokens which were paid in and are still held by this contract.
         uint256 terminalTokenInThisContract = context.forwardedAmount.token == JBConstants.NATIVE_TOKEN
             ? address(this).balance
             : IERC20(context.forwardedAmount.token).balanceOf(address(this));
 
-        // Use any leftover amount of tokens paid in remaining to mint.
+        // Mint a corresponding number of project tokens using any terminal tokens left over.
         // Keep a reference to the number of tokens being minted.
         uint256 partialMintTokenCount;
         if (terminalTokenInThisContract != 0) {
             partialMintTokenCount = mulDiv(terminalTokenInThisContract, context.weight, 10 ** context.amount.decimals);
 
-            // If the token paid in wasn't ETH, give the terminal permission to pull them back into its balance.
+            // If the token paid in wasn't the native token, grant the terminal permission to pull them back into its balance.
             if (context.forwardedAmount.token != JBConstants.NATIVE_TOKEN) {
                 IERC20(context.forwardedAmount.token).approve(msg.sender, terminalTokenInThisContract);
             }
 
-            // Keep a reference to the amount being paid.
+            // Keep a reference to the amount being paid as `msg.value`.
             uint256 payValue =
                 context.forwardedAmount.token == JBConstants.NATIVE_TOKEN ? terminalTokenInThisContract : 0;
 
-            // Add the paid amount back to the project's terminal balance.
+            // Add the paid amount back to the project's balance in the terminal.
             IJBMultiTerminal(msg.sender).addToBalanceOf{value: payValue}({
                 projectId: context.projectId,
                 token: context.forwardedAmount.token,
@@ -327,11 +327,11 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             emit Mint(context.projectId, terminalTokenInThisContract, partialMintTokenCount, msg.sender);
         }
 
-        // Add amount to mint to leftover mint amount (avoiding stack too deep here)
+        // Add the amount to mint to the leftover mint amount (avoiding stack too deep here).
         partialMintTokenCount += mulDiv(amountToMintWith, context.weight, 10 ** context.amount.decimals);
 
-        // Mint the whole amount of tokens again together with the (optional partial mint), such that the correct
-        // portion of reserved tokens get taken into account.
+        // Mint the calculated amount of tokens for the beneficiary, including any leftover amount.
+        // This takes the reserved rate into account.
         CONTROLLER.mintTokensOf({
             projectId: context.projectId,
             tokenCount: exactSwapAmountOut + partialMintTokenCount,
@@ -341,7 +341,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         });
     }
 
-    /// @notice The Uniswap V3 pool callback where the token transfer is expected to happen.
+    /// @notice The Uniswap v3 pool callback where the token transfer is expected to happen.
     /// @param amount0Delta The amount of token 0 being used for the swap.
     /// @param amount1Delta The amount of token 1 being used for the swap.
     /// @param data Data passed in by the swap operation.
@@ -349,32 +349,31 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         // Unpack the data passed in through the swap hook.
         (uint256 projectId, address terminalToken) = abi.decode(data, (uint256, address));
 
-        // Get the terminal token, using WETH if the token paid in is ETH.
+        // Get the terminal token, using wETH if the token paid in is the native token.
         address terminalTokenWithWETH = terminalToken == JBConstants.NATIVE_TOKEN ? address(WETH) : terminalToken;
 
-        // Make sure this call is being made from within the swap execution.
+        // Make sure this call is being made from the right pool.
         if (msg.sender != address(poolOf[projectId][terminalTokenWithWETH])) revert Unauthorized();
 
-        // Keep a reference to the amount of tokens that should be sent to fulfill the swap (the positive delta)
+        // Keep a reference to the number of tokens that should be sent to fulfill the swap (the positive delta).
         uint256 amountToSendToPool = amount0Delta < 0 ? uint256(amount1Delta) : uint256(amount0Delta);
 
-        // Wrap ETH into WETH if relevant (do not rely on ETH delegate balance to support pure WETH terminals)
+        // Wrap native tokens as needed.
         if (terminalToken == JBConstants.NATIVE_TOKEN) WETH.deposit{value: amountToSendToPool}();
 
         // Transfer the token to the pool.
         IERC20(terminalTokenWithWETH).transfer(msg.sender, amountToSendToPool);
     }
 
-    /// @notice Add a pool for a given project. This pool the becomes the default for a given token project <-->
-    /// terminal token pair.
-    /// @dev Uses create2 for callback auth and allows adding a pool not deployed yet.
-    /// This can be called by the project owner or an address having the SET_POOL permission in JBPermissions
-    /// @param projectId The ID of the project having its pool set.
-    /// @param fee The fee that is used in the pool being set.
-    /// @param twapWindow The period over which the TWAP is computed.
-    /// @param twapSlippageTolerance The maximum deviation allowed between amount received and TWAP.
-    /// @param terminalToken The terminal token that payments are made in.
-    /// @return newPool The pool that was created.
+    /// @notice Set the pool to use for a given project and terminal token (the default for the project's token <-> terminal token pair).
+    /// @dev Uses create2 for callback auth and to allow adding pools which haven't been deployed yet.
+    /// This can be called by the project's owner or an address which has the `JBBuybackHookPermissionIds.SET_POOL` permission from the owner.
+    /// @param projectId The ID of the project to set the pool for.
+    /// @param fee The fee used in the pool being set.
+    /// @param twapWindow The period of time over which the TWAP is computed.
+    /// @param twapSlippageTolerance The maximum spread allowed between the amount received and the TWAP.
+    /// @param terminalToken The address of the terminal token that payments to the project are made in.
+    /// @return newPool The pool that was set for the project and terminal token.
     function setPoolFor(
         uint256 projectId,
         uint24 fee,
@@ -392,13 +391,13 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             permissionId: JBBuybackHookPermissionIds.CHANGE_POOL
         });
 
-        // Make sure the provided delta is within sane bounds.
+        // Make sure the provided TWAP slippage tolerance is within reasonable bounds.
         if (twapSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || twapSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE)
         {
             revert InvalidTwapSlippageTolerance();
         }
 
-        // Make sure the provided period is within sane bounds.
+        // Make sure the provided TWAP window is within reasonable bounds.
         if (twapWindow < MIN_TWAP_WINDOW || twapWindow > MAX_TWAP_WINDOW) revert InvalidTwapWindow();
 
         // Keep a reference to the project's token.
@@ -407,13 +406,13 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         // Make sure the project has issued a token.
         if (projectToken == address(0)) revert NoProjectToken();
 
-        // If the terminal token specified in ETH, use WETH instead.
+        // If the specified terminal token is the native token, use wETH instead.
         if (terminalToken == JBConstants.NATIVE_TOKEN) terminalToken = address(WETH);
 
-        // Keep a reference to a flag indicating if the pool will reference the project token as the first in the pair.
+        // Keep a reference to a flag indicating whether the pool will reference the project token first in the pair.
         bool projectTokenIs0 = address(projectToken) < terminalToken;
 
-        // Compute the corresponding pool's address, which is a function of both tokens and the specified fee.
+        // Compute the pool's address, which is a function of the factory, both tokens, and the fee.
         newPool = IUniswapV3Pool(
             address(
                 uint160(
@@ -439,13 +438,13 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             )
         );
 
-        // Make sure this pool has yet to be specified in this delegate.
+        // Make sure this pool hasn't already been set in this hook.
         if (poolOf[projectId][terminalToken] == newPool) revert PoolAlreadySet();
 
         // Store the pool.
         poolOf[projectId][terminalToken] = newPool;
 
-        // Store the twap period and max slipage.
+        // Pack and store the TWAP window and the TWAP slippage tolerance in `twapParamsOf`.
         twapParamsOf[projectId] = twapSlippageTolerance << 128 | twapWindow;
         projectTokenOf[projectId] = address(projectToken);
 
@@ -454,11 +453,11 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         emit PoolAdded(projectId, terminalToken, address(newPool), msg.sender);
     }
 
-    /// @notice Increase the period over which the TWAP is computed.
-    /// @dev This can be called by the project owner or an address having the SET_TWAP_PERIOD permission in
-    /// JBPermissions.
-    /// @param projectId The ID for which the new value applies.
-    /// @param newWindow The new TWAP period.
+    /// @notice Change the TWAP window for a project.
+    /// The TWAP window is the period of time over which the TWAP is computed.
+    /// @dev This can be called by the project's owner or an address with `JBBuybackHookPermissionIds.SET_POOL_PARAMS` permission from the owner.
+    /// @param projectId The ID of the project to set the TWAP window of.
+    /// @param newWindow The new TWAP window.
     function setTwapWindowOf(uint256 projectId, uint32 newWindow) external {
         // Enforce permissions.
         _requirePermissionFrom({
@@ -467,27 +466,28 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             permissionId: JBBuybackHookPermissionIds.SET_POOL_PARAMS
         });
 
-        // Make sure the provided period is within sane bounds.
+        // Make sure the specified window is within reasonable bounds.
         if (newWindow < MIN_TWAP_WINDOW || newWindow > MAX_TWAP_WINDOW) {
             revert InvalidTwapWindow();
         }
 
-        // Keep a reference to the currently stored TWAP params.
+        // Keep a reference to the stored TWAP params.
         uint256 twapParams = twapParamsOf[projectId];
 
         // Keep a reference to the old window value.
         uint256 oldWindow = uint128(twapParams);
 
-        // Store the new packed value of the TWAP params.
+        // Store the new packed value of the TWAP params (with the updated window).
         twapParamsOf[projectId] = uint256(newWindow) | ((twapParams >> 128) << 128);
 
         emit TwapWindowChanged(projectId, oldWindow, newWindow, msg.sender);
     }
 
-    /// @notice Set the maximum deviation allowed between amount received and TWAP.
-    /// @dev This can be called by the project owner or an address having the SET_POOL permission in JBPermissions.
-    /// @param projectId The ID for which the new value applies.
-    /// @param newSlippageTolerance the new delta, out of TWAP_SLIPPAGE_DENOMINATOR.
+    /// @notice Set the TWAP slippage tolerance for a project.
+    /// The TWAP slippage tolerance is the maximum spread allowed between the amount received and the TWAP.
+    /// @dev This can be called by the project's owner or an address with `JBBuybackHookPermissionIds.SET_POOL_PARAMS` permission from the owner.
+    /// @param projectId The ID of the project to set the TWAP slippage tolerance of.
+    /// @param newSlippageTolerance The new TWAP slippage tolerance, out of `TWAP_SLIPPAGE_DENOMINATOR`.
     function setTwapSlippageToleranceOf(uint256 projectId, uint256 newSlippageTolerance) external {
         // Enforce permissions.
         _requirePermissionFrom({
@@ -496,7 +496,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             permissionId: JBBuybackHookPermissionIds.SET_POOL_PARAMS
         });
 
-        // Make sure the provided delta is within sane bounds.
+        // Make sure the provided TWAP slippage tolerance is within reasonable bounds.
         if (newSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || newSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE) {
             revert InvalidTwapSlippageTolerance();
         }
@@ -504,10 +504,10 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         // Keep a reference to the currently stored TWAP params.
         uint256 twapParams = twapParamsOf[projectId];
 
-        // Keep a reference to the old slippage value.
+        // Keep a reference to the old TWAP slippage tolerance.
         uint256 oldSlippageTolerance = twapParams >> 128;
 
-        // Store the new packed value of the TWAP params.
+        // Store the new packed value of the TWAP params (with the updated tolerance).
         twapParamsOf[projectId] = newSlippageTolerance << 128 | ((twapParams << 128) >> 128);
 
         emit TwapSlippageToleranceChanged(
