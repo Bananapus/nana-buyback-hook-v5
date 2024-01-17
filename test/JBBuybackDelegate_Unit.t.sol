@@ -37,7 +37,7 @@ contract TestJBBuybackHook_Units is Test {
         uint256 indexed projectId, uint256 oldSecondsAgo, uint256 newSecondsAgo, address caller
     );
     event TwapSlippageToleranceChanged(
-        uint256 indexed projectId, uint256 oldTwapDelta, uint256 newTwapDelta, address caller
+        uint256 indexed projectId, uint256 oldTwapTolerance, uint256 newTwapTolerance, address caller
     );
     event PoolAdded(
         uint256 indexed projectId, address indexed terminalToken, address newPool, address caller
