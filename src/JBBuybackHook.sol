@@ -519,12 +519,12 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     // ---------------------- internal functions ------------------------- //
     //*********************************************************************//
 
-    /// @notice Get a quote based on TWAP over a secondsAgo period, taking into account a twapDelta max deviation.
-    /// @param projectId The ID of the project for which the swap is being made.
-    /// @param projectToken The project's token being swapped for.
-    /// @param amountIn The amount being used to swap.
-    /// @param terminalToken The token paid in being used to swap.
-    /// @return amountOut the minimum amount received according to the TWAP.
+    /// @notice Get a quote based on the TWAP, using the TWAP window and slippage tolerance for the specified project.
+    /// @param projectId The ID of the project which the swap is associated with.
+    /// @param projectToken The project token being swapped for.
+    /// @param amountIn The number of terminal tokens being used to swap.
+    /// @param terminalToken The terminal token being paid in and used to swap.
+    /// @return amountOut The minimum number of tokens to receive based on the TWAP and its params.
     function _getQuote(
         uint256 projectId,
         address projectToken,
@@ -543,17 +543,17 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             // If the pool hasn't been initialized, return an empty quote.
             if (!unlocked) return 0;
         } catch {
-            // If the address is invalid or if the pool has not yet been deployed, return an empty quote.
+            // If the address is invalid, or if the pool has not been deployed yet, return an empty quote.
             return 0;
         }
 
         // Unpack the TWAP params and get a reference to the period and slippage.
         uint256 twapParams = twapParamsOf[projectId];
-        uint32 quotePeriod = uint32(twapParams);
-        uint256 maxDelta = twapParams >> 128;
+        uint32 twapWindow = uint32(twapParams);
+        uint256 twapSlippageTolerance = twapParams >> 128;
 
         // Keep a reference to the TWAP tick.
-        (int24 arithmeticMeanTick,) = OracleLibrary.consult(address(pool), quotePeriod);
+        (int24 arithmeticMeanTick,) = OracleLibrary.consult(address(pool), twapWindow);
 
         // Get a quote based on this TWAP tick.
         amountOut = OracleLibrary.getQuoteAtTick({
@@ -563,30 +563,30 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             quoteToken: address(projectToken)
         });
 
-        // Return the lowest TWAP tolerable.
-        amountOut -= (amountOut * maxDelta) / TWAP_SLIPPAGE_DENOMINATOR;
+        // Return the lowest acceptable return based on the TWAP and its parameters.
+        amountOut -= (amountOut * twapSlippageTolerance) / TWAP_SLIPPAGE_DENOMINATOR;
     }
 
-    /// @notice Swap the terminal token to receive the project token.
-    /// @param data The afterPayRecordedContext passed by the terminal.
-    /// @param projectTokenIs0 A flag indicating if the pool will reference the project token as the first in the pair.
-    /// @return amountReceived The amount of tokens received from the swap.
+    /// @notice Swap the terminal token to receive project tokens.
+    /// @param context The `afterPayRecordedContext` passed in by the terminal.
+    /// @param projectTokenIs0 A flag indicating whether the pool references the project token as the first in the pair.
+    /// @return amountReceived The amount of project tokens received from the swap.
     function _swap(
-        JBAfterPayRecordedContext calldata data,
+        JBAfterPayRecordedContext calldata context,
         bool projectTokenIs0
     )
         internal
         returns (uint256 amountReceived)
     {
-        // The amount of tokens that are being used with which to make the swap.
-        uint256 amountToSwapWith = data.forwardedAmount.value;
+        // The number of terminal tokens being used for the swap.
+        uint256 amountToSwapWith = context.forwardedAmount.value;
 
-        // Get the terminal token, using WETH if the token paid in is ETH.
+        // Get the terminal token. Use wETH if the terminal token is the native token.
         address terminalTokenWithWETH =
-            data.forwardedAmount.token == JBConstants.NATIVE_TOKEN ? address(WETH) : data.forwardedAmount.token;
+            context.forwardedAmount.token == JBConstants.NATIVE_TOKEN ? address(WETH) : context.forwardedAmount.token;
 
         // Get a reference to the pool that'll be used to make the swap.
-        IUniswapV3Pool pool = poolOf[data.projectId][terminalTokenWithWETH];
+        IUniswapV3Pool pool = poolOf[context.projectId][terminalTokenWithWETH];
 
         // Try swapping.
         try pool.swap({
@@ -594,10 +594,10 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             zeroForOne: !projectTokenIs0,
             amountSpecified: int256(amountToSwapWith),
             sqrtPriceLimitX96: projectTokenIs0 ? TickMath.MAX_SQRT_RATIO - 1 : TickMath.MIN_SQRT_RATIO + 1,
-            data: abi.encode(data.projectId, data.forwardedAmount.token)
+            data: abi.encode(context.projectId, context.forwardedAmount.token)
         }) returns (int256 amount0, int256 amount1) {
-            // If the swap succeded, take note of the amount of tokens received. This will return as negative since it
-            // is an exact input.
+            // If the swap succeded, take note of the amount of tokens received.
+            // This will be returned as a negative value, which Uniswap uses to represent the outputs of exact input swaps.
             amountReceived = uint256(-(projectTokenIs0 ? amount0 : amount1));
         } catch {
             // If the swap failed, return.
@@ -605,10 +605,9 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         }
 
         // Burn the whole amount received.
-        CONTROLLER.burnTokensOf({holder: address(this), projectId: data.projectId, tokenCount: amountReceived, memo: ""});
+        CONTROLLER.burnTokensOf({holder: address(this), projectId: context.projectId, tokenCount: amountReceived, memo: ""});
 
-        // We return the amount we received/burned and we will mint them to the user later
-
-        emit Swap(data.projectId, amountToSwapWith, pool, amountReceived, msg.sender);
+        // Return the amount we received/burned, which we will mint to the beneficiary later.
+        emit Swap(context.projectId, amountToSwapWith, pool, amountReceived, msg.sender);
     }
 }
