@@ -17,10 +17,7 @@ help_string="Available commands:
   deploy:optimism-mainnet    - Deploy to Optimism mainnet
   deploy:optimism-testnet    - Deploy to Optimism testnet
   deploy:polygon-mainnet     - Deploy to Polygon mainnet
-  deploy:polygon-mumbai      - Deploy to Polygon Mumbai testnet
-  check:imports              - Check for unused imports
-  check:errors               - Check for unused errors
-  check:unimported           - Check for unimported modules"
+  deploy:polygon-mumbai      - Deploy to Polygon Mumbai testnet"
 
 if [ $# -eq 0 ]
 then
@@ -41,8 +38,5 @@ case "$1" in
   "deploy:optimism-sepolia") source .env && forge script Deploy --chain-id 11155420 --rpc-url $RPC_OPTIMISM_SEPOLIA --broadcast --verify --etherscan-api-key $OPTIMISTIC_ETHERSCAN_API_KEY --interactives 1 --sender $SENDER_OPTIMISM_SEPOLIA -vvv ;;
   "deploy:polygon-mainnet") source .env && forge script Deploy --chain-id 137 --rpc-url $RPC_POLYGON_MAINNET --broadcast --verify --etherscan-api-key $POLYSCAN_API_KEY --interactives 1 --sender $SENDER_POLYGON_MAINNET -vvv ;;
   "deploy:polygon-mumbai") source .env && forge script Deploy --chain-id 80001 --rpc-url $RPC_POLYGON_MUMBAI --broadcast --verify --etherscan-api-key $POLYSCAN_API_KEY --interactives 1 --sender $SENDER_POLYGON_MUMBAI -vvv ;;
-  "check:imports") bash ./utils/unused-imports.sh ;;
-  "check:errors") python ./utils/unused-errors.py ;;
-  "check:unimported") python ./utils/check-used.py ;;
   *) echo "Invalid command: $1" ;;
 esac
