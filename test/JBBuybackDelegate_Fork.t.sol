@@ -176,21 +176,21 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 
 // function _getTwapQuote(
 //     uint256 _amountIn,
-//     uint32 _secondsAgo,
-//     uint256 _twapDelta
+//     uint32 _twapWindow,
+//     uint256 _twapTolerance
 // )
 //     internal
 //     view
 //     returns (uint256 _amountOut)
 // {
 //     // Get the twap tick
-//     (int24 arithmeticMeanTick,) = OracleLibrary.consult(address(pool), _secondsAgo);
+//     (int24 arithmeticMeanTick,) = OracleLibrary.consult(address(pool), _twapWindow);
 
 //     // Get a quote based on this twap tick
 //     _amountOut = OracleLibrary.getQuoteAtTick(arithmeticMeanTick, uint128(_amountIn), address(weth), address(jbx));
 
 //     // Return the lowest twap accepted
-//     _amountOut -= (_amountOut * _twapDelta) / TWAP_SLIPPAGE_DENOMINATOR;
+//     _amountOut -= (_amountOut * _twapTolerance) / TWAP_SLIPPAGE_DENOMINATOR;
 // }
 
 // /**
