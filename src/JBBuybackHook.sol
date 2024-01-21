@@ -32,7 +32,8 @@ import {IWETH9} from "./interfaces/external/IWETH9.sol";
 /// @notice The buyback hook allows beneficiaries of a payment to a project to either:
 /// - Get tokens by paying the project through its terminal OR
 /// - Buy tokens from the configured Uniswap v3 pool.
-/// Depending on which route would yield more tokens for the beneficiary. The project's reserved rate applies to either route.
+/// Depending on which route would yield more tokens for the beneficiary. The project's reserved rate applies to either
+/// route.
 /// @dev Compatible with any `JBTerminal` and any project token that can be pooled on Uniswap v3.
 contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     //*********************************************************************//
@@ -65,11 +66,13 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     uint256 public constant TWAP_SLIPPAGE_DENOMINATOR = 10_000;
 
     /// @notice Projects cannot specify a TWAP slippage tolerance smaller than this constant (out of `MAX_SLIPPAGE`).
-    /// @dev This prevents TWAP slippage tolerances so low that the swap always reverts to default behavior unless a quote is specified in the payment metadata.
+    /// @dev This prevents TWAP slippage tolerances so low that the swap always reverts to default behavior unless a
+    /// quote is specified in the payment metadata.
     uint256 public constant MIN_TWAP_SLIPPAGE_TOLERANCE = 100;
 
     /// @notice Projects cannot specify a TWAP slippage tolerance larger than this constant (out of `MAX_SLIPPAGE`).
-    /// @dev This prevents TWAP slippage tolerances so high that they would result in highly unfavorable trade conditions for the payer unless a quote was specified in the payment metadata.
+    /// @dev This prevents TWAP slippage tolerances so high that they would result in highly unfavorable trade
+    /// conditions for the payer unless a quote was specified in the payment metadata.
     uint256 public constant MAX_TWAP_SLIPPAGE_TOLERANCE = 9000;
 
     /// @notice Projects cannot specify a TWAP window shorter than this constant.
@@ -77,7 +80,8 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     uint256 public constant MIN_TWAP_WINDOW = 2 minutes;
 
     /// @notice Projects cannot specify a TWAP window longer than this constant.
-    /// @dev This serves to avoid excessively long TWAP windows that could lead to outdated pricing information and higher gas costs due to increased computational requirements.
+    /// @dev This serves to avoid excessively long TWAP windows that could lead to outdated pricing information and
+    /// higher gas costs due to increased computational requirements.
     uint256 public constant MAX_TWAP_WINDOW = 2 days;
 
     //*********************************************************************//
@@ -105,7 +109,8 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
 
     /// @notice The Uniswap pool where a given project's token and terminal token pair are traded.
     /// @custom:param projectId The ID of the project whose token is traded in the pool.
-    /// @custom:param terminalToken The address of the terminal token that the project accepts for payments (and is traded in the pool).
+    /// @custom:param terminalToken The address of the terminal token that the project accepts for payments (and is
+    /// traded in the pool).
     mapping(uint256 projectId => mapping(address terminalToken => IUniswapV3Pool)) public poolOf;
 
     /// @notice The address of each project's token.
@@ -119,17 +124,20 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     /// @notice Required by the `IJBRulesetDataHook` interfaces. Return false to not leak any permissions.
     function hasMintPermissionFor(uint256, address) external pure returns (bool) {
         return false;
-    } // TODO: I think this can be removed.
+    }
 
-    /// @notice The `IJBRulesetDataHook` implementation which determines whether tokens should be minted from the project or bought from the pool.
+    /// @notice The `IJBRulesetDataHook` implementation which determines whether tokens should be minted from the
+    /// project or bought from the pool.
     /// @param context Payment context passed to the data hook by `terminalStore.recordPaymentFrom(...)`.
     /// `context.metadata` can specify a Uniswap quote and specify how much of the payment should be used to swap.
     /// If `context.metadata` does not specify a quote, one will be calculated based on the TWAP.
-    /// If `context.metadata` does not specify how much of the payment should be used, the hook uses the full amount paid in.
+    /// If `context.metadata` does not specify how much of the payment should be used, the hook uses the full amount
+    /// paid in.
     /// @return weight The weight to use. If tokens are being minted from the project, this is the original weight.
     /// If tokens are being bought from the pool, the weight is 0.
     /// If tokens are being minted AND bought from the pool, this weight is adjusted to take both into account.
-    /// @return hookSpecifications Specifications containing pay hooks, as well as the amount and metadata to send to them. Fulfilled by the terminal.
+    /// @return hookSpecifications Specifications containing pay hooks, as well as the amount and metadata to send to
+    /// them. Fulfilled by the terminal.
     /// If tokens are only being minted, `hookSpecifications` will be empty.
     function beforePayRecordedWith(JBBeforePayRecordedContext calldata context)
         external
@@ -174,23 +182,28 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         // Keep a reference to the project's token.
         address projectToken = projectTokenOf[context.projectId];
 
-        // Keep a reference to the token being used by the terminal that is calling this hook. Default to wETH if the terminal uses the native token.
+        // Keep a reference to the token being used by the terminal that is calling this hook. Default to wETH if the
+        // terminal uses the native token.
         address terminalToken = context.amount.token == JBConstants.NATIVE_TOKEN ? address(WETH) : context.amount.token;
 
-        // If a minimum amount of tokens to swap for wasn't specified by the player/client, calculate a minimum based on the TWAP.
+        // If a minimum amount of tokens to swap for wasn't specified by the player/client, calculate a minimum based on
+        // the TWAP.
         if (minimumSwapAmountOut == 0) {
             minimumSwapAmountOut = _getQuote(context.projectId, projectToken, amountToSwapWith, terminalToken);
         }
 
-        // If the minimum amount of tokens from the swap exceeds the amount that paying the project directly would yield, swap.
+        // If the minimum amount of tokens from the swap exceeds the amount that paying the project directly would
+        // yield, swap.
         if (tokenCountWithoutHook < minimumSwapAmountOut) {
             // If the amount to swap with is greater than the actual amount paid in, revert.
             if (amountToSwapWith > totalPaid) revert InsufficientPayAmount();
 
-            // Keep a reference to a flag indicating whether the Uniswap pool will reference the project token first in the pair.
+            // Keep a reference to a flag indicating whether the Uniswap pool will reference the project token first in
+            // the pair.
             bool projectTokenIs0 = address(projectToken) < terminalToken;
 
-            // Specify this hook as the one to use, the amount to swap with, and metadata which allows the swap to be executed.
+            // Specify this hook as the one to use, the amount to swap with, and metadata which allows the swap to be
+            // executed.
             hookSpecifications = new JBPayHookSpecification[](1);
             hookSpecifications[0] = JBPayHookSpecification({
                 hook: IJBPayHook(this),
@@ -203,7 +216,8 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
                     )
             });
 
-            // All the minting will be done in `afterPayRecordedWith`. Return a weight of 0 to any additional minting from the terminal.
+            // All the minting will be done in `afterPayRecordedWith`. Return a weight of 0 to any additional minting
+            // from the terminal.
             return (0, hookSpecifications);
         }
     }
@@ -217,10 +231,12 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     }
 
     /// @notice Get the TWAP slippage tolerance for a given project ID.
-    /// @dev The "TWAP slippage tolerance" is the maximum negative spread between the TWAP and the expected return from a swap.
+    /// @dev The "TWAP slippage tolerance" is the maximum negative spread between the TWAP and the expected return from
+    /// a swap.
     /// If the expected return unfavourably exceeds the TWAP slippage tolerance, the swap will revert.
     /// @param  projectId The ID of the project which the TWAP slippage tolerance applies to.
-    /// @return tolerance The maximum slippage allowed relative to the TWAP, as a percent out of `TWAP_SLIPPAGE_DENOMINATOR`.
+    /// @return tolerance The maximum slippage allowed relative to the TWAP, as a percent out of
+    /// `TWAP_SLIPPAGE_DENOMINATOR`.
     function twapSlippageToleranceOf(uint256 projectId) external view returns (uint256) {
         return twapParamsOf[projectId] >> 128;
     }
@@ -273,8 +289,10 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     // ---------------------- external transactions ---------------------- //
     //*********************************************************************//
 
-    /// @notice Swap the specified amount of terminal tokens for project tokens, using any leftover terminal tokens to mint from the project.
-    /// @dev This function is only called if the minimum return from the swap exceeds the return from minting by paying the project.
+    /// @notice Swap the specified amount of terminal tokens for project tokens, using any leftover terminal tokens to
+    /// mint from the project.
+    /// @dev This function is only called if the minimum return from the swap exceeds the return from minting by paying
+    /// the project.
     /// If the swap reverts (due to slippage, insufficient liquidity, or something else),
     /// then the hook mints the number of tokens which a payment to the project would have minted.
     /// @param context The pay context passed in by the terminal.
@@ -305,7 +323,8 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         if (terminalTokenInThisContract != 0) {
             partialMintTokenCount = mulDiv(terminalTokenInThisContract, context.weight, 10 ** context.amount.decimals);
 
-            // If the token paid in wasn't the native token, grant the terminal permission to pull them back into its balance.
+            // If the token paid in wasn't the native token, grant the terminal permission to pull them back into its
+            // balance.
             if (context.forwardedAmount.token != JBConstants.NATIVE_TOKEN) {
                 IERC20(context.forwardedAmount.token).approve(msg.sender, terminalTokenInThisContract);
             }
@@ -365,9 +384,11 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         IERC20(terminalTokenWithWETH).transfer(msg.sender, amountToSendToPool);
     }
 
-    /// @notice Set the pool to use for a given project and terminal token (the default for the project's token <-> terminal token pair).
+    /// @notice Set the pool to use for a given project and terminal token (the default for the project's token <->
+    /// terminal token pair).
     /// @dev Uses create2 for callback auth and to allow adding pools which haven't been deployed yet.
-    /// This can be called by the project's owner or an address which has the `JBBuybackPermissionIds.SET_POOL` permission from the owner.
+    /// This can be called by the project's owner or an address which has the `JBBuybackPermissionIds.SET_POOL`
+    /// permission from the owner.
     /// @param projectId The ID of the project to set the pool for.
     /// @param fee The fee used in the pool being set.
     /// @param twapWindow The period of time over which the TWAP is computed.
@@ -455,7 +476,8 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
 
     /// @notice Change the TWAP window for a project.
     /// The TWAP window is the period of time over which the TWAP is computed.
-    /// @dev This can be called by the project's owner or an address with `JBBuybackPermissionIds.SET_POOL_PARAMS` permission from the owner.
+    /// @dev This can be called by the project's owner or an address with `JBBuybackPermissionIds.SET_POOL_PARAMS`
+    /// permission from the owner.
     /// @param projectId The ID of the project to set the TWAP window of.
     /// @param newWindow The new TWAP window.
     function setTwapWindowOf(uint256 projectId, uint32 newWindow) external {
@@ -485,7 +507,8 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
 
     /// @notice Set the TWAP slippage tolerance for a project.
     /// The TWAP slippage tolerance is the maximum spread allowed between the amount received and the TWAP.
-    /// @dev This can be called by the project's owner or an address with `JBBuybackPermissionIds.SET_POOL_PARAMS` permission from the owner.
+    /// @dev This can be called by the project's owner or an address with `JBBuybackPermissionIds.SET_POOL_PARAMS`
+    /// permission from the owner.
     /// @param projectId The ID of the project to set the TWAP slippage tolerance of.
     /// @param newSlippageTolerance The new TWAP slippage tolerance, out of `TWAP_SLIPPAGE_DENOMINATOR`.
     function setTwapSlippageToleranceOf(uint256 projectId, uint256 newSlippageTolerance) external {
@@ -510,9 +533,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         // Store the new packed value of the TWAP params (with the updated tolerance).
         twapParamsOf[projectId] = newSlippageTolerance << 128 | ((twapParams << 128) >> 128);
 
-        emit TwapSlippageToleranceChanged(
-            projectId, oldSlippageTolerance, newSlippageTolerance, msg.sender
-        );
+        emit TwapSlippageToleranceChanged(projectId, oldSlippageTolerance, newSlippageTolerance, msg.sender);
     }
 
     //*********************************************************************//
@@ -597,7 +618,8 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
             data: abi.encode(context.projectId, context.forwardedAmount.token)
         }) returns (int256 amount0, int256 amount1) {
             // If the swap succeded, take note of the amount of tokens received.
-            // This will be returned as a negative value, which Uniswap uses to represent the outputs of exact input swaps.
+            // This will be returned as a negative value, which Uniswap uses to represent the outputs of exact input
+            // swaps.
             amountReceived = uint256(-(projectTokenIs0 ? amount0 : amount1));
         } catch {
             // If the swap failed, return.
@@ -605,7 +627,12 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         }
 
         // Burn the whole amount received.
-        CONTROLLER.burnTokensOf({holder: address(this), projectId: context.projectId, tokenCount: amountReceived, memo: ""});
+        CONTROLLER.burnTokensOf({
+            holder: address(this),
+            projectId: context.projectId,
+            tokenCount: amountReceived,
+            memo: ""
+        });
 
         // Return the amount we received/burned, which we will mint to the beneficiary later.
         emit Swap(context.projectId, amountToSwapWith, pool, amountReceived, msg.sender);
