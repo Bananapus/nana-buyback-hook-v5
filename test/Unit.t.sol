@@ -1,99 +1,97 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.16;
 
-import "../interfaces/external/IWETH9.sol";
+import "src/interfaces/external/IWETH9.sol";
 import "./helpers/TestBaseWorkflowV3.sol";
 
-import "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBController3_1.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBDirectory.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBRedemptionDelegate3_1_1.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/libraries/JBTokens.sol";
+import "lib/juice-contracts-v4/src/interfaces/IJBController.sol";
+import "lib/juice-contracts-v4/src/interfaces/IJBDirectory.sol";
+import "lib/juice-contracts-v4/src/interfaces/IJBRedeemHook.sol";
+import "lib/juice-contracts-v4/src/libraries/JBConstants.sol";
 
-import {JBDelegateMetadataHelper} from "@jbx-protocol/juice-delegate-metadata-lib/src/JBDelegateMetadataHelper.sol";
+import {MetadataResolverHelper} from "lib/juice-contracts-v4/src/../test/helpers/MetadataResolverHelper.sol";
 
-import "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
-import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165Checker.sol";
+import "lib/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import "forge-std/Test.sol";
+import "lib/forge-std/src/Test.sol";
 
 import "./helpers/PoolAddress.sol";
-import "../JBBuybackDelegate.sol";
-import "../libraries/JBBuybackDelegateOperations.sol";
+import "src/JBBuybackHook.sol";
+import "src/libraries/JBBuybackPermissionIds.sol";
 
-/**
- * @notice Unit tests for the JBBuybackDelegate contract.
- *
- */
-contract TestJBBuybackDelegate_Units is Test {
+/// @notice Unit tests for `JBBuybackHook`.
+contract Test_BuybackHook_Unit is Test {
     using stdStorage for StdStorage;
 
-    ForTest_JBBuybackDelegate delegate;
+    ForTest_JBBuybackHook hook;
 
-    event BuybackDelegate_Swap(uint256 indexed projectId, uint256 amountIn, IUniswapV3Pool pool, uint256 amountOut, address caller);
-    event BuybackDelegate_Mint(uint256 indexed projectId, uint256 amount, uint256 tokenCount, address caller);
-    event BuybackDelegate_TwapWindowChanged(uint256 indexed projectId, uint256 oldSecondsAgo, uint256 newSecondsAgo, address caller);
-    event BuybackDelegate_TwapSlippageToleranceChanged(uint256 indexed projectId, uint256 oldTwapDelta, uint256 newTwapDelta, address caller);
-    event BuybackDelegate_PoolAdded(uint256 indexed projectId, address indexed terminalToken, address newPool, address caller);
+    event Swap(uint256 indexed projectId, uint256 amountIn, IUniswapV3Pool pool, uint256 amountOut, address caller);
+    event Mint(uint256 indexed projectId, uint256 amount, uint256 tokenCount, address caller);
+    event TwapWindowChanged(uint256 indexed projectId, uint256 oldSecondsAgo, uint256 newSecondsAgo, address caller);
+    event TwapSlippageToleranceChanged(
+        uint256 indexed projectId, uint256 oldTwapTolerance, uint256 newTwapTolerance, address caller
+    );
+    event PoolAdded(uint256 indexed projectId, address indexed terminalToken, address newPool, address caller);
 
-    // Use the L1 UniswapV3Pool jbx/eth 1% fee for create2 magic
+    // Use the old JBX<->ETH pair with a 1% fee as the `UniswapV3Pool` throughout tests.
+    // This deterministically comes out to the address below.
     IUniswapV3Pool pool = IUniswapV3Pool(0x48598Ff1Cee7b4d31f8f9050C2bbAE98e17E6b17);
-    IERC20 projectToken = IERC20(0x3abF2A4f8452cCC2CF7b4C1e4663147600646f66);
+    IERC20 projectToken = IERC20(0x3abF2A4f8452cCC2CF7b4C1e4663147600646f66); // JBX
     IWETH9 weth = IWETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-    uint24 fee = 10000;
+    uint24 fee = 10_000;
 
-    // A random non-weth pool: The PulseDogecoin Staking Carnival Token/HEX @ 0.3%
+    // A random non-wETH pool: The PulseDogecoin Staking Carnival Token <-> HEX @ 0.3% fee
     IERC20 otherRandomProjectToken = IERC20(0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39);
     IERC20 randomTerminalToken = IERC20(0x488Db574C77dd27A07f9C97BAc673BC8E9fC6Bf3);
     IUniswapV3Pool randomPool = IUniswapV3Pool(0x7668B2Ea8490955F68F5c33E77FE150066c94fb9);
     uint24 randomFee = 3000;
     uint256 randomId = 420;
 
-    address _uniswapFactory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    // The Uniswap factory address. Used when calculating pool addresses.
+    address uniswapFactory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
 
-    IJBPayoutRedemptionPaymentTerminal3_1_1 jbxTerminal =
-        IJBPayoutRedemptionPaymentTerminal3_1_1(makeAddr("IJBPayoutRedemptionPaymentTerminal3_1"));
+    IJBMultiTerminal multiTerminal = IJBMultiTerminal(makeAddr("IJBMultiTerminal"));
     IJBProjects projects = IJBProjects(makeAddr("IJBProjects"));
-    IJBOperatorStore operatorStore = IJBOperatorStore(makeAddr("IJBOperatorStore"));
-    IJBController3_1 controller = IJBController3_1(makeAddr("controller"));
+    IJBPermissions permissions = IJBPermissions(makeAddr("IJBPermissions"));
+    IJBController controller = IJBController(makeAddr("controller"));
     IJBDirectory directory = IJBDirectory(makeAddr("directory"));
-    IJBTokenStore tokenStore = IJBTokenStore(makeAddr("tokenStore"));
+    IJBTokens tokens = IJBTokens(makeAddr("tokens"));
 
-    JBDelegateMetadataHelper metadataHelper = new JBDelegateMetadataHelper();
+    MetadataResolverHelper metadataHelper = new MetadataResolverHelper();
 
     address terminalStore = makeAddr("terminalStore");
 
     address dude = makeAddr("dude");
     address owner = makeAddr("owner");
 
-    uint32 secondsAgo = 100;
-    uint256 twapDelta = 100;
+    uint32 twapWindow = 100; // 100 seconds ago.
+    uint256 twapTolerance = 100; // only 1% slippage from TWAP tolerated.
 
     uint256 projectId = 69;
 
-    JBPayParamsData payParams = JBPayParamsData({
-        terminal: jbxTerminal,
+    JBBeforePayRecordedContext beforePayRecordedContext = JBBeforePayRecordedContext({
+        terminal: address(multiTerminal),
         payer: dude,
         amount: JBTokenAmount({token: address(weth), value: 1 ether, decimals: 18, currency: 1}),
         projectId: projectId,
-        currentFundingCycleConfiguration: 0,
+        rulesetId: 0,
         beneficiary: dude,
         weight: 69,
         reservedRate: 0,
-        memo: "myMemo",
         metadata: ""
     });
 
-    JBDidPayData3_1_1 didPayData = JBDidPayData3_1_1({
+    JBAfterPayRecordedContext afterPayRecordedContext = JBAfterPayRecordedContext({
         payer: dude,
         projectId: projectId,
-        currentFundingCycleConfiguration: 0,
-        amount: JBTokenAmount({token: JBTokens.ETH, value: 1 ether, decimals: 18, currency: 1}),
-        forwardedAmount: JBTokenAmount({token: JBTokens.ETH, value: 1 ether, decimals: 18, currency: 1}),
+        rulesetId: 0,
+        amount: JBTokenAmount({token: JBConstants.NATIVE_TOKEN, value: 1 ether, decimals: 18, currency: 1}),
+        forwardedAmount: JBTokenAmount({token: JBConstants.NATIVE_TOKEN, value: 1 ether, decimals: 18, currency: 1}),
+        weight: 1,
         projectTokenCount: 69,
         beneficiary: dude,
-        preferClaimedTokens: true,
-        memo: "myMemo",
-        dataSourceMetadata: "",
+        hookMetadata: "",
         payerMetadata: ""
     });
 
@@ -101,9 +99,9 @@ contract TestJBBuybackDelegate_Units is Test {
         vm.etch(address(projectToken), "6969");
         vm.etch(address(weth), "6969");
         vm.etch(address(pool), "6969");
-        vm.etch(address(jbxTerminal), "6969");
+        vm.etch(address(multiTerminal), "6969");
         vm.etch(address(projects), "6969");
-        vm.etch(address(operatorStore), "6969");
+        vm.etch(address(permissions), "6969");
         vm.etch(address(controller), "6969");
         vm.etch(address(directory), "6969");
 
@@ -111,471 +109,499 @@ contract TestJBBuybackDelegate_Units is Test {
         vm.label(address(projectToken), "projectToken");
         vm.label(address(weth), "weth");
 
-        vm.mockCall(address(jbxTerminal), abi.encodeCall(jbxTerminal.store, ()), abi.encode(terminalStore));
-        vm.mockCall(address(controller), abi.encodeCall(IJBOperatable.operatorStore, ()), abi.encode(operatorStore));
-        vm.mockCall(address(controller), abi.encodeCall(controller.projects, ()), abi.encode(projects));
+        vm.mockCall(address(multiTerminal), abi.encodeCall(multiTerminal.STORE, ()), abi.encode(terminalStore));
+        vm.mockCall(address(controller), abi.encodeCall(IJBPermissioned.PERMISSIONS, ()), abi.encode(permissions));
+        vm.mockCall(address(controller), abi.encodeCall(controller.PROJECTS, ()), abi.encode(projects));
 
         vm.mockCall(address(projects), abi.encodeCall(projects.ownerOf, (projectId)), abi.encode(owner));
 
-        vm.mockCall(address(jbxTerminal), abi.encodeCall(IJBSingleTokenPaymentTerminal.token, ()), abi.encode(weth));
-
-        vm.mockCall(address(controller), abi.encodeCall(controller.tokenStore, ()), abi.encode(tokenStore));
+        vm.mockCall(address(controller), abi.encodeCall(controller.TOKENS, ()), abi.encode(tokens));
 
         vm.prank(owner);
-        delegate = new ForTest_JBBuybackDelegate({
-            _weth: weth,
-            _factory: _uniswapFactory,
-            _directory: directory,
-            _controller: controller,
-            _id: bytes4(hex'69')
+        hook = new ForTest_JBBuybackHook({
+            weth: weth,
+            factory: uniswapFactory,
+            directory: directory,
+            controller: controller
         });
 
-        delegate.ForTest_initPool(pool, projectId, secondsAgo, twapDelta, address(projectToken), address(weth));
-        delegate.ForTest_initPool(
-            randomPool, randomId, secondsAgo, twapDelta, address(otherRandomProjectToken), address(randomTerminalToken)
+        hook.ForTest_initPool(pool, projectId, twapWindow, twapTolerance, address(projectToken), address(weth));
+        hook.ForTest_initPool(
+            randomPool,
+            randomId,
+            twapWindow,
+            twapTolerance,
+            address(otherRandomProjectToken),
+            address(randomTerminalToken)
         );
     }
 
-    /**
-     * @notice Test payParams when a quote is provided as metadata
-     *
-     * @dev    _tokenCount == weight, as we use a value of 1.
-     */
-    function test_payParams_callWithQuote(uint256 _weight, uint256 _swapOutCount, uint256 _amountIn, uint256 _decimals) public {
-        // Avoid accidentally using the twap (triggered if out == 0)
-        _swapOutCount = bound(_swapOutCount, 1, type(uint256).max);
+    /// @notice Test `beforePayRecordedWith` when a quote (minimum return amount) is specified in the payment metadata.
+    /// @dev `tokenCount == weight` because we use a value of 1 (in `beforePayRecordedContext`.
+    function test_beforePayRecordedWith_callWithQuote(
+        uint256 weight,
+        uint256 swapOutCount,
+        uint256 amountIn,
+        uint256 decimals
+    )
+        public
+    {
+        // Avoid accidentally using the TWAP (triggered if `out == 0`).
+        swapOutCount = bound(swapOutCount, 1, type(uint256).max);
 
-        // Avoid mulDiv overflow
-        _weight = bound(_weight, 1, 1 ether);
+        // Avoid `mulDiv` overflow.
+        weight = bound(weight, 1, 1 ether);
 
-        // Use between 1 wei and the whole amount from pay(..)
-        _amountIn = bound(_amountIn, 1, payParams.amount.value);
+        // Use between 1 wei and the whole amount from `pay(...)`.
+        amountIn = bound(amountIn, 1, beforePayRecordedContext.amount.value);
 
-        // The terminal token decimals
-        _decimals = bound(_decimals, 1, 18);
+        // The terminal token decimals.
+        decimals = bound(decimals, 1, 18);
 
-        uint256 _tokenCount = mulDiv(_amountIn, _weight, 10**_decimals);
+        // Calculate the number of project tokens that a direct payment of `amountIn` terminal tokens would yield.
+        uint256 tokenCount = mulDiv(amountIn, weight, 10 ** decimals);
 
-        // Pass the quote as metadata
-        bytes[] memory _data = new bytes[](1);
-        _data[0] = abi.encode(_amountIn, _swapOutCount);
+        // Pass the quote as metadata.
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encode(amountIn, swapOutCount);
 
-        // Pass the delegate id
-        bytes4[] memory _ids = new bytes4[](1);
-        _ids[0] = bytes4(hex"69");
+        // Pass the hook ID in the metadata.
+        bytes4[] memory ids = new bytes4[](1);
+        ids[0] = bytes4(bytes20(address(hook)));
 
-        // Generate the metadata
-        bytes memory _metadata = metadataHelper.createMetadata(_ids, _data);
+        // Generate the metadata.
+        bytes memory metadata = metadataHelper.createMetadata(ids, data);
 
-        // Set the relevant payParams data
-        payParams.weight = _weight;
-        payParams.metadata = _metadata;
-        payParams.amount = JBTokenAmount({token: address(weth), value: 1 ether, decimals: _decimals, currency: 1});
+        // Set the relevant context.
+        beforePayRecordedContext.weight = weight;
+        beforePayRecordedContext.metadata = metadata;
+        beforePayRecordedContext.amount =
+            JBTokenAmount({token: address(weth), value: 1 ether, decimals: decimals, currency: 1});
 
-        // Returned values to catch:
-        JBPayDelegateAllocation3_1_1[] memory _allocationsReturned;
-        string memory _memoReturned;
-        uint256 _weightReturned;
+        // Return values to catch:
+        JBPayHookSpecification[] memory specificationsReturned;
+        uint256 weightReturned;
 
-        // Test: call payParams
+        // Test: call `beforePayRecordedWith`.
         vm.prank(terminalStore);
-        (_weightReturned, _memoReturned, _allocationsReturned) = delegate.payParams(payParams);
+        (weightReturned, specificationsReturned) = hook.beforePayRecordedWith(beforePayRecordedContext);
 
-        // Mint pathway if more token received when minting:
-        if (_tokenCount >= _swapOutCount) {
-            // No delegate allocation returned
-            assertEq(_allocationsReturned.length, 0, "Wrong allocation length");
+        // If minting would yield more tokens, mint:
+        if (tokenCount >= swapOutCount) {
+            // No hook specifications should be returned.
+            assertEq(specificationsReturned.length, 0, "Wrong number of hook specifications returned");
 
-            // weight unchanged
-            assertEq(_weightReturned, _weight, "Weight isn't unchanged");
+            // The weight should be returned unchanged.
+            assertEq(weightReturned, weight, "Weight isn't unchanged");
         }
-        // Swap pathway (return the delegate allocation)
+        // Otherwise, swap (with the appropriate hook specification):
         else {
-            assertEq(_allocationsReturned.length, 1, "Wrong allocation length");
-            assertEq(address(_allocationsReturned[0].delegate), address(delegate), "wrong delegate address returned");
-            assertEq(_allocationsReturned[0].amount, _amountIn, "worng amount in returned");
+            // There should be 1 hook specification,
+            assertEq(specificationsReturned.length, 1, "Wrong number of hook specifications returned");
+            // with the correct hook address,
+            assertEq(address(specificationsReturned[0].hook), address(hook), "Wrong hook address returned");
+            // the full amount paid in,
+            assertEq(specificationsReturned[0].amount, amountIn, "Wrong amount returned in hook specification");
+            // the correct metadata,
             assertEq(
-                _allocationsReturned[0].metadata,
-                abi.encode(true, address(projectToken) < address(weth), payParams.amount.value - _amountIn, _swapOutCount, payParams.weight),
-                "wrong metadata"
+                specificationsReturned[0].metadata,
+                abi.encode(
+                    true,
+                    address(projectToken) < address(weth),
+                    beforePayRecordedContext.amount.value - amountIn,
+                    swapOutCount
+                ),
+                "Wrong metadata returned in hook specification"
             );
-
-            assertEq(
-                _weightReturned,
-                0,
-                "wrong weight returned (if swapping)"
-            );
+            // and a weight of 0 to prevent additional minting from the terminal.
+            assertEq(weightReturned, 0, "Wrong weight returned in hook specification (should be 0 if swapping)");
         }
-
-        // Same memo in any case
-        assertEq(_memoReturned, payParams.memo, "wrong memo");
     }
 
-    /**
-     * @notice Test payParams when no quote is provided, falling back on the pool twap
-     *
-     * @dev    This bypass testing Uniswap Oracle lib by re-using the internal _getQuote
-     */
-    function test_payParams_useTwap(uint256 _tokenCount) public {
-        // Set the relevant payParams data
-        payParams.weight = _tokenCount;
-        payParams.metadata = "";
+    /// @notice Test `beforePayRecordedContext` when no quote is provided.
+    /// @dev This means the hook must calculate its own quote based on the TWAP.
+    /// @dev This bypasses testing the Uniswap Oracle lib by re-using the internal `_getQuote(...)`.
+    function test_beforePayRecordedWith_useTwap(uint256 tokenCount) public {
+        // Set the relevant context.
+        beforePayRecordedContext.weight = tokenCount;
+        beforePayRecordedContext.metadata = "";
 
-        // Mock the pool being unlocked
+        // Mock the pool being unlocked.
         vm.mockCall(address(pool), abi.encodeCall(pool.slot0, ()), abi.encode(0, 0, 0, 0, 0, 0, true));
         vm.expectCall(address(pool), abi.encodeCall(pool.slot0, ()));
 
-        // Mock the pool's twap
-        uint32[] memory _secondsAgos = new uint32[](2);
-        _secondsAgos[0] = secondsAgo;
-        _secondsAgos[1] = 0;
+        // Mock the pool's TWAP.
+        // Set up the two points in time to mock the TWAP at.
+        uint32[] memory secondsAgos = new uint32[](2);
+        secondsAgos[0] = twapWindow;
+        secondsAgos[1] = 0;
 
-        uint160[] memory _secondPerLiquidity = new uint160[](2);
-        _secondPerLiquidity[0] = 100;
-        _secondPerLiquidity[1] = 1000;
+        // Mock the seconds per liquidity for those two points.
+        // Each represents the amount of time the pool spent at the corresponding level of liquidity.
+        uint160[] memory secondsPerLiquidity = new uint160[](2);
+        secondsPerLiquidity[0] = 100;
+        secondsPerLiquidity[1] = 1000;
 
-        int56[] memory _tickCumulatives = new int56[](2);
-        _tickCumulatives[0] = 100;
-        _tickCumulatives[1] = 1000;
+        // Mock the tick cumulative values for the two mock TWAP points.
+        // Tick cumulatives are running totals of tick values.
+        int56[] memory tickCumulatives = new int56[](2);
+        tickCumulatives[0] = 100;
+        tickCumulatives[1] = 1000;
 
+        // Mock a call to the pool's `observe` function, passing in the `secondsAgo` array and returning the
+        // `tickCumulatives` and `secondsPerLiquidity` arrays.
         vm.mockCall(
-            address(pool),
-            abi.encodeCall(pool.observe, (_secondsAgos)),
-            abi.encode(_tickCumulatives, _secondPerLiquidity)
+            address(pool), abi.encodeCall(pool.observe, (secondsAgos)), abi.encode(tickCumulatives, secondsPerLiquidity)
         );
-        vm.expectCall(address(pool), abi.encodeCall(pool.observe, (_secondsAgos)));
+        // Expect a call to the pool's `observe` function with the `secondsAgo` array.
+        vm.expectCall(address(pool), abi.encodeCall(pool.observe, (secondsAgos)));
 
-        // Returned values to catch:
-        JBPayDelegateAllocation3_1_1[] memory _allocationsReturned;
-        string memory _memoReturned;
-        uint256 _weightReturned;
+        // Return values to catch:
+        JBPayHookSpecification[] memory specificationsReturned;
+        uint256 weightReturned;
 
-        // Test: call payParams
+        // Test: call `beforePayRecordedWith`.
         vm.prank(terminalStore);
-        (_weightReturned, _memoReturned, _allocationsReturned) = delegate.payParams(payParams);
+        (weightReturned, specificationsReturned) = hook.beforePayRecordedWith(beforePayRecordedContext);
 
-        // Bypass testing uniswap oracle lib
-        uint256 _twapAmountOut = delegate.ForTest_getQuote(projectId, address(projectToken), 1 ether, address(weth));
+        // Bypass testing the Uniswap oracle lib by using the internal function `_getQuote(...)`.
+        uint256 twapAmountOut = hook.ForTest_getQuote(projectId, address(projectToken), 1 ether, address(weth));
 
-        // Mint pathway if more token received when minting:
-        if (_tokenCount >= _twapAmountOut) {
-            // No delegate allocation returned
-            assertEq(_allocationsReturned.length, 0);
+        // If minting would yield more tokens, mint:
+        if (tokenCount >= twapAmountOut) {
+            // No hook specifications should be returned.
+            assertEq(specificationsReturned.length, 0);
 
-            // weight unchanged
-            assertEq(_weightReturned, _tokenCount);
+            // The weight should be returned unchanged.
+            assertEq(weightReturned, tokenCount);
         }
-        // Swap pathway (set the mutexes and return the delegate allocation)
+        // Otherwise, swap (with the appropriate hook specification):
         else {
-            assertEq(_allocationsReturned.length, 1);
-            assertEq(address(_allocationsReturned[0].delegate), address(delegate));
-            assertEq(_allocationsReturned[0].amount, 1 ether);
-
+            // There should be 1 hook specification,
+            assertEq(specificationsReturned.length, 1);
+            // with the correct hook address,
+            assertEq(address(specificationsReturned[0].hook), address(hook));
+            // the full amount paid in,
+            assertEq(specificationsReturned[0].amount, 1 ether);
+            // the correct metadata,
             assertEq(
-                _allocationsReturned[0].metadata,
-                abi.encode(
-                    false, address(projectToken) < address(weth), 0, _twapAmountOut, payParams.weight
-                ),
-                "wrong metadata"
+                specificationsReturned[0].metadata,
+                abi.encode(false, address(projectToken) < address(weth), 0, twapAmountOut),
+                "Wrong metadata returned in hook specification"
             );
-
-            assertEq(_weightReturned, 0);
+            // and a weight of 0 to prevent additional minting from the terminal.
+            assertEq(weightReturned, 0);
         }
-
-        // Same memo in any case
-        assertEq(_memoReturned, payParams.memo);
     }
 
-    /**
-     * @notice Test payParams with a twap but locked pool, which should then mint
-     */
-    function test_payParams_useTwapLockedPool(uint256 _tokenCount) public {
-        _tokenCount = bound(_tokenCount, 1, type(uint120).max);
+    /// @notice Test `beforePayRecordedWith` with a TWAP but a locked pool, which should lead to the payment minting
+    /// from the terminal.
+    function test_beforePayRecordedContext_useTwapLockedPool(uint256 tokenCount) public {
+        tokenCount = bound(tokenCount, 1, type(uint120).max);
 
-        // Set the relevant payParams data
-        payParams.weight = _tokenCount;
-        payParams.metadata = "";
+        // Set the relevant context.
+        beforePayRecordedContext.weight = tokenCount;
+        beforePayRecordedContext.metadata = "";
 
-        // Mock the pool being unlocked
+        // Mock the pool being locked.
         vm.mockCall(address(pool), abi.encodeCall(pool.slot0, ()), abi.encode(0, 0, 0, 0, 0, 0, false));
         vm.expectCall(address(pool), abi.encodeCall(pool.slot0, ()));
 
-        // Returned values to catch:
-        JBPayDelegateAllocation3_1_1[] memory _allocationsReturned;
-        string memory _memoReturned;
-        uint256 _weightReturned;
+        // Return values to catch:
+        JBPayHookSpecification[] memory specificationsReturned;
+        uint256 weightReturned;
 
-        // Test: call payParams
+        // Test: call `beforePayRecordedWith`.
         vm.prank(terminalStore);
-        (_weightReturned, _memoReturned, _allocationsReturned) = delegate.payParams(payParams);
+        (weightReturned, specificationsReturned) = hook.beforePayRecordedWith(beforePayRecordedContext);
 
-        // No delegate allocation returned
-        assertEq(_allocationsReturned.length, 0);
+        // No hook specifications should be returned.
+        assertEq(specificationsReturned.length, 0);
 
-        // weight unchanged
-        assertEq(_weightReturned, _tokenCount);
-
-        // Same memo
-        assertEq(_memoReturned, payParams.memo);
+        // The weight should be returned unchanged.
+        assertEq(weightReturned, tokenCount);
     }
 
-    /**
-     * @notice Test payParams when an amount to swap with greather than the token send is passed
-     */
-    function test_payParams_RevertIfTryingToOverspend(uint256 _swapOutCount, uint256 _amountIn) public {
-        // Use anything more than the amount sent
-        _amountIn = bound(_amountIn, payParams.amount.value + 1, type(uint128).max);
+    /// @notice Test the `beforePayRecordedWith` function when the amount to use for the swap is greater than the amount
+    /// of tokens sent (should revert).
+    function test_beforePayRecordedWith_RevertIfTryingToOverspend(uint256 swapOutCount, uint256 amountIn) public {
+        // Use any number greater than the amount paid in.
+        amountIn = bound(amountIn, beforePayRecordedContext.amount.value + 1, type(uint128).max);
 
-        uint256 _weight = 1 ether;
+        uint256 weight = 1 ether;
 
-        uint256 _tokenCount = mulDiv(_amountIn, _weight, 10**18);
+        uint256 tokenCount = mulDiv(amountIn, weight, 10 ** 18);
 
-        // Avoid accidentally using the twap (triggered if out == 0)
-        _swapOutCount = bound(_swapOutCount, _tokenCount + 1, type(uint256).max);
+        // Avoid accidentally using the TWAP-based quote (triggered if `out == 0`)
+        swapOutCount = bound(swapOutCount, tokenCount + 1, type(uint256).max);
 
         // Pass the quote as metadata
-        bytes[] memory _data = new bytes[](1);
-        _data[0] = abi.encode(_amountIn, _swapOutCount);
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encode(amountIn, swapOutCount);
 
-        // Pass the delegate id
-        bytes4[] memory _ids = new bytes4[](1);
-        _ids[0] = bytes4(hex"69");
+        // Pass the hook ID.
+        bytes4[] memory ids = new bytes4[](1);
+        ids[0] = bytes4(bytes20(address(hook)));
 
-        // Generate the metadata
-        bytes memory _metadata = metadataHelper.createMetadata(_ids, _data);
+        // Generate the metadata.
+        bytes memory metadata = metadataHelper.createMetadata(ids, data);
 
-        // Set the relevant payParams data
-        payParams.weight = _weight;
-        payParams.metadata = _metadata;
+        // Set the relevant context.
+        beforePayRecordedContext.weight = weight;
+        beforePayRecordedContext.metadata = metadata;
 
-        // Returned values to catch:
-        JBPayDelegateAllocation3_1_1[] memory _allocationsReturned;
-        string memory _memoReturned;
-        uint256 _weightReturned;
+        // Return values to catch:
+        JBPayHookSpecification[] memory specificationsReturned;
+        uint256 weightReturned;
 
-        vm.expectRevert(IJBBuybackDelegate.JuiceBuyback_InsufficientPayAmount.selector);
+        // Expect revert on account of the pay amount being too low.
+        vm.expectRevert(JBBuybackHook.InsufficientPayAmount.selector);
 
-        // Test: call payParams
+        // Test: call `beforePayRecordedWith`.
         vm.prank(terminalStore);
-        (_weightReturned, _memoReturned, _allocationsReturned) = delegate.payParams(payParams);
+        (weightReturned, specificationsReturned) = hook.beforePayRecordedWith(beforePayRecordedContext);
     }
 
-    /**
-     * @notice Test didPay with token received from swapping, within slippage and no leftover in the delegate
-     */
-    function test_didPay_swap_ETH(uint256 _tokenCount, uint256 _twapQuote) public {
-        // Bound to avoid overflow and insure swap quote > mint quote
-        _tokenCount = bound(_tokenCount, 2, type(uint256).max - 1);
-        _twapQuote = bound(_twapQuote, _tokenCount + 1, type(uint256).max);
+    /// @notice Test the `afterPayRecordedWith` function by swapping ETH/wETH for project tokens, ensuring that the
+    /// right number of project tokens are burned from the hook and minted to the beneficiary.
+    function test_afterPayRecordedWith_swapETH(uint256 tokenCount, uint256 twapQuote) public {
+        // Bound to avoid overflow and ensure that the swap quote exceeds the mint quote.
+        tokenCount = bound(tokenCount, 2, type(uint256).max - 1);
+        twapQuote = bound(twapQuote, tokenCount + 1, type(uint256).max);
 
-        // The metadata coming from payParams(..)
-        didPayData.dataSourceMetadata = abi.encode(
-            true, // use quote
+        afterPayRecordedContext.weight = twapQuote;
+
+        // The metadata coming from `beforePayRecordedWith(...)`
+        afterPayRecordedContext.hookMetadata = abi.encode(
+            true, // Use the specified quote.
             address(projectToken) < address(weth),
             0,
-            _tokenCount,
-            _twapQuote
+            tokenCount // The token count is used.
         );
 
-
-        // mock the swap call
+        // Mock and expect the swap call.
         vm.mockCall(
             address(pool),
             abi.encodeCall(
                 pool.swap,
                 (
-                    address(delegate),
+                    address(hook),
                     address(weth) < address(projectToken),
                     int256(1 ether),
                     address(projectToken) < address(weth) ? TickMath.MAX_SQRT_RATIO - 1 : TickMath.MIN_SQRT_RATIO + 1,
-                    abi.encode(projectId, JBTokens.ETH)
+                    abi.encode(projectId, JBConstants.NATIVE_TOKEN)
                 )
             ),
-            abi.encode(-int256(_twapQuote), -int256(_twapQuote))
+            abi.encode(-int256(twapQuote), -int256(twapQuote))
         );
         vm.expectCall(
             address(pool),
             abi.encodeCall(
                 pool.swap,
                 (
-                    address(delegate),
+                    address(hook),
                     address(weth) < address(projectToken),
                     int256(1 ether),
                     address(projectToken) < address(weth) ? TickMath.MAX_SQRT_RATIO - 1 : TickMath.MIN_SQRT_RATIO + 1,
-                    abi.encode(projectId, JBTokens.ETH)
+                    abi.encode(projectId, JBConstants.NATIVE_TOKEN)
                 )
             )
         );
 
-        // mock call to pass the authorization check
+        // Mock and expect a `isTerminalOf` call to pass the authorization check.
         vm.mockCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (didPayData.projectId, IJBPaymentTerminal(address(jbxTerminal)))),
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            ),
             abi.encode(true)
         );
         vm.expectCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (didPayData.projectId, IJBPaymentTerminal(address(jbxTerminal))))
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            )
         );
 
-        // mock the burn call
+        // Mock and expect the call to burn tokens from the hook.
         vm.mockCall(
             address(controller),
-            abi.encodeCall(controller.burnTokensOf, (address(delegate), didPayData.projectId, _twapQuote, "", true)),
+            abi.encodeCall(controller.burnTokensOf, (address(hook), afterPayRecordedContext.projectId, twapQuote, "")),
             abi.encode(true)
         );
         vm.expectCall(
             address(controller),
-            abi.encodeCall(controller.burnTokensOf, (address(delegate), didPayData.projectId, _twapQuote, "", true))
+            abi.encodeCall(controller.burnTokensOf, (address(hook), afterPayRecordedContext.projectId, twapQuote, ""))
         );
 
-        // mock the minting call
+        // Mock and expect the call to mint tokens to the beneficiary.
         vm.mockCall(
             address(controller),
             abi.encodeCall(
-                controller.mintTokensOf, (didPayData.projectId, _twapQuote, address(dude), didPayData.memo, true, true)
+                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)
             ),
             abi.encode(true)
         );
         vm.expectCall(
             address(controller),
             abi.encodeCall(
-                controller.mintTokensOf, (didPayData.projectId, _twapQuote, address(dude), didPayData.memo, true, true)
+                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)
             )
         );
 
-        // expect event
+        // Expect the swap event.
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_Swap(didPayData.projectId, didPayData.amount.value, pool, _twapQuote, address(jbxTerminal));
+        emit Swap(
+            afterPayRecordedContext.projectId,
+            afterPayRecordedContext.amount.value,
+            pool,
+            twapQuote,
+            address(multiTerminal)
+        );
 
-        vm.prank(address(jbxTerminal));
-        delegate.didPay(didPayData);
+        vm.prank(address(multiTerminal));
+
+        // Test: call `afterPayRecordedWith`.
+        hook.afterPayRecordedWith(afterPayRecordedContext);
     }
 
-    /**
-     * @notice Test didPay with token received from swapping, within slippage and no leftover in the delegate
-     */
-    function test_didPay_swap_ETH_with_extrafunds(uint256 _tokenCount, uint256 _twapQuote) public {
-        // Bound to avoid overflow and insure swap quote > mint quote
-        _tokenCount = bound(_tokenCount, 2, type(uint256).max - 1);
-        _twapQuote = bound(_twapQuote, _tokenCount + 1, type(uint256).max);
+    // TODO: I don't fully understand how this one differs from the previous test (aside from the TWAP quote being used
+    // in the hook metadata). Would love input (and a clearer comment).
+    /// @notice Test the `afterPayRecordedWith` function by swapping ETH/wETH for project tokens, ensuring that the
+    /// right number of project tokens are burned from the hook and minted to the beneficiary.
+    function test_afterPayRecordedWith_swapETHWithExtraFunds(uint256 tokenCount, uint256 twapQuote) public {
+        // Bound to avoid overflow and ensure that the swap quote exceeds the mint quote.
+        tokenCount = bound(tokenCount, 2, type(uint256).max - 1);
+        twapQuote = bound(twapQuote, tokenCount + 1, type(uint256).max);
 
-        // The metadata coming from payParams(..)
-        didPayData.dataSourceMetadata = abi.encode(
-            true, // use quote
+        afterPayRecordedContext.weight = twapQuote;
+
+        // The metadata coming from `beforePayRecordedWith(...)`
+        afterPayRecordedContext.hookMetadata = abi.encode(
+            true, // Use the specified quote.
             address(projectToken) < address(weth),
             0,
-            _twapQuote,
-            _tokenCount
+            twapQuote // The TWAP quote, which exceeds the token count, is used.
         );
 
-
-        // mock the swap call
+        // Mock and expect the swap call.
         vm.mockCall(
             address(pool),
             abi.encodeCall(
                 pool.swap,
                 (
-                    address(delegate),
+                    address(hook),
                     address(weth) < address(projectToken),
                     int256(1 ether),
                     address(projectToken) < address(weth) ? TickMath.MAX_SQRT_RATIO - 1 : TickMath.MIN_SQRT_RATIO + 1,
-                    abi.encode(projectId, JBTokens.ETH)
+                    abi.encode(projectId, JBConstants.NATIVE_TOKEN)
                 )
             ),
-            abi.encode(-int256(_twapQuote), -int256(_twapQuote))
+            abi.encode(-int256(twapQuote), -int256(twapQuote))
         );
         vm.expectCall(
             address(pool),
             abi.encodeCall(
                 pool.swap,
                 (
-                    address(delegate),
+                    address(hook),
                     address(weth) < address(projectToken),
                     int256(1 ether),
                     address(projectToken) < address(weth) ? TickMath.MAX_SQRT_RATIO - 1 : TickMath.MIN_SQRT_RATIO + 1,
-                    abi.encode(projectId, JBTokens.ETH)
+                    abi.encode(projectId, JBConstants.NATIVE_TOKEN)
                 )
             )
         );
 
-        // mock call to pass the authorization check
+        // Mock and expect a `isTerminalOf` call to pass the authorization check.
         vm.mockCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (didPayData.projectId, IJBPaymentTerminal(address(jbxTerminal)))),
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            ),
             abi.encode(true)
         );
         vm.expectCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (didPayData.projectId, IJBPaymentTerminal(address(jbxTerminal))))
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            )
         );
 
-        // mock the burn call
+        // Mock and expect the call to burn tokens from the hook.
         vm.mockCall(
             address(controller),
-            abi.encodeCall(controller.burnTokensOf, (address(delegate), didPayData.projectId, _twapQuote, "", true)),
+            abi.encodeCall(controller.burnTokensOf, (address(hook), afterPayRecordedContext.projectId, twapQuote, "")),
             abi.encode(true)
         );
         vm.expectCall(
             address(controller),
-            abi.encodeCall(controller.burnTokensOf, (address(delegate), didPayData.projectId, _twapQuote, "", true))
+            abi.encodeCall(controller.burnTokensOf, (address(hook), afterPayRecordedContext.projectId, twapQuote, ""))
         );
 
-        // mock the minting call
+        // Mock and expect the call to mint tokens to the beneficiary.
         vm.mockCall(
             address(controller),
             abi.encodeCall(
-                controller.mintTokensOf, (didPayData.projectId, _twapQuote, address(dude), didPayData.memo, true, true)
+                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)
             ),
             abi.encode(true)
         );
         vm.expectCall(
             address(controller),
             abi.encodeCall(
-                controller.mintTokensOf, (didPayData.projectId, _twapQuote, address(dude), didPayData.memo, true, true)
+                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)
             )
         );
 
-        // expect event
+        // Expect the swap event.
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_Swap(didPayData.projectId, didPayData.amount.value, pool, _twapQuote, address(jbxTerminal));
-
-        vm.prank(address(jbxTerminal));
-        delegate.didPay(didPayData);
-    }
-
-    /**
-     * @notice Test didPay with token received from swapping
-     */
-    function test_didPay_swap_ERC20(uint256 _tokenCount, uint256 _twapQuote, uint256 _decimals ) public {
-        // Bound to avoid overflow and insure swap quote > mint quote
-        _tokenCount = bound(_tokenCount, 2, type(uint256).max - 1);
-        _twapQuote = bound(_twapQuote, _tokenCount + 1, type(uint256).max);
-
-        _decimals = bound(_decimals, 1, 18);
-
-        didPayData.amount =
-            JBTokenAmount({token: address(randomTerminalToken), value: 1 ether, decimals: _decimals, currency: 1});
-        didPayData.forwardedAmount =
-            JBTokenAmount({token: address(randomTerminalToken), value: 1 ether, decimals: _decimals, currency: 1});
-        didPayData.projectId = randomId;
-
-        // The metadata coming from payParams(..)
-        didPayData.dataSourceMetadata = abi.encode(
-            true, // use quote
-            address(projectToken) < address(weth),
-            0,
-            _tokenCount,
-            _twapQuote
+        emit Swap(
+            afterPayRecordedContext.projectId,
+            afterPayRecordedContext.amount.value,
+            pool,
+            twapQuote,
+            address(multiTerminal)
         );
 
-        // mock the swap call
+        vm.prank(address(multiTerminal));
+
+        // Test: call `afterPayRecordedWith`.
+        hook.afterPayRecordedWith(afterPayRecordedContext);
+    }
+
+    /// @notice Test the `afterPayRecordedWith` function by swapping ERC-20 tokens for project tokens, ensuring that the
+    /// right number of project tokens are burned from the hook and minted to the beneficiary.
+    function test_afterPayRecordedWith_swapERC20(uint256 tokenCount, uint256 twapQuote, uint256 decimals) public {
+        // Bound to avoid overflow and ensure that the swap quote exceeds the mint quote.
+        tokenCount = bound(tokenCount, 2, type(uint256).max - 1);
+        twapQuote = bound(twapQuote, tokenCount + 1, type(uint256).max);
+
+        decimals = bound(decimals, 1, 18);
+
+        // Set up the context with the amount of ERC-20 tokens to swap and other information.
+        afterPayRecordedContext.amount =
+            JBTokenAmount({token: address(randomTerminalToken), value: 1 ether, decimals: decimals, currency: 1});
+        afterPayRecordedContext.forwardedAmount =
+            JBTokenAmount({token: address(randomTerminalToken), value: 1 ether, decimals: decimals, currency: 1});
+        afterPayRecordedContext.projectId = randomId;
+        afterPayRecordedContext.weight = twapQuote;
+
+        // The metadata coming from `beforePayRecordedWith(...)`.
+        afterPayRecordedContext.hookMetadata = abi.encode(
+            true, // Use the specified quote.
+            address(projectToken) < address(weth),
+            0,
+            tokenCount
+        );
+
+        // Mock and expect the swap call.
         vm.mockCall(
             address(randomPool),
             abi.encodeCall(
                 randomPool.swap,
                 (
-                    address(delegate),
+                    address(hook),
                     address(randomTerminalToken) < address(otherRandomProjectToken),
                     int256(1 ether),
                     address(otherRandomProjectToken) < address(randomTerminalToken)
@@ -584,14 +610,14 @@ contract TestJBBuybackDelegate_Units is Test {
                     abi.encode(randomId, randomTerminalToken)
                 )
             ),
-            abi.encode(-int256(_twapQuote), -int256(_twapQuote))
+            abi.encode(-int256(twapQuote), -int256(twapQuote))
         );
         vm.expectCall(
             address(randomPool),
             abi.encodeCall(
                 randomPool.swap,
                 (
-                    address(delegate),
+                    address(hook),
                     address(randomTerminalToken) < address(otherRandomProjectToken),
                     int256(1 ether),
                     address(otherRandomProjectToken) < address(randomTerminalToken)
@@ -602,81 +628,92 @@ contract TestJBBuybackDelegate_Units is Test {
             )
         );
 
-        // mock call to pass the authorization check
+        // Mock and expect a `isTerminalOf` call to pass the authorization check.
         vm.mockCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (didPayData.projectId, IJBPaymentTerminal(address(jbxTerminal)))),
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            ),
             abi.encode(true)
         );
         vm.expectCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (didPayData.projectId, IJBPaymentTerminal(address(jbxTerminal))))
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            )
         );
 
-        // mock the burn call
+        // Mock and expect the call to burn tokens from the hook.
         vm.mockCall(
             address(controller),
-            abi.encodeCall(controller.burnTokensOf, (address(delegate), didPayData.projectId, _twapQuote, "", true)),
+            abi.encodeCall(controller.burnTokensOf, (address(hook), afterPayRecordedContext.projectId, twapQuote, "")),
             abi.encode(true)
         );
         vm.expectCall(
             address(controller),
-            abi.encodeCall(controller.burnTokensOf, (address(delegate), didPayData.projectId, _twapQuote, "", true))
+            abi.encodeCall(controller.burnTokensOf, (address(hook), afterPayRecordedContext.projectId, twapQuote, ""))
         );
 
-        // mock the minting call
+        // Mock and expect the call to mint tokens to the beneficiary.
         vm.mockCall(
             address(controller),
             abi.encodeCall(
-                controller.mintTokensOf, (didPayData.projectId, _twapQuote, address(dude), didPayData.memo, true, true)
+                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)
             ),
             abi.encode(true)
         );
         vm.expectCall(
             address(controller),
             abi.encodeCall(
-                controller.mintTokensOf, (didPayData.projectId, _twapQuote, address(dude), didPayData.memo, true, true)
+                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)
             )
         );
 
-        // No leftover
+        // Mock and expect the call to check the balance of the hook. There should be no tokens left over.
         vm.mockCall(
-            address(randomTerminalToken),
-            abi.encodeCall(randomTerminalToken.balanceOf, (address(delegate))),
-            abi.encode(0)
+            address(randomTerminalToken), abi.encodeCall(randomTerminalToken.balanceOf, (address(hook))), abi.encode(0)
         );
-        vm.expectCall(address(randomTerminalToken), abi.encodeCall(randomTerminalToken.balanceOf, (address(delegate))));
+        vm.expectCall(address(randomTerminalToken), abi.encodeCall(randomTerminalToken.balanceOf, (address(hook))));
 
-        // expect event
+        // Expect the swap event.
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_Swap(didPayData.projectId, didPayData.amount.value, randomPool, _twapQuote, address(jbxTerminal));
+        emit Swap(
+            afterPayRecordedContext.projectId,
+            afterPayRecordedContext.amount.value,
+            randomPool,
+            twapQuote,
+            address(multiTerminal)
+        );
 
-        vm.prank(address(jbxTerminal));
-        delegate.didPay(didPayData);
+        vm.prank(address(multiTerminal));
+
+        // Test: call `afterPayRecordedWith`.
+        hook.afterPayRecordedWith(afterPayRecordedContext);
     }
 
-    /**
-     * @notice Test didPay with swap reverting / returning 0, while a non-0 quote was provided
-     */
-    function test_didPay_swapRevertWithQuote(uint256 _tokenCount) public {
-        _tokenCount = bound(_tokenCount, 1, type(uint256).max - 1);
+    /// @notice Test the `afterPayRecordedWith` function when the swap operation reverts or returns 0, despite a
+    /// non-zero quote being provided.
+    function test_afterPayRecordedWith_swapRevertWithQuote(uint256 tokenCount) public {
+        // Bound the token count to avoid overflow.
+        tokenCount = bound(tokenCount, 1, type(uint256).max - 1);
 
-        // The metadata coming from payParams(..)
-        didPayData.dataSourceMetadata = abi.encode(
-            true, // use quote
+        afterPayRecordedContext.weight = 1 ether; // weight - unused
+
+        // The metadata coming from `beforePayRecordedWith(...)`.
+        afterPayRecordedContext.hookMetadata = abi.encode(
+            true, // Use the specified quote.
             address(projectToken) < address(weth),
             0,
-            _tokenCount,
-            1 ether // weight - unused
+            tokenCount
         );
 
-        // mock the swap call reverting
+        // Mock the swap call reverting.
         vm.mockCallRevert(
             address(pool),
             abi.encodeCall(
                 pool.swap,
                 (
-                    address(delegate),
+                    address(hook),
                     address(weth) < address(projectToken),
                     int256(1 ether),
                     address(projectToken) < address(weth) ? TickMath.MAX_SQRT_RATIO - 1 : TickMath.MIN_SQRT_RATIO + 1,
@@ -686,69 +723,78 @@ contract TestJBBuybackDelegate_Units is Test {
             abi.encode("no swap")
         );
 
-        // mock call to pass the authorization check
+        // Mock and expect a `isTerminalOf` call to pass the authorization check.
         vm.mockCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (didPayData.projectId, IJBPaymentTerminal(address(jbxTerminal)))),
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            ),
             abi.encode(true)
         );
         vm.expectCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (didPayData.projectId, IJBPaymentTerminal(address(jbxTerminal))))
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            )
         );
 
-        vm.expectRevert(IJBBuybackDelegate.JuiceBuyback_MaximumSlippage.selector);
+        // Expect a revert on account of the swap failing.
+        vm.expectRevert(JBBuybackHook.SpecifiedSlippageExceeded.selector);
 
-        vm.prank(address(jbxTerminal));
-        delegate.didPay(didPayData);
+        vm.prank(address(multiTerminal));
+
+        // Test: call `afterPayRecordedWith`.
+        hook.afterPayRecordedWith(afterPayRecordedContext);
     }
 
-    /**
-     * @notice Test didPay with swap reverting while using the twap, should then mint with the delegate balance, random erc20 is terminal token
-     */
-    function test_didPay_swapRevertWithoutQuote_ERC20(uint256 _tokenCount, uint256 _weight, uint256 _decimals, uint256 _extraMint) public {
-        // The current weight
-        _weight = bound(_weight, 1, 1 ether);
+    /// @notice Test `afterPayRecordedWith`: if the swap reverts while using the TWAP-based quote, the hook should then
+    /// mint tokens based on the hook's balance and the weight. In this test, an ERC-20 token is used as the terminal
+    /// token.
+    function test_afterPayRecordedWith_ERC20SwapRevertWithoutQuote(
+        uint256 tokenCount,
+        uint256 weight,
+        uint256 decimals,
+        uint256 extraMint
+    )
+        public
+    {
+        // The current weight.
+        weight = bound(weight, 1, 1 ether);
 
-        // The amount of termminal token in this delegate (avoid overflowing when mul by weight)
-        _tokenCount = bound(_tokenCount, 2, type(uint128).max);
+        // The amount of terminal tokens in this hook. Bounded to avoid overflow when multiplied by the weight.
+        tokenCount = bound(tokenCount, 2, type(uint128).max);
 
-        // An extra amount of token to mint, based on fund which stayed in the terminal
-        _extraMint = bound(_extraMint, 2, type(uint128).max);
+        // An extra amount of project tokens to mint, based on funds which stayed in the terminal.
+        extraMint = bound(extraMint, 2, type(uint128).max);
 
-        // The terminal token decimal
-        _decimals = bound(_decimals, 1, 18);
+        // The number of decimals that the terminal token uses.
+        decimals = bound(decimals, 1, 18);
 
-        didPayData.amount =
-            JBTokenAmount({token: address(randomTerminalToken), value: _tokenCount, decimals: _decimals, currency: 1});
-        didPayData.forwardedAmount =
-            JBTokenAmount({token: address(randomTerminalToken), value: _tokenCount, decimals: _decimals, currency: 1});
-        didPayData.projectId = randomId;
+        // Set up the context with the amount of ERC-20 tokens to use and other information.
+        afterPayRecordedContext.amount =
+            JBTokenAmount({token: address(randomTerminalToken), value: tokenCount, decimals: decimals, currency: 1});
+        afterPayRecordedContext.forwardedAmount =
+            JBTokenAmount({token: address(randomTerminalToken), value: tokenCount, decimals: decimals, currency: 1});
+        afterPayRecordedContext.projectId = randomId;
+        afterPayRecordedContext.weight = weight;
 
-        vm.mockCall(
-            address(jbxTerminal),
-            abi.encodeCall(IJBSingleTokenPaymentTerminal.token, ()),
-            abi.encode(randomTerminalToken)
-        );
-
-        // The metadata coming from payParams(..)
-        didPayData.dataSourceMetadata = abi.encode(
+        // The metadata coming from `beforePayRecordedWith(...)`.
+        afterPayRecordedContext.hookMetadata = abi.encode(
             false, // use quote
             address(otherRandomProjectToken) < address(randomTerminalToken),
-            _extraMint, // extra amount to mint with
-            _tokenCount,
-            _weight
+            extraMint, // extra amount to mint with
+            tokenCount
         );
 
-        // mock the swap call reverting
+        // Mock the swap call reverting.
         vm.mockCallRevert(
             address(randomPool),
             abi.encodeCall(
                 randomPool.swap,
                 (
-                    address(delegate),
+                    address(hook),
                     address(randomTerminalToken) < address(otherRandomProjectToken),
-                    int256(_tokenCount),
+                    int256(tokenCount),
                     address(otherRandomProjectToken) < address(randomTerminalToken)
                         ? TickMath.MAX_SQRT_RATIO - 1
                         : TickMath.MIN_SQRT_RATIO + 1,
@@ -758,32 +804,43 @@ contract TestJBBuybackDelegate_Units is Test {
             abi.encode("no swap")
         );
 
-        // mock call to pass the authorization check
+        // Mock and expect a `isTerminalOf` call to pass the authorization check.
         vm.mockCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (didPayData.projectId, IJBPaymentTerminal(address(jbxTerminal)))),
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            ),
             abi.encode(true)
         );
         vm.expectCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (didPayData.projectId, IJBPaymentTerminal(address(jbxTerminal))))
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            )
         );
 
-        // Mock the balance check
+        // Mock and expect the call to check the terminal token balance of the hook. These will be used to mint project
+        // tokens.
         vm.mockCall(
             address(randomTerminalToken),
-            abi.encodeCall(randomTerminalToken.balanceOf, (address(delegate))),
-            abi.encode(_tokenCount)
+            abi.encodeCall(randomTerminalToken.balanceOf, (address(hook))),
+            abi.encode(tokenCount)
         );
-        vm.expectCall(address(randomTerminalToken), abi.encodeCall(randomTerminalToken.balanceOf, (address(delegate))));
+        vm.expectCall(address(randomTerminalToken), abi.encodeCall(randomTerminalToken.balanceOf, (address(hook))));
 
-
-        // mock the minting call - this uses the weight and not the (potentially faulty) quote or twap
+        // Mock and expect the call to `mintTokensOf`. This uses the weight and not the (potentially faulty) specified
+        // or TWAP-based quote.
         vm.mockCall(
             address(controller),
             abi.encodeCall(
                 controller.mintTokensOf,
-                (didPayData.projectId, mulDiv(_tokenCount, _weight, 10**_decimals) +  mulDiv(_extraMint, _weight, 10**_decimals), didPayData.beneficiary, didPayData.memo, didPayData.preferClaimedTokens, true)
+                (
+                    afterPayRecordedContext.projectId,
+                    mulDiv(tokenCount, weight, 10 ** decimals) + mulDiv(extraMint, weight, 10 ** decimals),
+                    afterPayRecordedContext.beneficiary,
+                    "",
+                    true
+                )
             ),
             abi.encode(true)
         );
@@ -791,114 +848,146 @@ contract TestJBBuybackDelegate_Units is Test {
             address(controller),
             abi.encodeCall(
                 controller.mintTokensOf,
-                (didPayData.projectId,  mulDiv(_tokenCount, _weight, 10**_decimals) +  mulDiv(_extraMint, _weight, 10**_decimals), didPayData.beneficiary, didPayData.memo, didPayData.preferClaimedTokens, true)
+                (
+                    afterPayRecordedContext.projectId,
+                    mulDiv(tokenCount, weight, 10 ** decimals) + mulDiv(extraMint, weight, 10 ** decimals),
+                    afterPayRecordedContext.beneficiary,
+                    "",
+                    true
+                )
             )
         );
 
-        // Mock the approval for the addToBalance
+        // Mock and expect the call to `approve` the terminal token for the terminal.
+        // This will be used with the `addToBalanceOf` call below.
         vm.mockCall(
             address(randomTerminalToken),
-            abi.encodeCall(randomTerminalToken.approve, (address(jbxTerminal), _tokenCount)),
+            abi.encodeCall(randomTerminalToken.approve, (address(multiTerminal), tokenCount)),
             abi.encode(true)
         );
         vm.expectCall(
-            address(randomTerminalToken), abi.encodeCall(randomTerminalToken.approve, (address(jbxTerminal), _tokenCount))
+            address(randomTerminalToken),
+            abi.encodeCall(randomTerminalToken.approve, (address(multiTerminal), tokenCount))
         );
 
-        // mock the add to balance adding the terminal token back to the terminal
+        // Mock and expect the call to `addToBalanceOf` to add the terminal token back to the terminal.
         vm.mockCall(
-            address(jbxTerminal),
+            address(multiTerminal),
             abi.encodeCall(
-                IJBPaymentTerminal(address(jbxTerminal)).addToBalanceOf,
-                (didPayData.projectId, _tokenCount, address(randomTerminalToken), "", "")
+                IJBTerminal(address(multiTerminal)).addToBalanceOf,
+                (afterPayRecordedContext.projectId, address(randomTerminalToken), tokenCount, false, "", "")
             ),
             ""
         );
         vm.expectCall(
-            address(jbxTerminal),
+            address(multiTerminal),
             abi.encodeCall(
-                IJBPaymentTerminal(address(jbxTerminal)).addToBalanceOf,
-                (didPayData.projectId, _tokenCount, address(randomTerminalToken), "", "")
+                IJBTerminal(address(multiTerminal)).addToBalanceOf,
+                (afterPayRecordedContext.projectId, address(randomTerminalToken), tokenCount, false, "", "")
             )
         );
 
-        // expect event - only for the non-extra mint
+        // Expect the mint event (only for the non-extra mint).
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_Mint(didPayData.projectId, _tokenCount,  mulDiv(_tokenCount, _weight, 10**_decimals), address(jbxTerminal));
-
-        vm.prank(address(jbxTerminal));
-        delegate.didPay(didPayData);
-    }
-
-    /**
-     * @notice Test didPay with swap reverting while using the twap, should then mint with the delegate balance, random erc20 is terminal token
-     */
-    function test_didPay_swapRevertWithoutQuote_ETH(uint256 _tokenCount, uint256 _weight, uint256 _decimals, uint256 _extraMint) public {
-        // The current weight
-        _weight = bound(_weight, 1, 1 ether);
-
-        // The amount of termminal token in this delegate (avoid overflowing when mul by weight)
-        _tokenCount = bound(_tokenCount, 2, type(uint128).max);
-
-        // An extra amount of token to mint, based on fund which stayed in the terminal
-        _extraMint = bound(_extraMint, 2, type(uint128).max);
-
-        // The terminal token decimal
-        _decimals = bound(_decimals, 1, 18);
-
-        didPayData.amount =
-            JBTokenAmount({token: JBTokens.ETH, value: _tokenCount, decimals: _decimals, currency: 1});
-
-        didPayData.forwardedAmount =
-            JBTokenAmount({token: JBTokens.ETH, value: _tokenCount, decimals: _decimals, currency: 1});
-
-        // The metadata coming from payParams(..)
-        didPayData.dataSourceMetadata = abi.encode(
-            false, // use quote
-            address(projectToken) < address(weth),
-            _extraMint,
-            _tokenCount,
-            _weight
+        emit Mint(
+            afterPayRecordedContext.projectId,
+            tokenCount,
+            mulDiv(tokenCount, weight, 10 ** decimals),
+            address(multiTerminal)
         );
 
-        // mock the swap call reverting
+        vm.prank(address(multiTerminal));
+
+        // Test: call `afterPayRecordedWith`.
+        hook.afterPayRecordedWith(afterPayRecordedContext);
+    }
+
+    /// @notice Test `afterPayRecordedWith`: if the swap reverts while using the TWAP-based quote, the hook should then
+    /// mint tokens based on the hook's balance and the weight. In this test, ETH is used as the terminal token.
+    function test_afterPayRecordedWith_ETHSwapRevertWithoutQuote(
+        uint256 tokenCount,
+        uint256 weight,
+        uint256 decimals,
+        uint256 extraMint
+    )
+        public
+    {
+        // The current weight.
+        weight = bound(weight, 1, 1 ether);
+
+        // The amount of terminal tokens in this hook. Bounded to avoid overflow when multiplied by the weight.
+        tokenCount = bound(tokenCount, 2, type(uint128).max);
+
+        // An extra amount of project tokens to mint, based on funds which stayed in the terminal.
+        extraMint = bound(extraMint, 2, type(uint128).max);
+
+        // The number of decimals that the terminal token uses.
+        decimals = bound(decimals, 1, 18);
+
+        // Set up the context with the amount of ETH to use and other information.
+        afterPayRecordedContext.amount =
+            JBTokenAmount({token: JBConstants.NATIVE_TOKEN, value: tokenCount, decimals: decimals, currency: 1});
+
+        afterPayRecordedContext.forwardedAmount =
+            JBTokenAmount({token: JBConstants.NATIVE_TOKEN, value: tokenCount, decimals: decimals, currency: 1});
+
+        afterPayRecordedContext.weight = weight;
+
+        // The metadata coming from `beforePayRecordedWith(...)`.
+        afterPayRecordedContext.hookMetadata = abi.encode(
+            false, // use quote
+            address(projectToken) < address(weth),
+            extraMint,
+            tokenCount
+        );
+
+        // Mock the swap call reverting.
         vm.mockCallRevert(
             address(pool),
             abi.encodeCall(
                 pool.swap,
                 (
-                    address(delegate),
+                    address(hook),
                     address(weth) < address(projectToken),
-                    int256(_tokenCount),
-                    address(projectToken) < address(weth)
-                        ? TickMath.MAX_SQRT_RATIO - 1
-                        : TickMath.MIN_SQRT_RATIO + 1,
+                    int256(tokenCount),
+                    address(projectToken) < address(weth) ? TickMath.MAX_SQRT_RATIO - 1 : TickMath.MIN_SQRT_RATIO + 1,
                     abi.encode(projectId, weth)
                 )
             ),
             abi.encode("no swap")
         );
 
-        // mock call to pass the authorization check
+        // Mock and expect a `isTerminalOf` call to pass the authorization check.
         vm.mockCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (didPayData.projectId, IJBPaymentTerminal(address(jbxTerminal)))),
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            ),
             abi.encode(true)
         );
         vm.expectCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (didPayData.projectId, IJBPaymentTerminal(address(jbxTerminal))))
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
+            )
         );
 
-        // Mock the balance check
-        vm.deal(address(delegate), _tokenCount);
+        // Mock the balance check.
+        vm.deal(address(hook), tokenCount);
 
-        // mock the minting call - this uses the weight and not the (potentially faulty) quote or twap
+        // Mock and expect the call to `mintTokensOf`. This uses the weight and not the (potentially faulty) specified
+        // or TWAP-based quote.
         vm.mockCall(
             address(controller),
             abi.encodeCall(
                 controller.mintTokensOf,
-                (didPayData.projectId, mulDiv(_tokenCount, _weight, 10**_decimals) + mulDiv(_extraMint, _weight, 10**_decimals), didPayData.beneficiary, didPayData.memo, didPayData.preferClaimedTokens, true)
+                (
+                    afterPayRecordedContext.projectId,
+                    mulDiv(tokenCount, weight, 10 ** decimals) + mulDiv(extraMint, weight, 10 ** decimals),
+                    afterPayRecordedContext.beneficiary,
+                    "",
+                    true
+                )
             ),
             abi.encode(true)
         );
@@ -906,608 +995,639 @@ contract TestJBBuybackDelegate_Units is Test {
             address(controller),
             abi.encodeCall(
                 controller.mintTokensOf,
-                (didPayData.projectId, mulDiv(_tokenCount, _weight, 10**_decimals) + mulDiv(_extraMint, _weight, 10**_decimals), didPayData.beneficiary, didPayData.memo, didPayData.preferClaimedTokens, true)
+                (
+                    afterPayRecordedContext.projectId,
+                    mulDiv(tokenCount, weight, 10 ** decimals) + mulDiv(extraMint, weight, 10 ** decimals),
+                    afterPayRecordedContext.beneficiary,
+                    "",
+                    true
+                )
             )
         );
 
-        // mock the add to balance adding the terminal token back to the terminal
+        // Mock and expect the call to `addToBalanceOf` to add the terminal token (ETH) back to the terminal.
         vm.mockCall(
-            address(jbxTerminal),
-            _tokenCount,
+            address(multiTerminal),
+            tokenCount,
             abi.encodeCall(
-                IJBPaymentTerminal(address(jbxTerminal)).addToBalanceOf,
-                (didPayData.projectId, _tokenCount, JBTokens.ETH, "", "")
+                IJBTerminal(address(multiTerminal)).addToBalanceOf,
+                (afterPayRecordedContext.projectId, JBConstants.NATIVE_TOKEN, tokenCount, false, "", "")
             ),
             ""
         );
         vm.expectCall(
-            address(jbxTerminal),
-            _tokenCount,
+            address(multiTerminal),
+            tokenCount,
             abi.encodeCall(
-                IJBPaymentTerminal(address(jbxTerminal)).addToBalanceOf,
-                (didPayData.projectId, _tokenCount, JBTokens.ETH, "", "")
+                IJBTerminal(address(multiTerminal)).addToBalanceOf,
+                (afterPayRecordedContext.projectId, JBConstants.NATIVE_TOKEN, tokenCount, false, "", "")
             )
         );
 
-        // expect event
+        // Expect the mint event.
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_Mint(didPayData.projectId, _tokenCount, mulDiv(_tokenCount, _weight, 10**_decimals), address(jbxTerminal));
+        emit Mint(
+            afterPayRecordedContext.projectId,
+            tokenCount,
+            mulDiv(tokenCount, weight, 10 ** decimals),
+            address(multiTerminal)
+        );
 
-        vm.prank(address(jbxTerminal));
-        delegate.didPay(didPayData);
+        vm.prank(address(multiTerminal));
+
+        // Test: call `afterPayRecordedWith`.
+        hook.afterPayRecordedWith(afterPayRecordedContext);
     }
 
-    /**
-     * @notice Test didPay revert if wrong caller
-     */
-    function test_didPay_revertIfWrongCaller(address _notTerminal) public {
-        vm.assume(_notTerminal != address(jbxTerminal));
+    /// @notice Test `afterPayRecordedWith` to ensure it reverts when called by an unauthorized address.
+    function test_afterPayRecordedWith_revertIfWrongCaller(address notTerminal) public {
+        vm.assume(notTerminal != address(multiTerminal));
 
-        // mock call to fail at the authorization check since directory has no bytecode
+        // Mock and expact the `isTerminalOf` call to fail the authorization check (since directory has no bytecode).
         vm.mockCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (didPayData.projectId, IJBPaymentTerminal(address(_notTerminal)))),
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(notTerminal)))
+            ),
             abi.encode(false)
         );
         vm.expectCall(
             address(directory),
-            abi.encodeCall(directory.isTerminalOf, (didPayData.projectId, IJBPaymentTerminal(address(_notTerminal))))
+            abi.encodeCall(
+                directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(notTerminal)))
+            )
         );
 
-        vm.expectRevert(abi.encodeWithSelector(IJBBuybackDelegate.JuiceBuyback_Unauthorized.selector));
+        // Expect revert on account of the caller not being the terminal.
+        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.Unauthorized.selector));
 
-        vm.prank(_notTerminal);
-        delegate.didPay(didPayData);
+        vm.prank(notTerminal);
+
+        // Test: call `afterPayRecordedWith`.
+        hook.afterPayRecordedWith(afterPayRecordedContext);
     }
 
-    /**
-     * @notice Test uniswapCallback
-     *
-     * @dev    2 branches: project token is 0 or 1 in the pool slot0
-     */
-    function test_uniswapCallback() public {
-        int256 _delta0 = -2 ether;
-        int256 _delta1 = 1 ether;
+    /// @notice Test `uniswapV3SwapCallback`.
+    /// @dev Tests 2 branches: project token is 0 or 1 in the pool's `slot0`.
+    function test_uniswapV3SwapCallback() public {
+        int256 delta0 = -2 ether;
+        int256 delta1 = 1 ether;
 
-        IWETH9 _terminalToken = weth;
-        IERC20 _projectToken = projectToken;
+        IWETH9 terminalToken = weth;
 
         /**
-         * First branch: terminal token = ETH, project token = random IERC20
+         * First branch: the terminal token is ETH, and the project token is a random `IERC20`.
          */
-        delegate = new ForTest_JBBuybackDelegate({
-            _weth: _terminalToken,
-            _factory: _uniswapFactory,
-            _directory: directory,
-            _controller: controller,
-            _id: bytes4(hex'69')
+        hook = new ForTest_JBBuybackHook({
+            weth: terminalToken,
+            factory: uniswapFactory,
+            directory: directory,
+            controller: controller
         });
 
-        // Init with weth (as weth is stored in the pool of mapping)
-        delegate.ForTest_initPool(
-            pool, projectId, secondsAgo, twapDelta, address(_projectToken), address(_terminalToken)
-        );
+        // Initialize the pool with wETH (if you pass in the `NATIVE_TOKEN` address, the pool is initialized with wETH).
+        hook.ForTest_initPool(pool, projectId, twapWindow, twapTolerance, address(projectToken), address(terminalToken));
 
-        // If project is token0, then received is delta0 (the negative value)
-        (_delta0, _delta1) = address(_projectToken) < address(_terminalToken) ? (_delta0, _delta1) : (_delta1, _delta0);
+        // If the terminal token is `token0`, then the change in the terminal token amount is `delta0` (the negative
+        // value).
+        (delta0, delta1) = address(projectToken) < address(terminalToken) ? (delta0, delta1) : (delta1, delta0);
 
-        // mock and expect _terminalToken calls, this should transfer from delegate to pool (positive delta in the callback)
-        vm.mockCall(address(_terminalToken), abi.encodeCall(_terminalToken.deposit, ()), "");
-        vm.expectCall(address(_terminalToken), abi.encodeCall(_terminalToken.deposit, ()));
+        // Mock and expect `terminalToken` calls.
+        // This should transfer from the hook to the pool (positive delta in the callback).
+        vm.mockCall(address(terminalToken), abi.encodeCall(terminalToken.deposit, ()), "");
+        vm.expectCall(address(terminalToken), abi.encodeCall(terminalToken.deposit, ()));
 
         vm.mockCall(
-            address(_terminalToken),
+            address(terminalToken),
             abi.encodeCall(
-                _terminalToken.transfer,
-                (address(pool), uint256(address(_projectToken) < address(_terminalToken) ? _delta1 : _delta0))
+                terminalToken.transfer,
+                (address(pool), uint256(address(projectToken) < address(terminalToken) ? delta1 : delta0))
             ),
             abi.encode(true)
         );
         vm.expectCall(
-            address(_terminalToken),
+            address(terminalToken),
             abi.encodeCall(
-                _terminalToken.transfer,
-                (address(pool), uint256(address(_projectToken) < address(_terminalToken) ? _delta1 : _delta0))
+                terminalToken.transfer,
+                (address(pool), uint256(address(projectToken) < address(terminalToken) ? delta1 : delta0))
             )
         );
 
-        vm.deal(address(delegate), uint256(address(_projectToken) < address(_terminalToken) ? _delta1 : _delta0));
+        vm.deal(address(hook), uint256(address(projectToken) < address(terminalToken) ? delta1 : delta0));
         vm.prank(address(pool));
-        delegate.uniswapV3SwapCallback(
-            _delta0, _delta1, abi.encode(projectId, JBTokens.ETH)
-        );
+
+        // Test: call `uniswapCallback`.
+        hook.uniswapV3SwapCallback(delta0, delta1, abi.encode(projectId, JBConstants.NATIVE_TOKEN));
 
         /**
-         * Second branch: terminal token = random IERC20, project token = weth (as another random ierc20)
+         * Second branch: the terminal token is a random `IERC20`, and the project token is wETH (as another random
+         * `IERC20`).
          */
 
-        // Invert both contract addresses, to swap token0 and token1
-        (_projectToken, _terminalToken) = (JBToken(address(_terminalToken)), IWETH9(address(_projectToken)));
+        // Invert both contract addresses (to swap `token0` and `token1`).
+        (projectToken, terminalToken) = (JBERC20(address(terminalToken)), IWETH9(address(projectToken)));
 
-        // If project is token0, then received is delta0 (the negative value)
-        (_delta0, _delta1) = address(_projectToken) < address(_terminalToken) ? (_delta0, _delta1) : (_delta1, _delta0);
+        // If the project token is `token0`, then the received value is `delta0` (the negative value).
+        (delta0, delta1) = address(projectToken) < address(terminalToken) ? (delta0, delta1) : (delta1, delta0);
 
-        delegate = new ForTest_JBBuybackDelegate({
-            _weth: _terminalToken,
-            _factory: _uniswapFactory,
-            _directory: directory,
-            _controller: controller,
-            _id: bytes4(hex'69')
+        hook = new ForTest_JBBuybackHook({
+            weth: terminalToken,
+            factory: uniswapFactory,
+            directory: directory,
+            controller: controller
         });
 
-        delegate.ForTest_initPool(
-            pool, projectId, secondsAgo, twapDelta, address(_projectToken), address(_terminalToken)
-        );
+        hook.ForTest_initPool(pool, projectId, twapWindow, twapTolerance, address(projectToken), address(terminalToken));
 
+        // Mock and expect `terminalToken` calls.
         vm.mockCall(
-            address(_terminalToken),
+            address(terminalToken),
             abi.encodeCall(
-                _terminalToken.transfer,
-                (address(pool), uint256(address(_projectToken) < address(_terminalToken) ? _delta1 : _delta0))
+                terminalToken.transfer,
+                (address(pool), uint256(address(projectToken) < address(terminalToken) ? delta1 : delta0))
             ),
             abi.encode(true)
         );
         vm.expectCall(
-            address(_terminalToken),
+            address(terminalToken),
             abi.encodeCall(
-                _terminalToken.transfer,
-                (address(pool), uint256(address(_projectToken) < address(_terminalToken) ? _delta1 : _delta0))
+                terminalToken.transfer,
+                (address(pool), uint256(address(projectToken) < address(terminalToken) ? delta1 : delta0))
             )
         );
 
-        vm.deal(address(delegate), uint256(address(_projectToken) < address(_terminalToken) ? _delta1 : _delta0));
+        vm.deal(address(hook), uint256(address(projectToken) < address(terminalToken) ? delta1 : delta0));
         vm.prank(address(pool));
-        delegate.uniswapV3SwapCallback(
-            _delta0,
-            _delta1,
-            abi.encode(projectId, address(_terminalToken))
-        );
+
+        // Test: call `uniswapCallback`.
+        hook.uniswapV3SwapCallback(delta0, delta1, abi.encode(projectId, address(terminalToken)));
     }
 
-    /**
-     * @notice Test uniswapCallback revert if wrong caller
-     */
-    function test_uniswapCallback_revertIfWrongCaller() public {
-        int256 _delta0 = -1 ether;
-        int256 _delta1 = 1 ether;
+    /// @notice Test `uniswapV3SwapCallback` to ensure it reverts when called by an unauthorized address.
+    function test_uniswapV3SwapCallback_revertIfWrongCaller() public {
+        int256 delta0 = -1 ether;
+        int256 delta1 = 1 ether;
 
-        vm.expectRevert(abi.encodeWithSelector(IJBBuybackDelegate.JuiceBuyback_Unauthorized.selector));
-        delegate.uniswapV3SwapCallback(
-            _delta0, _delta1, abi.encode(projectId, weth, address(projectToken) < address(weth))
-        );
+        // Expect revert on account of the caller not being the pool.
+        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.Unauthorized.selector));
+        hook.uniswapV3SwapCallback(delta0, delta1, abi.encode(projectId, weth, address(projectToken) < address(weth)));
     }
 
-    /**
-     * @notice Test adding a new pool (deployed or not)
-     */
+    /// @notice Test adding a new pool, whether it has been deployed or not.
     function test_setPoolFor(
-        uint256 _secondsAgo,
-        uint256 _twapDelta,
-        address _terminalToken,
-        address _projectToken,
-        uint24 _fee
-    ) public {
-        vm.assume(_terminalToken != address(0) && _projectToken != address(0) && _fee != 0);
-        vm.assume(_terminalToken != _projectToken);
+        uint256 twapWindowOverride,
+        uint256 twapToleranceOverride,
+        address terminalToken,
+        address projectTokenOverride,
+        uint24 feeOverride
+    )
+        public
+    {
+        vm.assume(terminalToken != address(0) && projectTokenOverride != address(0) && feeOverride != 0);
+        vm.assume(terminalToken != projectTokenOverride);
 
-        uint256 _MIN_TWAP_WINDOW = delegate.MIN_TWAP_WINDOW();
-        uint256 _MAX_TWAP_WINDOW = delegate.MAX_TWAP_WINDOW();
+        // Get references to the hook's bounds for the TWAP window and slippage tolerance.
+        uint256 MIN_TWAP_WINDOW = hook.MIN_TWAP_WINDOW();
+        uint256 MAX_TWAP_WINDOW = hook.MAX_TWAP_WINDOW();
 
-        uint256 _MIN_TWAP_SLIPPAGE_TOLERANCE = delegate.MIN_TWAP_SLIPPAGE_TOLERANCE();
-        uint256 _MAX_TWAP_SLIPPAGE_TOLERANCE = delegate.MAX_TWAP_SLIPPAGE_TOLERANCE();
+        uint256 MIN_TWAP_SLIPPAGE_TOLERANCE = hook.MIN_TWAP_SLIPPAGE_TOLERANCE();
+        uint256 MAX_TWAP_SLIPPAGE_TOLERANCE = hook.MAX_TWAP_SLIPPAGE_TOLERANCE();
 
-        _twapDelta = bound(_twapDelta, _MIN_TWAP_SLIPPAGE_TOLERANCE, _MAX_TWAP_SLIPPAGE_TOLERANCE);
-        _secondsAgo = bound(_secondsAgo, _MIN_TWAP_WINDOW, _MAX_TWAP_WINDOW);
+        // Keep the TWAP delta and TWAP window within the hook's bounds.
+        twapToleranceOverride = bound(twapToleranceOverride, MIN_TWAP_SLIPPAGE_TOLERANCE, MAX_TWAP_SLIPPAGE_TOLERANCE);
+        twapWindowOverride = bound(twapWindowOverride, MIN_TWAP_WINDOW, MAX_TWAP_WINDOW);
 
+        // Compute the pool address. This is deterministic.
         address _pool = PoolAddress.computeAddress(
-            delegate.UNISWAP_V3_FACTORY(), PoolAddress.getPoolKey(_terminalToken, _projectToken, _fee)
+            hook.UNISWAP_V3_FACTORY(), PoolAddress.getPoolKey(terminalToken, projectTokenOverride, feeOverride)
         );
 
-        vm.mockCall(address(tokenStore), abi.encodeCall(tokenStore.tokenOf, (projectId)), abi.encode(_projectToken));
+        // Mock the call to get the project's token.
+        vm.mockCall(address(tokens), abi.encodeCall(tokens.tokenOf, (projectId)), abi.encode(projectTokenOverride));
 
-        // check: correct events?
+        // Check: correct events emitted?
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_TwapWindowChanged(projectId, 0, _secondsAgo, owner);
-
-        vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_TwapSlippageToleranceChanged(projectId, 0, _twapDelta, owner);
+        emit TwapWindowChanged(projectId, 0, twapWindowOverride, owner);
 
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_PoolAdded(projectId, _terminalToken == JBTokens.ETH ? address(weth) : _terminalToken, address(_pool), owner);
+        emit TwapSlippageToleranceChanged(projectId, 0, twapToleranceOverride, owner);
 
+        vm.expectEmit(true, true, true, true);
+        emit PoolAdded(
+            projectId, terminalToken == JBConstants.NATIVE_TOKEN ? address(weth) : terminalToken, address(_pool), owner
+        );
+
+        // Test: call `setPoolFor`.
         vm.prank(owner);
-        address _newPool =
-            address(delegate.setPoolFor(projectId, _fee, uint32(_secondsAgo), _twapDelta, _terminalToken));
+        address newPool = address(
+            hook.setPoolFor(projectId, feeOverride, uint32(twapWindowOverride), twapToleranceOverride, terminalToken)
+        );
 
-        // Check: correct params stored?
-        assertEq(delegate.twapWindowOf(projectId), _secondsAgo);
-        assertEq(delegate.twapSlippageToleranceOf(projectId), _twapDelta);
-        assertEq(address(delegate.poolOf(projectId, _terminalToken == JBTokens.ETH ? address(weth) : _terminalToken)), _pool);
-        assertEq(_newPool, _pool);
+        // Check: were the correct params stored in the hook?
+        assertEq(hook.twapWindowOf(projectId), twapWindowOverride);
+        assertEq(hook.twapSlippageToleranceOf(projectId), twapToleranceOverride);
+        assertEq(
+            address(hook.poolOf(projectId, terminalToken == JBConstants.NATIVE_TOKEN ? address(weth) : terminalToken)),
+            _pool
+        );
+        assertEq(newPool, _pool);
     }
 
-    /**
-     * @notice Test if trying to add an existing pool revert
-     *
-     * @dev    This is to avoid bypassing the twap delta and period authorisation. A new fee-tier results in a new pool
-     */
+    /// @notice Test whether calling `setPoolFor` with the same parameters as an existing pool reverts.
+    /// @dev This is to avoid bypassing the TWAP delta and TWAP window authorization.
+    /// @dev A new fee tier results in a new pool.
     function test_setPoolFor_revertIfPoolAlreadyExists(
-        uint256 _secondsAgo,
-        uint256 _twapDelta,
+        uint256 _twapWindow,
+        uint256 _twapTolerance,
         address _terminalToken,
         address _projectToken,
         uint24 _fee
-    ) public {
+    )
+        public
+    {
         vm.assume(_terminalToken != address(0) && _projectToken != address(0) && _fee != 0);
         vm.assume(_terminalToken != _projectToken);
 
-        uint256 _MIN_TWAP_WINDOW = delegate.MIN_TWAP_WINDOW();
-        uint256 _MAX_TWAP_WINDOW = delegate.MAX_TWAP_WINDOW();
+        // Get references to the hook's bounds for the TWAP window and slippage tolerance.
+        uint256 MIN_TWAP_WINDOW = hook.MIN_TWAP_WINDOW();
+        uint256 MAX_TWAP_WINDOW = hook.MAX_TWAP_WINDOW();
 
-        uint256 _MIN_TWAP_SLIPPAGE_TOLERANCE = delegate.MIN_TWAP_SLIPPAGE_TOLERANCE();
-        uint256 _MAX_TWAP_SLIPPAGE_TOLERANCE = delegate.MAX_TWAP_SLIPPAGE_TOLERANCE();
+        uint256 MIN_TWAP_SLIPPAGE_TOLERANCE = hook.MIN_TWAP_SLIPPAGE_TOLERANCE();
+        uint256 MAX_TWAP_SLIPPAGE_TOLERANCE = hook.MAX_TWAP_SLIPPAGE_TOLERANCE();
 
-        _twapDelta = bound(_twapDelta, _MIN_TWAP_SLIPPAGE_TOLERANCE, _MAX_TWAP_SLIPPAGE_TOLERANCE);
-        _secondsAgo = bound(_secondsAgo, _MIN_TWAP_WINDOW, _MAX_TWAP_WINDOW);
+        // Keep the TWAP delta and TWAP window within the hook's bounds.
+        _twapTolerance = bound(_twapTolerance, MIN_TWAP_SLIPPAGE_TOLERANCE, MAX_TWAP_SLIPPAGE_TOLERANCE);
+        _twapWindow = bound(_twapWindow, MIN_TWAP_WINDOW, MAX_TWAP_WINDOW);
 
-        vm.mockCall(address(tokenStore), abi.encodeCall(tokenStore.tokenOf, (projectId)), abi.encode(_projectToken));
+        // Mock the call to get the project's token.
+        vm.mockCall(address(tokens), abi.encodeCall(tokens.tokenOf, (projectId)), abi.encode(_projectToken));
 
+        // Test: call `setPoolFor`.
         vm.prank(owner);
-        delegate.setPoolFor(projectId, _fee, uint32(_secondsAgo), _twapDelta, _terminalToken);
+        hook.setPoolFor(projectId, _fee, uint32(_twapWindow), _twapTolerance, _terminalToken);
 
-        vm.expectRevert(IJBBuybackDelegate.JuiceBuyback_PoolAlreadySet.selector);
+        // Expect a revert on account of the pool already existing.
+        vm.expectRevert(JBBuybackHook.PoolAlreadySet.selector);
         vm.prank(owner);
-        delegate.setPoolFor(projectId, _fee, uint32(_secondsAgo), _twapDelta, _terminalToken);
+
+        // Test: call `setPoolFor` again.
+        hook.setPoolFor(projectId, _fee, uint32(_twapWindow), _twapTolerance, _terminalToken);
     }
 
-    /**
-     * @notice Revert if not called by project owner or authorised sender
-     */
+    /// @notice `setPoolFor` should revert if the caller is not authorized to set the pool.
     function test_setPoolFor_revertIfWrongCaller() public {
+        // Mock and expect calls to check the permissions of the caller.
         vm.mockCall(
-            address(operatorStore),
-            abi.encodeCall(
-                operatorStore.hasPermission, (dude, owner, projectId, JBBuybackDelegateOperations.CHANGE_POOL)
-            ),
+            address(permissions),
+            abi.encodeCall(permissions.hasPermission, (dude, owner, projectId, JBBuybackPermissionIds.CHANGE_POOL)),
             abi.encode(false)
         );
         vm.expectCall(
-            address(operatorStore),
-            abi.encodeCall(
-                operatorStore.hasPermission, (dude, owner, projectId, JBBuybackDelegateOperations.CHANGE_POOL)
-            )
+            address(permissions),
+            abi.encodeCall(permissions.hasPermission, (dude, owner, projectId, JBBuybackPermissionIds.CHANGE_POOL))
         );
 
         vm.mockCall(
-            address(operatorStore),
-            abi.encodeCall(
-                operatorStore.hasPermission, (dude, owner, 0, JBBuybackDelegateOperations.CHANGE_POOL)
-            ),
+            address(permissions),
+            abi.encodeCall(permissions.hasPermission, (dude, owner, 0, JBBuybackPermissionIds.CHANGE_POOL)),
             abi.encode(false)
         );
         vm.expectCall(
-            address(operatorStore),
-            abi.encodeCall(
-                operatorStore.hasPermission, (dude, owner, 0, JBBuybackDelegateOperations.CHANGE_POOL)
-            )
+            address(permissions),
+            abi.encodeCall(permissions.hasPermission, (dude, owner, 0, JBBuybackPermissionIds.CHANGE_POOL))
         );
 
-        // check: revert?
+        // Expect revert on account of the caller not being authorized.
         vm.expectRevert(abi.encodeWithSignature("UNAUTHORIZED()"));
 
+        // Test: call `setPoolFor` from an unauthorized address (`dude`).
         vm.prank(dude);
-        delegate.setPoolFor(projectId, 100, uint32(10), 10, address(0));
+        hook.setPoolFor(projectId, 100, uint32(10), 10, address(0));
     }
 
-    /**
-     * @notice Test if only twap delta and periods between the extrema's are allowed
-     */
-    function test_setPoolFor_revertIfWrongParams(
-        address _terminalToken,
-        address _projectToken,
-        uint24 _fee
-    ) public {
+    /// @notice Ensure that only TWAP slippage tolerances and TWAP windows between the hook's minimum/maximum bounds are
+    /// allowed.
+    function test_setPoolFor_revertIfWrongParams(address _terminalToken, address _projectToken, uint24 _fee) public {
         vm.assume(_terminalToken != address(0) && _projectToken != address(0) && _fee != 0);
         vm.assume(_terminalToken != _projectToken);
 
-        uint256 _MIN_TWAP_WINDOW = delegate.MIN_TWAP_WINDOW();
-        uint256 _MAX_TWAP_WINDOW = delegate.MAX_TWAP_WINDOW();
+        // Get references to the hook's bounds for the TWAP window and slippage tolerance.
+        uint256 MIN_TWAP_WINDOW = hook.MIN_TWAP_WINDOW();
+        uint256 MAX_TWAP_WINDOW = hook.MAX_TWAP_WINDOW();
 
-        uint256 _MIN_TWAP_SLIPPAGE_TOLERANCE = delegate.MIN_TWAP_SLIPPAGE_TOLERANCE();
-        uint256 _MAX_TWAP_SLIPPAGE_TOLERANCE = delegate.MAX_TWAP_SLIPPAGE_TOLERANCE();
+        uint256 MIN_TWAP_SLIPPAGE_TOLERANCE = hook.MIN_TWAP_SLIPPAGE_TOLERANCE();
+        uint256 MAX_TWAP_SLIPPAGE_TOLERANCE = hook.MAX_TWAP_SLIPPAGE_TOLERANCE();
 
-        vm.mockCall(address(tokenStore), abi.encodeCall(tokenStore.tokenOf, (projectId)), abi.encode(_projectToken));
+        // Mock the call to get the project's token.
+        vm.mockCall(address(tokens), abi.encodeCall(tokens.tokenOf, (projectId)), abi.encode(_projectToken));
 
-        // Check: seconds ago too low
-        vm.expectRevert(IJBBuybackDelegate.JuiceBuyback_InvalidTwapWindow.selector);
+        // Check: is the TWAP window too small?
+        vm.expectRevert(JBBuybackHook.InvalidTwapWindow.selector);
         vm.prank(owner);
-        delegate.setPoolFor(projectId, _fee, uint32(_MIN_TWAP_WINDOW - 1), _MIN_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken);
+        hook.setPoolFor(projectId, _fee, uint32(MIN_TWAP_WINDOW - 1), MIN_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken);
 
-        // Check: seconds ago too high
-        vm.expectRevert(IJBBuybackDelegate.JuiceBuyback_InvalidTwapWindow.selector);
+        // Check: is the TWAP window too large?
+        vm.expectRevert(JBBuybackHook.InvalidTwapWindow.selector);
         vm.prank(owner);
-        delegate.setPoolFor(projectId, _fee, uint32(_MAX_TWAP_WINDOW + 1), _MIN_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken);
+        hook.setPoolFor(projectId, _fee, uint32(MAX_TWAP_WINDOW + 1), MIN_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken);
 
-        // Check: min twap deviation too low
-        vm.expectRevert(IJBBuybackDelegate.JuiceBuyback_InvalidTwapSlippageTolerance.selector);
+        // Check: is the TWAP slippage tolerance too small?
+        vm.expectRevert(JBBuybackHook.InvalidTwapSlippageTolerance.selector);
         vm.prank(owner);
-        delegate.setPoolFor(projectId, _fee, uint32(_MIN_TWAP_WINDOW + 1), _MIN_TWAP_SLIPPAGE_TOLERANCE - 1, _terminalToken);
+        hook.setPoolFor(projectId, _fee, uint32(MIN_TWAP_WINDOW + 1), MIN_TWAP_SLIPPAGE_TOLERANCE - 1, _terminalToken);
 
-        // Check: max twap deviation too high
-        vm.expectRevert(IJBBuybackDelegate.JuiceBuyback_InvalidTwapSlippageTolerance.selector);
+        // Check: is the TWAP slippage tolerance too large?
+        vm.expectRevert(JBBuybackHook.InvalidTwapSlippageTolerance.selector);
         vm.prank(owner);
-        delegate.setPoolFor(projectId, _fee, uint32(_MIN_TWAP_WINDOW + 1), _MAX_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken);
+        hook.setPoolFor(projectId, _fee, uint32(MIN_TWAP_WINDOW + 1), MAX_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken);
     }
 
-    /**
-     * @notice Reverts if the project hasn't emitted a token (yet), as the pool address isn't unreliable then
-     */
+    /// @notice Test whether `setPoolFor` reverts if the project hasn't launched a token yet.
+    /// @dev This should revert because the pool's address cannot be calculated.
     function test_setPoolFor_revertIfNoProjectToken(
-        uint256 _secondsAgo,
-        uint256 _twapDelta,
+        uint256 _twapWindow,
+        uint256 _twapTolerance,
         address _terminalToken,
         address _projectToken,
         uint24 _fee
-    ) public {
+    )
+        public
+    {
         vm.assume(_terminalToken != address(0) && _projectToken != address(0) && _fee != 0);
         vm.assume(_terminalToken != _projectToken);
 
-        uint256 _MIN_TWAP_WINDOW = delegate.MIN_TWAP_WINDOW();
-        uint256 _MAX_TWAP_WINDOW = delegate.MAX_TWAP_WINDOW();
+        // Get references to the hook's bounds for the TWAP window and slippage tolerance.
+        uint256 MIN_TWAP_WINDOW = hook.MIN_TWAP_WINDOW();
+        uint256 MAX_TWAP_WINDOW = hook.MAX_TWAP_WINDOW();
 
-        uint256 _MIN_TWAP_SLIPPAGE_TOLERANCE = delegate.MIN_TWAP_SLIPPAGE_TOLERANCE();
-        uint256 _MAX_TWAP_SLIPPAGE_TOLERANCE = delegate.MAX_TWAP_SLIPPAGE_TOLERANCE();
+        uint256 MIN_TWAP_SLIPPAGE_TOLERANCE = hook.MIN_TWAP_SLIPPAGE_TOLERANCE();
+        uint256 MAX_TWAP_SLIPPAGE_TOLERANCE = hook.MAX_TWAP_SLIPPAGE_TOLERANCE();
 
-        _twapDelta = bound(_twapDelta, _MIN_TWAP_SLIPPAGE_TOLERANCE, _MAX_TWAP_SLIPPAGE_TOLERANCE);
-        _secondsAgo = bound(_secondsAgo, _MIN_TWAP_WINDOW, _MAX_TWAP_WINDOW);
+        // Keep the TWAP delta and TWAP window within the hook's bounds.
+        _twapTolerance = bound(_twapTolerance, MIN_TWAP_SLIPPAGE_TOLERANCE, MAX_TWAP_SLIPPAGE_TOLERANCE);
+        _twapWindow = bound(_twapWindow, MIN_TWAP_WINDOW, MAX_TWAP_WINDOW);
 
-        vm.mockCall(address(tokenStore), abi.encodeCall(tokenStore.tokenOf, (projectId)), abi.encode(address(0)));
+        // Mock the call to get the project's token.
+        vm.mockCall(address(tokens), abi.encodeCall(tokens.tokenOf, (projectId)), abi.encode(address(0)));
 
-        vm.expectRevert(IJBBuybackDelegate.JuiceBuyback_NoProjectToken.selector);
+        // Expect revert on account of the project not having a token.
+        vm.expectRevert(JBBuybackHook.NoProjectToken.selector);
         vm.prank(owner);
-        delegate.setPoolFor(projectId, _fee, uint32(_secondsAgo), _twapDelta, _terminalToken);
+
+        // Test: call `setPoolFor`.
+        hook.setPoolFor(projectId, _fee, uint32(_twapWindow), _twapTolerance, _terminalToken);
     }
 
-    /**
-     * @notice Test increase seconds ago
-     */
-    function test_setTwapWindowOf(uint256 _newValue) public {
-        uint256 _MAX_TWAP_WINDOW = delegate.MAX_TWAP_WINDOW();
-        uint256 _MIN_TWAP_WINDOW = delegate.MIN_TWAP_WINDOW();
+    /// @notice Test whether `setTwapWindowOf` works correctly.
+    function test_setTwapWindowOf(uint256 newValue) public {
+        // Get references to the hook's bounds for the TWAP window.
+        uint256 MAX_TWAP_WINDOW = hook.MAX_TWAP_WINDOW();
+        uint256 MIN_TWAP_WINDOW = hook.MIN_TWAP_WINDOW();
 
-        _newValue = bound(_newValue, _MIN_TWAP_WINDOW, _MAX_TWAP_WINDOW);
+        // Keep the TWAP window within the hook's bounds.
+        newValue = bound(newValue, MIN_TWAP_WINDOW, MAX_TWAP_WINDOW);
 
-        // check: correct event?
+        // Check: was the correct event emitted?
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_TwapWindowChanged(projectId, delegate.twapWindowOf(projectId), _newValue, owner);
+        emit TwapWindowChanged(projectId, hook.twapWindowOf(projectId), newValue, owner);
 
-        // Test: change seconds ago
+        // Test: set the new TWAP window.
         vm.prank(owner);
-        delegate.setTwapWindowOf(projectId, uint32(_newValue));
+        hook.setTwapWindowOf(projectId, uint32(newValue));
 
-        // Check: correct seconds ago?
-        assertEq(delegate.twapWindowOf(projectId), _newValue);
+        // Check: was the TWAP window set correctly?
+        assertEq(hook.twapWindowOf(projectId), newValue);
     }
 
-    /**
-     * @notice Test increase seconds ago revert if wrong caller
-     */
-    function test_setTwapWindowOf_revertIfWrongCaller(address _notOwner) public {
-        vm.assume(owner != _notOwner);
+    /// @notice Test whether `setTwapWindowOf` reverts if the caller is not authorized to set the TWAP window.
+    function test_setTwapWindowOf_revertIfWrongCaller(address notOwner) public {
+        // Assume that the caller is not the owner.
+        vm.assume(owner != notOwner);
 
+        // Mock and expect calls to check the permissions of the caller.
         vm.mockCall(
-            address(operatorStore),
+            address(permissions),
             abi.encodeCall(
-                operatorStore.hasPermission, (_notOwner, owner, projectId, JBBuybackDelegateOperations.SET_POOL_PARAMS)
+                permissions.hasPermission, (notOwner, owner, projectId, JBBuybackPermissionIds.SET_POOL_PARAMS)
             ),
             abi.encode(false)
         );
         vm.expectCall(
-            address(operatorStore),
+            address(permissions),
             abi.encodeCall(
-                operatorStore.hasPermission, (_notOwner, owner, projectId, JBBuybackDelegateOperations.SET_POOL_PARAMS)
+                permissions.hasPermission, (notOwner, owner, projectId, JBBuybackPermissionIds.SET_POOL_PARAMS)
             )
         );
 
         vm.mockCall(
-            address(operatorStore),
-            abi.encodeCall(
-                operatorStore.hasPermission, (_notOwner, owner, 0, JBBuybackDelegateOperations.SET_POOL_PARAMS)
-            ),
+            address(permissions),
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBBuybackPermissionIds.SET_POOL_PARAMS)),
             abi.encode(false)
         );
         vm.expectCall(
-            address(operatorStore),
-            abi.encodeCall(
-                operatorStore.hasPermission, (_notOwner, owner, 0, JBBuybackDelegateOperations.SET_POOL_PARAMS)
-            )
+            address(permissions),
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBBuybackPermissionIds.SET_POOL_PARAMS))
         );
 
-        // check: revert?
+        // Expect revert on account of the caller not being authorized to set the TWAP window.
         vm.expectRevert(abi.encodeWithSignature("UNAUTHORIZED()"));
 
-        // Test: change seconds ago (left uninit/at 0)
-        vm.startPrank(_notOwner);
-        delegate.setTwapWindowOf(projectId, 999);
+        // Test: call `setTwapWindowOf` from an unauthorized address (`notOwner`).
+        vm.startPrank(notOwner);
+        hook.setTwapWindowOf(projectId, 999);
     }
 
-    /**
-     * @notice Test increase seconds ago reverting on boundary
-     */
-    function test_setTwapWindowOf_revertIfNewValueTooBigOrTooLow(uint256 _newValueSeed) public {
-        uint256 _MAX_TWAP_WINDOW = delegate.MAX_TWAP_WINDOW();
-        uint256 _MIN_TWAP_WINDOW = delegate.MIN_TWAP_WINDOW();
+    /// @notice Test whether `setTwapWindowOf` reverts if the new TWAP window is too big or too small.
+    function test_setTwapWindowOf_revertIfNewValueTooBigOrTooLow(uint256 newValueSeed) public {
+        // Get references to the hook's bounds for the TWAP window.
+        uint256 MAX_TWAP_WINDOW = hook.MAX_TWAP_WINDOW();
+        uint256 MIN_TWAP_WINDOW = hook.MIN_TWAP_WINDOW();
 
-        uint256 _newValue = bound(_newValueSeed, _MAX_TWAP_WINDOW + 1, type(uint32).max);
+        // Make sure the new value is too big.
+        uint256 newValue = bound(newValueSeed, MAX_TWAP_WINDOW + 1, type(uint32).max);
 
-        // Check: revert?
-        vm.expectRevert(abi.encodeWithSelector(IJBBuybackDelegate.JuiceBuyback_InvalidTwapWindow.selector));
+        // Expect revert on account of the new TWAP window being too big.
+        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.InvalidTwapWindow.selector));
 
-        // Test: try to change seconds ago
+        // Test: try to set the TWAP window to the too-big value.
         vm.prank(owner);
-        delegate.setTwapWindowOf(projectId, uint32(_newValue));
+        hook.setTwapWindowOf(projectId, uint32(newValue));
 
-        _newValue = bound(_newValueSeed, 0, _MIN_TWAP_WINDOW - 1);
+        // Make sure the new value is too small.
+        newValue = bound(newValueSeed, 0, MIN_TWAP_WINDOW - 1);
 
-        // Check: revert?
-        vm.expectRevert(abi.encodeWithSelector(IJBBuybackDelegate.JuiceBuyback_InvalidTwapWindow.selector));
+        // Expect revert on account of the new TWAP window being too small.
+        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.InvalidTwapWindow.selector));
 
-        // Test: try to change seconds ago
+        // Test: try to set the TWAP window to the too-small value.
         vm.prank(owner);
-        delegate.setTwapWindowOf(projectId, uint32(_newValue));
+        hook.setTwapWindowOf(projectId, uint32(newValue));
     }
 
-    /**
-     * @notice Test set twap delta
-     */
-    function test_setTwapSlippageToleranceOf(uint256 _newDelta) public {
-        uint256 _MIN_TWAP_SLIPPAGE_TOLERANCE = delegate.MIN_TWAP_SLIPPAGE_TOLERANCE();
-        uint256 _MAX_TWAP_SLIPPAGE_TOLERANCE = delegate.MAX_TWAP_SLIPPAGE_TOLERANCE();
-        _newDelta = bound(_newDelta, _MIN_TWAP_SLIPPAGE_TOLERANCE, _MAX_TWAP_SLIPPAGE_TOLERANCE);
+    /// @notice Test setting the TWAP slippage tolerance.
+    function test_setTwapSlippageToleranceOf(uint256 newTolerance) public {
+        // Get references to the hook's bounds for the TWAP slippage tolerance.
+        uint256 MIN_TWAP_SLIPPAGE_TOLERANCE = hook.MIN_TWAP_SLIPPAGE_TOLERANCE();
+        uint256 MAX_TWAP_SLIPPAGE_TOLERANCE = hook.MAX_TWAP_SLIPPAGE_TOLERANCE();
 
-        // Check: correct event?
+        // Keep the TWAP slippage tolerance within the hook's bounds.
+        newTolerance = bound(newTolerance, MIN_TWAP_SLIPPAGE_TOLERANCE, MAX_TWAP_SLIPPAGE_TOLERANCE);
+
+        // Check: was the correct event emitted?
         vm.expectEmit(true, true, true, true);
-        emit BuybackDelegate_TwapSlippageToleranceChanged(projectId, delegate.twapSlippageToleranceOf(projectId), _newDelta, owner);
+        emit TwapSlippageToleranceChanged(projectId, hook.twapSlippageToleranceOf(projectId), newTolerance, owner);
 
-        // Test: set the twap
+        // Test: set the new TWAP slippage tolerance.
         vm.prank(owner);
-        delegate.setTwapSlippageToleranceOf(projectId, _newDelta);
+        hook.setTwapSlippageToleranceOf(projectId, newTolerance);
 
-        // Check: correct twap?
-        assertEq(delegate.twapSlippageToleranceOf(projectId), _newDelta);
+        // Check: was the TWAP slippage tolerance set correctly?
+        assertEq(hook.twapSlippageToleranceOf(projectId), newTolerance);
     }
 
-    /**
-     * @notice Test set twap delta reverts if wrong caller
-     */
-    function test_setTwapSlippageToleranceOf_revertWrongCaller(address _notOwner) public {
-        vm.assume(owner != _notOwner);
+    /// @notice Test whether `setTwapSlippageToleranceOf` reverts if the caller is not authorized to set the TWAP
+    /// slippage tolerance.
+    function test_setTwapSlippageToleranceOf_revertWrongCaller(address notOwner) public {
+        // Assume that the caller is not the owner.
+        vm.assume(owner != notOwner);
 
+        // Mock and expect calls to check the permissions of the caller.
         vm.mockCall(
-            address(operatorStore),
+            address(permissions),
             abi.encodeCall(
-                operatorStore.hasPermission, (_notOwner, owner, projectId, JBBuybackDelegateOperations.SET_POOL_PARAMS)
+                permissions.hasPermission, (notOwner, owner, projectId, JBBuybackPermissionIds.SET_POOL_PARAMS)
             ),
             abi.encode(false)
         );
         vm.expectCall(
-            address(operatorStore),
+            address(permissions),
             abi.encodeCall(
-                operatorStore.hasPermission, (_notOwner, owner, projectId, JBBuybackDelegateOperations.SET_POOL_PARAMS)
+                permissions.hasPermission, (notOwner, owner, projectId, JBBuybackPermissionIds.SET_POOL_PARAMS)
             )
         );
 
         vm.mockCall(
-            address(operatorStore),
-            abi.encodeCall(
-                operatorStore.hasPermission, (_notOwner, owner, 0, JBBuybackDelegateOperations.SET_POOL_PARAMS)
-            ),
+            address(permissions),
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBBuybackPermissionIds.SET_POOL_PARAMS)),
             abi.encode(false)
         );
         vm.expectCall(
-            address(operatorStore),
-            abi.encodeCall(
-                operatorStore.hasPermission, (_notOwner, owner, 0, JBBuybackDelegateOperations.SET_POOL_PARAMS)
-            )
+            address(permissions),
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBBuybackPermissionIds.SET_POOL_PARAMS))
         );
 
-        // check: revert?
+        // Expect revert on account of the caller not being authorized to set the TWAP slippage tolerance.
         vm.expectRevert(abi.encodeWithSignature("UNAUTHORIZED()"));
 
-        // Test: set the twap
-        vm.prank(_notOwner);
-        delegate.setTwapSlippageToleranceOf(projectId, 1);
+        // Test: call `setTwapSlippageToleranceOf` from an unauthorized address (`notOwner`).
+        vm.prank(notOwner);
+        hook.setTwapSlippageToleranceOf(projectId, 1);
     }
 
-    /**
-     * @notice Test set twap delta
-     */
-    function test_setTwapSlippageToleranceOf_revertIfInvalidNewValue(uint256 _newDeltaSeed) public {
-        uint256 _MIN_TWAP_SLIPPAGE_TOLERANCE = delegate.MIN_TWAP_SLIPPAGE_TOLERANCE();
-        uint256 _MAX_TWAP_SLIPPAGE_TOLERANCE = delegate.MAX_TWAP_SLIPPAGE_TOLERANCE();
+    /// @notice Test whether `setTwapSlippageToleranceOf` reverts if the new TWAP slippage tolerance is too big or too
+    /// small.
+    function test_setTwapSlippageToleranceOf_revertIfInvalidNewValue(uint256 newToleranceSeed) public {
+        // Get references to the hook's bounds for the TWAP slippage tolerance.
+        uint256 MIN_TWAP_SLIPPAGE_TOLERANCE = hook.MIN_TWAP_SLIPPAGE_TOLERANCE();
+        uint256 MAX_TWAP_SLIPPAGE_TOLERANCE = hook.MAX_TWAP_SLIPPAGE_TOLERANCE();
 
-        uint256 _newDelta = bound(_newDeltaSeed, 0, _MIN_TWAP_SLIPPAGE_TOLERANCE - 1);
+        // Make sure the new value is too small.
+        uint256 newTolerance = bound(newToleranceSeed, 0, MIN_TWAP_SLIPPAGE_TOLERANCE - 1);
 
-        vm.expectRevert(abi.encodeWithSelector(IJBBuybackDelegate.JuiceBuyback_InvalidTwapSlippageTolerance.selector));
+        // Expect revert on account of the new TWAP slippage tolerance being too small.
+        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.InvalidTwapSlippageTolerance.selector));
 
-        // Test: set the twap
+        // Test: try to set the TWAP slippage tolerance to the too-small value.
         vm.prank(owner);
-        delegate.setTwapSlippageToleranceOf(projectId, _newDelta);
+        hook.setTwapSlippageToleranceOf(projectId, newTolerance);
 
-        _newDelta = bound(_newDeltaSeed, _MAX_TWAP_SLIPPAGE_TOLERANCE + 1, type(uint256).max);
+        // Make sure the new value is too big.
+        newTolerance = bound(newToleranceSeed, MAX_TWAP_SLIPPAGE_TOLERANCE + 1, type(uint256).max);
 
-        vm.expectRevert(abi.encodeWithSelector(IJBBuybackDelegate.JuiceBuyback_InvalidTwapSlippageTolerance.selector));
+        // Expect revert on account of the new TWAP slippage tolerance being too big.
+        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.InvalidTwapSlippageTolerance.selector));
 
-        // Test: set the twap
+        // Test: try to set the TWAP slippage tolerance to the too-big value.
         vm.prank(owner);
-        delegate.setTwapSlippageToleranceOf(projectId, _newDelta);
+        hook.setTwapSlippageToleranceOf(projectId, newTolerance);
     }
 
-    /**
-     * @notice Test if using the delegate as a redemption delegate (which shouldn't be) doesn't influence redemption
-     */
-    function test_redeemParams_unchangedRedemption(uint256 _amountIn) public {
-        JBRedeemParamsData memory _data = JBRedeemParamsData({
-            terminal: IJBPaymentTerminal(makeAddr('terminal')),
-            holder: makeAddr('hooldooor'),
+    /// @notice Test whether redemption functionality is left unchanged by the hook.
+    function test_beforeRedeemRecordedWith_unchangedRedeem(uint256 amountIn) public {
+        // Set up basic redemption context.
+        JBBeforeRedeemRecordedContext memory beforeRedeemRecordedContext = JBBeforeRedeemRecordedContext({
+            terminal: makeAddr("terminal"),
+            holder: makeAddr("hooldooor"),
             projectId: 69,
-            currentFundingCycleConfiguration: 420,
-            tokenCount: 4,
+            rulesetId: 420,
+            redeemCount: 4,
             totalSupply: 5,
-            overflow: 6,
-            reclaimAmount: JBTokenAmount(address(1), _amountIn, 2, 3),
-            useTotalOverflow: true,
+            surplus: 6,
+            reclaimAmount: JBTokenAmount(address(1), amountIn, 2, 3),
+            useTotalSurplus: true,
             redemptionRate: 7,
-            memo: 'memooo',
-            metadata: ''
+            metadata: ""
         });
 
-        (uint256 _amountOut, string memory _memoOut, JBRedemptionDelegateAllocation3_1_1[] memory _allocationOut) = delegate.redeemParams(_data);
+        (uint256 amountOut, JBRedeemHookSpecification[] memory redeemSpecifications) =
+            hook.beforeRedeemRecordedWith(beforeRedeemRecordedContext);
 
-        assertEq(_amountOut, _amountIn);
-        assertEq(_memoOut, _data.memo);
-        assertEq(_allocationOut.length, 0);
+        // Make sure the redemption amount is unchanged and that no specifications were returned.
+        assertEq(amountOut, amountIn);
+        assertEq(redeemSpecifications.length, 0);
     }
 
-    function test_supportsInterface(bytes4 _random) public {
-        vm.assume(_random != type(IJBBuybackDelegate).interfaceId
-            && _random != type(IJBFundingCycleDataSource3_1_1).interfaceId
-            && _random != type(IJBPayDelegate3_1_1).interfaceId
-            && _random != type(IERC165).interfaceId
+    function test_supportsInterface(bytes4 random) public {
+        vm.assume(
+            random != type(IJBBuybackHook).interfaceId && random != type(IJBRulesetDataHook).interfaceId
+                && random != type(IJBPayHook).interfaceId && random != type(IERC165).interfaceId
         );
 
-        assertTrue(ERC165Checker.supportsInterface(address(delegate), type(IJBFundingCycleDataSource3_1_1).interfaceId));
-        assertTrue(ERC165Checker.supportsInterface(address(delegate), type(IJBPayDelegate3_1_1).interfaceId));
-        assertTrue(ERC165Checker.supportsInterface(address(delegate), type(IJBBuybackDelegate).interfaceId));
-        assertTrue(ERC165Checker.supportsERC165(address(delegate)));
+        assertTrue(ERC165Checker.supportsInterface(address(hook), type(IJBRulesetDataHook).interfaceId));
+        assertTrue(ERC165Checker.supportsInterface(address(hook), type(IJBPayHook).interfaceId));
+        assertTrue(ERC165Checker.supportsInterface(address(hook), type(IJBBuybackHook).interfaceId));
+        assertTrue(ERC165Checker.supportsERC165(address(hook)));
 
-        assertFalse(ERC165Checker.supportsInterface(address(delegate), _random));
+        assertFalse(ERC165Checker.supportsInterface(address(hook), random));
     }
 }
 
-contract ForTest_JBBuybackDelegate is JBBuybackDelegate {
-    constructor(IWETH9 _weth, address _factory, IJBDirectory _directory, IJBController3_1 _controller, bytes4 _id)
-        JBBuybackDelegate(_weth, _factory, _directory, _controller, _id)
+/// @notice A mock version of `JBBuybackHook` which exposes internal functions for testing purposes.
+contract ForTest_JBBuybackHook is JBBuybackHook {
+    constructor(
+        IWETH9 weth,
+        address factory,
+        IJBDirectory directory,
+        IJBController controller
+    )
+        JBBuybackHook(weth, factory, directory, controller)
     {}
 
-    function ForTest_getQuote(uint256 _projectId, address _projectToken, uint256 _amountIn, address _terminalToken)
+    function ForTest_getQuote(
+        uint256 projectId,
+        address projectToken,
+        uint256 amountIn,
+        address terminalToken
+    )
         external
         view
-        returns (uint256 _amountOut)
+        returns (uint256 amountOut)
     {
-        return _getQuote(_projectId, _projectToken, _amountIn, _terminalToken);
+        return _getQuote(projectId, projectToken, amountIn, terminalToken);
     }
 
     function ForTest_initPool(
-        IUniswapV3Pool _pool,
-        uint256 _projectId,
-        uint32 _secondsAgo,
-        uint256 _twapDelta,
-        address _projectToken,
-        address _terminalToken
-    ) external {
-        _twapParamsOf[_projectId] = _twapDelta << 128 | _secondsAgo;
-        projectTokenOf[_projectId] = _projectToken;
-        poolOf[_projectId][_terminalToken] = _pool;
+        IUniswapV3Pool pool,
+        uint256 projectId,
+        uint32 secondsAgo,
+        uint256 twapDelta,
+        address projectToken,
+        address terminalToken
+    )
+        external
+    {
+        twapParamsOf[projectId] = twapDelta << 128 | secondsAgo;
+        projectTokenOf[projectId] = projectToken;
+        poolOf[projectId][terminalToken] = pool;
     }
 }

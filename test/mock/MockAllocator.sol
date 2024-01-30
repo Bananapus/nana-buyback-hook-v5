@@ -1,43 +1,41 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.16;
 
-import "@jbx-protocol/juice-contracts-v3/contracts/structs/JBSplitAllocationData.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/structs/JBTokenAmount.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBPayDelegate.sol";
-import "@jbx-protocol/juice-contracts-v3/contracts/interfaces/IJBSplitAllocator.sol";
+import "lib/juice-contracts-v4/src/structs/JBSplitHookContext.sol";
+import "lib/juice-contracts-v4/src/structs/JBTokenAmount.sol";
+import "lib/juice-contracts-v4/src/interfaces/IJBPayHook.sol";
+import "lib/juice-contracts-v4/src/interfaces/IJBSplitHook.sol";
 
-import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165.sol";
 
-contract MockAllocator is ERC165, IJBSplitAllocator {
-    IJBPayDelegate public immutable payDelegate;
+contract MockSplitHook is ERC165, IJBSplitHook {
+    IJBPayHook public immutable PAY_HOOK;
 
-    constructor(IJBPayDelegate _payDelegate) {
-        payDelegate = _payDelegate;
+    constructor(IJBPayHook payHook) {
+        PAY_HOOK = payHook;
     }
 
-    function allocate(JBSplitAllocationData calldata _data) external payable override {
-        _data;
-
-        JBDidPayData memory _didPaydata = JBDidPayData(
+    function processSplitWith(JBSplitHookContext calldata) external payable override {
+        JBAfterPayRecordedContext memory context = JBAfterPayRecordedContext(
             address(this),
             1,
             2,
             JBTokenAmount(address(this), 1 ether, 10 ** 18, 0),
             JBTokenAmount(address(this), 1 ether, 10 ** 18, 0),
             1,
+            1,
             address(this),
-            true,
             "",
             new bytes(0)
         );
 
-        // makes a malicious delegate call to the buyback delegate
+        // Make a malicious delegate call to the buyback hook.
         (bool success,) =
-            address(payDelegate).delegatecall(abi.encodeWithSignature("didPay(JBDidPayData)", _didPaydata));
+            address(PAY_HOOK).delegatecall(abi.encodeWithSignature("afterPayRecordedWith(JBAfterPayRecordedContext)", context));
         assert(success);
     }
 
-    function supportsInterface(bytes4 _interfaceId) public view override(IERC165, ERC165) returns (bool) {
-        return _interfaceId == type(IJBSplitAllocator).interfaceId || super.supportsInterface(_interfaceId);
+    function supportsInterface(bytes4 interfaceId) public view override(IERC165, ERC165) returns (bool) {
+        return interfaceId == type(IJBSplitHook).interfaceId || super.supportsInterface(interfaceId);
     }
 }
