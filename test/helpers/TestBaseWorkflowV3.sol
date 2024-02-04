@@ -221,7 +221,7 @@ contract TestBaseWorkflowV3 is Test {
         // Launch the project with the `multisig` as the owner.
         projectId = jbController.launchProjectFor({
             owner: multisig,
-            projectMetadata: "myIPFSHash",
+            projectUri: "myIPFSHash",
             rulesetConfigurations: rulesetConfigurations,
             terminalConfigurations: terminalConfigurations, // Set terminals to receive fees.
             memo: ""
