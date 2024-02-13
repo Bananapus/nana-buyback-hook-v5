@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {IJBPayHook} from "lib/juice-contracts-v4/src/interfaces/IJBPayHook.sol";
-import {IJBRulesetDataHook} from "lib/juice-contracts-v4/src/interfaces/IJBRulesetDataHook.sol";
-import {IJBDirectory} from "lib/juice-contracts-v4/src/interfaces/IJBDirectory.sol";
-import {IJBController} from "lib/juice-contracts-v4/src/interfaces/IJBController.sol";
-import {IJBProjects} from "lib/juice-contracts-v4/src/interfaces/IJBProjects.sol";
-import {IUniswapV3Pool} from "lib/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import {IUniswapV3SwapCallback} from "lib/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
+import {IJBPayHook} from "juice-contracts-v4/src/interfaces/IJBPayHook.sol";
+import {IJBRulesetDataHook} from "juice-contracts-v4/src/interfaces/IJBRulesetDataHook.sol";
+import {IJBDirectory} from "juice-contracts-v4/src/interfaces/IJBDirectory.sol";
+import {IJBController} from "juice-contracts-v4/src/interfaces/IJBController.sol";
+import {IJBProjects} from "juice-contracts-v4/src/interfaces/IJBProjects.sol";
+import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import {IUniswapV3SwapCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 import {IWETH9} from "./external/IWETH9.sol";
 
 interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallback {
