@@ -30,8 +30,9 @@ contract MockSplitHook is ERC165, IJBSplitHook {
         );
 
         // Make a malicious delegate call to the buyback hook.
-        (bool success,) =
-            address(PAY_HOOK).delegatecall(abi.encodeWithSignature("afterPayRecordedWith(JBAfterPayRecordedContext)", context));
+        (bool success,) = address(PAY_HOOK).delegatecall(
+            abi.encodeWithSignature("afterPayRecordedWith(JBAfterPayRecordedContext)", context)
+        );
         assert(success);
     }
 
