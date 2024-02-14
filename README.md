@@ -4,11 +4,27 @@ When a Juicebox project that uses the buyback hook is paid, it checks whether bu
 
 The buyback hook works with any Juicebox terminal and checks the Uniswap pool specified by the project's owner.
 
-_If you're having trouble understanding this contract, take a look at the [core Juicebox contracts](https://github.com/bananapus/juice-contracts-v4) and the [documentation](https://docs.juicebox.money/) first. If you have questions, reach out on [Discord](https://discord.com/invite/ErQYmth4dS)._
+_If you're having trouble understanding this contract, take a look at the [core protocol contracts](https://github.com/Bananapus/nana-core) and the [documentation](https://docs.juicebox.money/) first. If you have questions, reach out on [Discord](https://discord.com/invite/ErQYmth4dS)._
+
+## Install
+
+For `npm` projects (recommended):
+
+```bash
+npm install @bananapus/buyback-hook
+```
+
+For `forge` projects (not recommended):
+
+```bash
+forge install Bananapus/nana-buyback-hook
+```
+
+Add `@bananapus/buyback-hook/=lib/nana-buyback-hook/` to `remappings.txt`. You'll also need to install `nana-buyback-hook`'s dependencies and add similar remappings for them.
 
 ## Develop
 
-`juice-buyback` uses the [Foundry](https://github.com/foundry-rs/foundry) development toolchain for builds, tests, and deployments. To get set up, install [Foundry](https://github.com/foundry-rs/foundry):
+`nana-buyback-hook` uses the [Foundry](https://github.com/foundry-rs/foundry) development toolchain for builds, tests, and deployments. To get set up, install [Foundry](https://github.com/foundry-rs/foundry):
 
 ```bash
 curl -L https://foundry.paradigm.xyz | sh
@@ -26,7 +42,6 @@ Some useful commands:
 
 | Command               | Description                                         |
 | --------------------- | --------------------------------------------------- |
-| `forge install`       | Install the dependencies.                           |
 | `forge build`         | Compile the contracts and write artifacts to `out`. |
 | `forge fmt`           | Lint.                                               |
 | `forge test`          | Run the tests.                                      |
@@ -37,21 +52,19 @@ Some useful commands:
 
 To learn more, visit the [Foundry Book](https://book.getfoundry.sh/) docs.
 
-We recommend using [Juan Blanco's solidity extension](https://marketplace.visualstudio.com/items?itemName=JuanBlanco.solidity) for VSCode.
+## Scripts
 
-## Utilities
+For convenience, several utility commands are available in `package.json`.
 
-For convenience, several utility commands are available in `util.sh`. To see a list, run:
-
-```bash
-`bash util.sh --help`.
-```
-
-Or make the script executable and run:
-
-```bash
-./util.sh --help
-```
+| Command                           | Description                            |
+| --------------------------------- | -------------------------------------- |
+| `npm test`                        | Run local tests.                       |
+| `npm run test:fork`               | Run fork tests (for use in CI).        |
+| `npm run coverage:lcov`           | Generate an LCOV test coverage report. |
+| `npm run deploy:ethereum-mainnet` | Deploy to Ethereum mainnet             |
+| `npm run deploy:ethereum-sepolia` | Deploy to Ethereum Sepolia testnet     |
+| `npm run deploy:optimism-mainnet` | Deploy to Optimism mainnet             |
+| `npm run deploy:optimism-testnet` | Deploy to Optimism testnet             |
 
 ## Hooks
 
