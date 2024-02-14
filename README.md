@@ -76,7 +76,9 @@ Tips for project owners using the buyback hook.
 
 Every time the buyback hook chooses the swap route, a Uniswap trade will be executed, making payers vulnerable to MEV attacks.
 
-To avoid these attacks, each transaction which triggers the buyback hook should use the Flashbots Protect RPC. You can add this RPC to your wallet on [protect.flashbots.net](https://protect.flashbots.net/). If you're using a multisig wallet (like a Gnosis Safe), make sure that the last signer signs and executes at the same time _while using the Flashbots Protect RPC._ For more information on mitigating MEV from your Gnosis Safe, see [this article](https://medium.com/gnosis-pm/gnosis-safe-mev-how-to-mitigate-it-347e13535e34).
+To mitigate MEV attacks, frontend clients should provide a reasonable minimum quote, and the TWAP parameters should be carefully set – these parameters are used to calculate a default minimum quote when the payer/client doesn't provide one.
+
+You can also avoid MEV attacks by using the Flashbots Protect RPC for transactions which trigger the buyback hook. You can add this RPC to your wallet on [protect.flashbots.net](https://protect.flashbots.net/). If you're using a multisig wallet (like a Gnosis Safe), make sure that the last signer signs and executes at the same time _while using the Flashbots Protect RPC._ For more information on mitigating MEV from your Gnosis Safe, see [this article](https://medium.com/gnosis-pm/gnosis-safe-mev-how-to-mitigate-it-347e13535e34).
 
 ### Setting TWAP Parameters
 
