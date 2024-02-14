@@ -3,8 +3,8 @@ pragma solidity ^0.8.16;
 
 // import "./helpers/TestBaseWorkflowV3.sol";
 
-// import {JBConstants} from "juice-contracts-v4/src/libraries/JBConstants.sol";
-// import {MetadataResolverHelper} from "juice-contracts-v4/test/helpers/MetadataResolverHelper.sol";
+// import {JBConstants} from "@bananapus/core/src/libraries/JBConstants.sol";
+// import {MetadataResolverHelper} from "@bananapus/core/test/helpers/MetadataResolverHelper.sol";
 // import {PoolTestHelper} from "uniswap-v3-foundry-pool/src/PoolTestHelper.sol";
 
 // /**

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.16;
 
-import "juice-contracts-v4/src/structs/JBSplitHookContext.sol";
-import "juice-contracts-v4/src/structs/JBTokenAmount.sol";
-import "juice-contracts-v4/src/interfaces/IJBPayHook.sol";
-import "juice-contracts-v4/src/interfaces/IJBSplitHook.sol";
+import "@bananapus/core/src/structs/JBSplitHookContext.sol";
+import "@bananapus/core/src/structs/JBTokenAmount.sol";
+import "@bananapus/core/src/interfaces/IJBPayHook.sol";
+import "@bananapus/core/src/interfaces/IJBSplitHook.sol";
 
-import "openzeppelin-contracts/contracts/utils/introspection/ERC165.sol";
+import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 contract MockSplitHook is ERC165, IJBSplitHook {
     IJBPayHook public immutable PAY_HOOK;

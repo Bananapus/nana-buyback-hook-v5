@@ -4,17 +4,17 @@ pragma solidity ^0.8.16;
 import "src/interfaces/external/IWETH9.sol";
 import "./helpers/TestBaseWorkflowV3.sol";
 
-import "juice-contracts-v4/src/interfaces/IJBController.sol";
-import "juice-contracts-v4/src/interfaces/IJBDirectory.sol";
-import "juice-contracts-v4/src/interfaces/IJBRedeemHook.sol";
-import "juice-contracts-v4/src/libraries/JBConstants.sol";
+import "@bananapus/core/src/interfaces/IJBController.sol";
+import "@bananapus/core/src/interfaces/IJBDirectory.sol";
+import "@bananapus/core/src/interfaces/IJBRedeemHook.sol";
+import "@bananapus/core/src/libraries/JBConstants.sol";
 
-import {MetadataResolverHelper} from "juice-contracts-v4/src/../test/helpers/MetadataResolverHelper.sol";
+import {MetadataResolverHelper} from "@bananapus/core/src/../test/helpers/MetadataResolverHelper.sol";
 
-import "openzeppelin-contracts/contracts/utils/introspection/ERC165Checker.sol";
-import "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import "forge-std/src/Test.sol";
+import "forge-std/Test.sol";
 
 import "./helpers/PoolAddress.sol";
 import "src/JBBuybackHook.sol";

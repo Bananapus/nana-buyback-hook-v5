@@ -1,9 +1,9 @@
 {
   "dependencies": {
+    "@bananapus/core": "^0.0.2",
     "@exhausted-pigeon/uniswap-v3-forge-quoter": "^1.0.1",
     "@openzeppelin/contracts": "^5.0.1",
     "@uniswap/v3-core": "1.0.2-solc-0.8-simulate",
-    "@uniswap/v3-periphery": "github:uniswap/v3-periphery#0.8",
-    "@bananapus/juice-contracts-v4": "github:Bananapus/juice-contracts-v4#feat/npm"
+    "@uniswap/v3-periphery": "github:uniswap/v3-periphery#0.8"
   }
 }
