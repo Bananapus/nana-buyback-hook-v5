@@ -3,9 +3,9 @@ pragma solidity ^0.8.16;
 
 // import "./helpers/TestBaseWorkflowV3.sol";
 
-// import {JBConstants} from "lib/juice-contracts-v4/src/libraries/JBConstants.sol";
-// import {MetadataResolverHelper} from "lib/juice-contracts-v4/test/helpers/MetadataResolverHelper.sol";
-// import {PoolTestHelper} from "lib/uniswap-v3-foundry-pool/src/PoolTestHelper.sol";
+// import {JBConstants} from "@bananapus/core/src/libraries/JBConstants.sol";
+// import {MetadataResolverHelper} from "@bananapus/core/test/helpers/MetadataResolverHelper.sol";
+// import {PoolTestHelper} from "uniswap-v3-foundry-pool/src/PoolTestHelper.sol";
 
 // /**
 //  * @notice Invariant tests for the JBBuybackHook contract.

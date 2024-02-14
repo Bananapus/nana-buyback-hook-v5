@@ -8,8 +8,12 @@ block_number = 14126430
 block_timestamp = 1643802347
 runs = 4096
 fs_permissions = [{ access = "read", path = "lib/juice-contracts-v4/broadcast/Deploy.s.sol" }] # Get the deployment addresses to base the hook on.
+libs = ["node_modules", "lib"]
 
 [profile.fork] # run via FOUNDRY_PROFILE=fork foundry test
+
+[profile.ci_sizes]
+optimizer_runs = 200
 
 [invariant] 
 fail_on_revert = false

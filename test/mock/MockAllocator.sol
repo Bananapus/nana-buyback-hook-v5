@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.16;
 
-import "lib/juice-contracts-v4/src/structs/JBSplitHookContext.sol";
-import "lib/juice-contracts-v4/src/structs/JBTokenAmount.sol";
-import "lib/juice-contracts-v4/src/interfaces/IJBPayHook.sol";
-import "lib/juice-contracts-v4/src/interfaces/IJBSplitHook.sol";
+import "@bananapus/core/src/structs/JBSplitHookContext.sol";
+import "@bananapus/core/src/structs/JBTokenAmount.sol";
+import "@bananapus/core/src/interfaces/IJBPayHook.sol";
+import "@bananapus/core/src/interfaces/IJBSplitHook.sol";
 
-import "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165.sol";
+import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 contract MockSplitHook is ERC165, IJBSplitHook {
     IJBPayHook public immutable PAY_HOOK;
@@ -30,8 +30,9 @@ contract MockSplitHook is ERC165, IJBSplitHook {
         );
 
         // Make a malicious delegate call to the buyback hook.
-        (bool success,) =
-            address(PAY_HOOK).delegatecall(abi.encodeWithSignature("afterPayRecordedWith(JBAfterPayRecordedContext)", context));
+        (bool success,) = address(PAY_HOOK).delegatecall(
+            abi.encodeWithSignature("afterPayRecordedWith(JBAfterPayRecordedContext)", context)
+        );
         assert(success);
     }
 

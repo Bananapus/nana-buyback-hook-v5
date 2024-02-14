@@ -1,36 +1,36 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.16;
 
-import "lib/forge-std/src/Test.sol";
+import "forge-std/Test.sol";
 
-import "lib/juice-contracts-v4/src/JBController.sol";
-import "lib/juice-contracts-v4/src/JBDirectory.sol";
-import "lib/juice-contracts-v4/src/JBMultiTerminal.sol";
-import "lib/juice-contracts-v4/src/JBFundAccessLimits.sol";
-import "lib/juice-contracts-v4/src/JBTerminalStore.sol";
-import "lib/juice-contracts-v4/src/JBRulesets.sol";
-import "lib/juice-contracts-v4/src/JBFeelessAddresses.sol";
-import "lib/juice-contracts-v4/src/JBPermissions.sol";
-import "lib/juice-contracts-v4/src/JBPrices.sol";
-import "lib/juice-contracts-v4/src/JBProjects.sol";
-import "lib/juice-contracts-v4/src/JBSplits.sol";
-import "lib/juice-contracts-v4/src/JBTokens.sol";
+import "@bananapus/core/src/JBController.sol";
+import "@bananapus/core/src/JBDirectory.sol";
+import "@bananapus/core/src/JBMultiTerminal.sol";
+import "@bananapus/core/src/JBFundAccessLimits.sol";
+import "@bananapus/core/src/JBTerminalStore.sol";
+import "@bananapus/core/src/JBRulesets.sol";
+import "@bananapus/core/src/JBFeelessAddresses.sol";
+import "@bananapus/core/src/JBPermissions.sol";
+import "@bananapus/core/src/JBPrices.sol";
+import "@bananapus/core/src/JBProjects.sol";
+import "@bananapus/core/src/JBSplits.sol";
+import "@bananapus/core/src/JBTokens.sol";
 
-import "lib/juice-contracts-v4/src/structs/JBAfterPayRecordedContext.sol";
-import "lib/juice-contracts-v4/src/structs/JBAfterRedeemRecordedContext.sol";
-import "lib/juice-contracts-v4/src/structs/JBFee.sol";
-import "lib/juice-contracts-v4/src/structs/JBFundAccessLimitGroup.sol";
-import "lib/juice-contracts-v4/src/structs/JBRuleset.sol";
-import "lib/juice-contracts-v4/src/structs/JBRulesetMetadata.sol";
-import "lib/juice-contracts-v4/src/structs/JBSplitGroup.sol";
-import "lib/juice-contracts-v4/src/structs/JBPermissionsData.sol";
-import "lib/juice-contracts-v4/src/structs/JBBeforePayRecordedContext.sol";
-import "lib/juice-contracts-v4/src/structs/JBBeforeRedeemRecordedContext.sol";
-import "lib/juice-contracts-v4/src/structs/JBSplit.sol";
-import "lib/juice-contracts-v4/src/interfaces/terminal/IJBTerminal.sol";
-import "lib/juice-contracts-v4/src/interfaces/IJBToken.sol";
-import "lib/juice-contracts-v4/src/libraries/JBConstants.sol";
-import "lib/juice-contracts-v4/src/interfaces/IJBTerminalStore.sol";
+import "@bananapus/core/src/structs/JBAfterPayRecordedContext.sol";
+import "@bananapus/core/src/structs/JBAfterRedeemRecordedContext.sol";
+import "@bananapus/core/src/structs/JBFee.sol";
+import "@bananapus/core/src/structs/JBFundAccessLimitGroup.sol";
+import "@bananapus/core/src/structs/JBRuleset.sol";
+import "@bananapus/core/src/structs/JBRulesetMetadata.sol";
+import "@bananapus/core/src/structs/JBSplitGroup.sol";
+import "@bananapus/core/src/structs/JBPermissionsData.sol";
+import "@bananapus/core/src/structs/JBBeforePayRecordedContext.sol";
+import "@bananapus/core/src/structs/JBBeforeRedeemRecordedContext.sol";
+import "@bananapus/core/src/structs/JBSplit.sol";
+import "@bananapus/core/src/interfaces/terminal/IJBTerminal.sol";
+import "@bananapus/core/src/interfaces/IJBToken.sol";
+import "@bananapus/core/src/libraries/JBConstants.sol";
+import "@bananapus/core/src/interfaces/IJBTerminalStore.sol";
 
 import "src/interfaces/external/IWETH9.sol";
 import "src/JBBuybackHook.sol";
