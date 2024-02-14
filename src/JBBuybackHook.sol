@@ -390,7 +390,8 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     /// This can be called by the project's owner or an address which has the `JBBuybackPermissionIds.SET_POOL`
     /// permission from the owner.
     /// @param projectId The ID of the project to set the pool for.
-    /// @param fee The fee used in the pool being set.
+    /// @param fee The fee used in the pool being set, as a fixed-point number of basis points with 2 decimals. A 0.01%
+    /// fee is `100`, a 0.05% fee is `500`, a 0.3% fee is `3000`, and a 1% fee is `10000`.
     /// @param twapWindow The period of time over which the TWAP is computed.
     /// @param twapSlippageTolerance The maximum spread allowed between the amount received and the TWAP.
     /// @param terminalToken The address of the terminal token that payments to the project are made in.

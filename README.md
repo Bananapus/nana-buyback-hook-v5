@@ -81,6 +81,49 @@ Each pay hook can then execute custom behavior based on the custom data (and fun
 3. The buyback contract sends its determination back to the terminal. If it approved the swap, the terminal then calls the buyback hook's `afterPayRecordedWith(...)` method, which will wrap the ETH (to wETH), execute the swap, burns the token it received, and mints them again (it also mints tokens for any funds which weren't used in the swap, if any). This burning/re-minting process allows the buyback hook to apply the reserved rate and respect the caller's `preferClaimedTokens` preference.
 4. If the swap failed (due to exceeding the maximum slippage, low liquidity, or something else) the delegate will mint tokens for the recipient according to the project's rules, and use `addToBalanceOf` to send the funds to the project.
 
+## Usage
+
+Tips for project owners using the buyback hook.
+
+### Avoiding MEV
+
+Every time the buyback hook chooses the swap route, a Uniswap trade will be executed, making payers vulnerable to MEV attacks.
+
+To mitigate MEV attacks, frontend clients should provide a reasonable minimum quote, and the TWAP parameters should be carefully set – these parameters are used to calculate a default minimum quote when the payer/client doesn't provide one.
+
+You can also avoid MEV attacks by using the Flashbots Protect RPC for transactions which trigger the buyback hook. You can add this RPC to your wallet on [protect.flashbots.net](https://protect.flashbots.net/). If you're using a multisig wallet (like a Gnosis Safe), make sure that the last signer signs and executes at the same time _while using the Flashbots Protect RPC._ For more information on mitigating MEV from your Gnosis Safe, see [this article](https://medium.com/gnosis-pm/gnosis-safe-mev-how-to-mitigate-it-347e13535e34).
+
+### Setting TWAP Parameters
+
+As the project owner, you have two parameters at your disposal to protect payers: the TWAP window and the maximum slippage tolerance. _See [TWAP Basics](#twap-basics) for an explanation._
+
+#### Limitations
+
+- Custom quotes provided by payers or the frontend override these settings.
+- Low liquidity pools are vulnerable to TWAP manipulation by attackers.
+
+#### Best Practices
+
+- A shorter TWAP window gives more accurate data, but is easier to manipulate, while a longer TWAP window gives more stable data, but can grow inaccurate when volatility is high.
+- A 30m TWAP window is a good starting point for high-activity pairs. If your token has less activity, consider a longer TWAP window, but be careful – if it's too high, your TWAP will give inaccurate quotes when volatility is high.
+- A low slippage tolerance leaves less room for arbitrage, but may cause payments to go to the project instead of the pool, while a high slippage tolerance means more transactions will swap successfully, but they may be more susceptible to arbitrage.
+- A 5% slippage tolerance is a good starting point for more volatile pairs. More mature trading pairs may go as low to 1-2%. If your project's issuance rate is far below the market price, consider a wider slippage tolerance to ensure payments are sent to the pool.
+
+You'll also want to keep the pool's _cardinality_ in mind. This is the number of recent transactions the Uniswap pool keeps track of for calculating the TWAP. If the cardinality is only 1 (the default), then the TWAP will only take the most recent trade into account for calculations. Anyone can increase the pool's cardinality by calling the pool's `increaseObservationCardinalityNext(...)` function.
+
+#### Further Reading
+
+For an overview of TWAP risks, see [this article](https://medium.com/@chinmayf/so-you-want-to-use-twap-1f992f9d3819). Some other helpful resources:
+
+- [Manipulating Uniswap v3 TWAP Oracles](https://github.com/euler-xyz/uni-v3-twap-manipulation/blob/master/cost-of-attack.pdf)
+- [Uniswap Oracle Attack Simulator](https://www.euler.finance/blog/oracle-attack-simulator)
+- [Euler's Oracle Risk Grading System & Oracle Attacks Tutorial](https://www.youtube.com/watch?v=snwUwj3QQ7M)
+
+### Setting The Pool
+
+- If you're using ETH (or another native token) in your pair, use the address from [`JBConstants.NATIVE_TOKEN`](https://github.com/Bananapus/juice-contracts-v4/blob/main/src/libraries/JBConstants.sol): `0x000000000000000000000000000000000000EEEe`.
+- The `fee` is a `uint24` with the same representation as in Uniswap's contracts (basis points with 2 decimals): a 0.01% fee is `100`, a 0.05% fee is `500`, a 0.3% fee is `3000`, and a 1% fee is `10000`.
+
 ## TWAP Basics
 
 When you trade tokens on Uniswap, you must provide a minimum acceptable price for your trade to protect against excessive price movement (also called "slippage"). If the price moves unfavourably beyond this slippage tolerance, your trade will not be executed, protecting you from receiving a worse deal than you were expecting.
