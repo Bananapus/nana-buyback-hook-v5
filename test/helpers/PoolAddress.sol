@@ -2,7 +2,8 @@
 // Source: https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/PoolAddress.sol
 pragma solidity >=0.5.0;
 
-/// @title Provides functions for deriving a pool address based on a factory address, the tokens traded in the pool, and the fee
+/// @title Provides functions for deriving a pool address based on a factory address, the tokens traded in the pool, and
+/// the fee
 library PoolAddress {
     bytes32 internal constant POOL_INIT_CODE_HASH = 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54;
 
