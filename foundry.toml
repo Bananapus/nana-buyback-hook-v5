@@ -12,6 +12,9 @@ libs = ["node_modules", "lib"]
 
 [profile.fork] # run via FOUNDRY_PROFILE=fork foundry test
 
+[profile.ci_sizes]
+optimizer_runs = 200
+
 [invariant] 
 fail_on_revert = false
 
