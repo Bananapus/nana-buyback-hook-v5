@@ -68,6 +68,10 @@ Each pay hook can then execute custom behavior based on the custom data (and fun
 3. The buyback contract sends its determination back to the terminal. If it approved the swap, the terminal then calls the buyback hook's `afterPayRecordedWith(...)` method, which will wrap the ETH (to wETH), execute the swap, burns the token it received, and mints them again (it also mints tokens for any funds which weren't used in the swap, if any). This burning/re-minting process allows the buyback hook to apply the reserved rate and respect the caller's `preferClaimedTokens` preference.
 4. If the swap failed (due to exceeding the maximum slippage, low liquidity, or something else) the delegate will mint tokens for the recipient according to the project's rules, and use `addToBalanceOf` to send the funds to the project.
 
+Project owners have the possibility to specify which pool to use for the buyback hook, using `setPoolFor(..)` - this will compute the Uniswap V3 pool based on the tokens, fee and factory address. The fee must be one of the supported Uniswap fee, expressed in bps (by default 500, 3000, 10000, with 100 having been added on mainnet - see https://etherscan.io/address/0x1f98431c8ad98523631ae4a59f267346ea31f984#readContract#F1, the supported fees having a non-0 tick spacing).
+
+Caution, adding a default pool relies therefore on the factory address and pool bytecode, do not reuse the same parameters accross chains deployments.
+
 ## TWAP Basics
 
 When you trade tokens on Uniswap, you must provide a minimum acceptable price for your trade to protect against excessive price movement (also called "slippage"). If the price moves unfavourably beyond this slippage tolerance, your trade will not be executed, protecting you from receiving a worse deal than you were expecting.
