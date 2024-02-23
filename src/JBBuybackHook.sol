@@ -24,7 +24,7 @@ import {JBBeforeRedeemRecordedContext} from "@bananapus/core/src/structs/JBBefor
 import {JBRedeemHookSpecification} from "@bananapus/core/src/structs/JBRedeemHookSpecification.sol";
 import {JBConstants} from "@bananapus/core/src/libraries/JBConstants.sol";
 import {JBMetadataResolver} from "@bananapus/core/src/libraries/JBMetadataResolver.sol";
-import {JBBuybackPermissionIds} from "./libraries/JBBuybackPermissionIds.sol";
+import {JBPermissionIds} from "@bananapus/permission-ids/src/JBPermissionIds.sol";
 import {IJBBuybackHook} from "./interfaces/IJBBuybackHook.sol";
 import {IWETH9} from "./interfaces/external/IWETH9.sol";
 
@@ -387,7 +387,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     /// @notice Set the pool to use for a given project and terminal token (the default for the project's token <->
     /// terminal token pair).
     /// @dev Uses create2 for callback auth and to allow adding pools which haven't been deployed yet.
-    /// This can be called by the project's owner or an address which has the `JBBuybackPermissionIds.SET_POOL`
+    /// This can be called by the project's owner or an address which has the `JBPermissionIds.CHANGE_BUYBACK_POOL`
     /// permission from the owner.
     /// @param projectId The ID of the project to set the pool for.
     /// @param fee The fee used in the pool being set, as a fixed-point number of basis points with 2 decimals. A 0.01%
@@ -410,7 +410,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         _requirePermissionFrom({
             account: PROJECTS.ownerOf(projectId),
             projectId: projectId,
-            permissionId: JBBuybackPermissionIds.CHANGE_POOL
+            permissionId: JBPermissionIds.CHANGE_BUYBACK_POOL
         });
 
         // Make sure the provided TWAP slippage tolerance is within reasonable bounds.
@@ -477,7 +477,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
 
     /// @notice Change the TWAP window for a project.
     /// The TWAP window is the period of time over which the TWAP is computed.
-    /// @dev This can be called by the project's owner or an address with `JBBuybackPermissionIds.SET_POOL_PARAMS`
+    /// @dev This can be called by the project's owner or an address with `JBPermissionIds.SET_BUYBACK_POOL_PARAMS`
     /// permission from the owner.
     /// @param projectId The ID of the project to set the TWAP window of.
     /// @param newWindow The new TWAP window.
@@ -486,7 +486,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         _requirePermissionFrom({
             account: PROJECTS.ownerOf(projectId),
             projectId: projectId,
-            permissionId: JBBuybackPermissionIds.SET_POOL_PARAMS
+            permissionId: JBPermissionIds.SET_BUYBACK_POOL_PARAMS
         });
 
         // Make sure the specified window is within reasonable bounds.
@@ -508,7 +508,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
 
     /// @notice Set the TWAP slippage tolerance for a project.
     /// The TWAP slippage tolerance is the maximum spread allowed between the amount received and the TWAP.
-    /// @dev This can be called by the project's owner or an address with `JBBuybackPermissionIds.SET_POOL_PARAMS`
+    /// @dev This can be called by the project's owner or an address with `JBPermissionIds.SET_BUYBACK_POOL_PARAMS`
     /// permission from the owner.
     /// @param projectId The ID of the project to set the TWAP slippage tolerance of.
     /// @param newSlippageTolerance The new TWAP slippage tolerance, out of `TWAP_SLIPPAGE_DENOMINATOR`.
@@ -517,7 +517,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         _requirePermissionFrom({
             account: PROJECTS.ownerOf(projectId),
             projectId: projectId,
-            permissionId: JBBuybackPermissionIds.SET_POOL_PARAMS
+            permissionId: JBPermissionIds.SET_BUYBACK_POOL_PARAMS
         });
 
         // Make sure the provided TWAP slippage tolerance is within reasonable bounds.
