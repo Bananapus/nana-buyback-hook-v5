@@ -229,7 +229,7 @@ contract TestBaseWorkflowV3 is Test {
 
         // Deploy the JBX ERC-20 for the project.
         vm.prank(multisig);
-        jbController.deployERC20For(projectId, "jbx", "jbx");
+        jbController.deployERC20For(projectId, "jbx", "jbx", bytes32(0));
 
         // Set the buyback hook pool up for the project.
         vm.prank(multisig);

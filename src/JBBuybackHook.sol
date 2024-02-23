@@ -248,9 +248,9 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         external
         pure
         override
-        returns (uint256, JBRedeemHookSpecification[] memory hookSpecifications)
+        returns (uint256, uint256, uint256, JBRedeemHookSpecification[] memory hookSpecifications)
     {
-        return (context.reclaimAmount.value, hookSpecifications);
+        return (context.redemptionRate, context.redeemCount, context.totalSupply, hookSpecifications);
     }
 
     //*********************************************************************//

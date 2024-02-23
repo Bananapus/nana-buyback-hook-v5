@@ -1553,27 +1553,38 @@ contract Test_BuybackHook_Unit is Test {
     }
 
     /// @notice Test whether redemption functionality is left unchanged by the hook.
-    function test_beforeRedeemRecordedWith_unchangedRedeem(uint256 amountIn) public {
+    function test_beforeRedeemRecordedWith_unchangedRedeem(
+        uint256 redemptionRateIn,
+        uint256 redeemCountIn,
+        uint256 totalSupplyIn
+    )
+        public
+    {
         // Set up basic redemption context.
         JBBeforeRedeemRecordedContext memory beforeRedeemRecordedContext = JBBeforeRedeemRecordedContext({
             terminal: makeAddr("terminal"),
             holder: makeAddr("hooldooor"),
             projectId: 69,
             rulesetId: 420,
-            redeemCount: 4,
-            totalSupply: 5,
-            surplus: 6,
-            reclaimAmount: JBTokenAmount(address(1), amountIn, 2, 3),
+            redeemCount: redeemCountIn,
+            totalSupply: totalSupplyIn,
+            surplus: JBTokenAmount(address(1), 6, 2, 3),
             useTotalSurplus: true,
-            redemptionRate: 7,
+            redemptionRate: redemptionRateIn,
             metadata: ""
         });
 
-        (uint256 amountOut, JBRedeemHookSpecification[] memory redeemSpecifications) =
-            hook.beforeRedeemRecordedWith(beforeRedeemRecordedContext);
+        (
+            uint256 redemptionRateOut,
+            uint256 redeemCountOut,
+            uint256 totalSupplyOut,
+            JBRedeemHookSpecification[] memory redeemSpecifications
+        ) = hook.beforeRedeemRecordedWith(beforeRedeemRecordedContext);
 
         // Make sure the redemption amount is unchanged and that no specifications were returned.
-        assertEq(amountOut, amountIn);
+        assertEq(redemptionRateOut, redemptionRateIn);
+        assertEq(redeemCountOut, redeemCountIn);
+        assertEq(totalSupplyOut, totalSupplyIn);
         assertEq(redeemSpecifications.length, 0);
     }
 
