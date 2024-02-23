@@ -1,6 +1,6 @@
 {
   "name": "@bananapus/buyback-hook",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -16,7 +16,7 @@
     "deploy:optimism-sepolia": "source .env && forge script Deploy --chain-id 11155420 --rpc-url $RPC_OPTIMISM_SEPOLIA --broadcast --verify --etherscan-api-key $OPTIMISTIC_ETHERSCAN_API_KEY --interactives 1 --sender $SENDER_OPTIMISM_SEPOLIA -vvv"
   },
   "dependencies": {
-    "@bananapus/core": "^0.0.5",
+    "@bananapus/core": "^0.0.6",
     "@bananapus/permission-ids": "^0.0.2",
     "@exhausted-pigeon/uniswap-v3-forge-quoter": "^1.0.1",
     "@openzeppelin/contracts": "^5.0.1",
