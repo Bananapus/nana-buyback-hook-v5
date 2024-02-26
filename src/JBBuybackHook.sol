@@ -313,37 +313,37 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         if (quoteExists && exactSwapAmountOut < minimumSwapAmountOut) revert SpecifiedSlippageExceeded();
 
         // Get a reference to any terminal tokens which were paid in and are still held by this contract.
-        uint256 terminalTokenInThisContract = context.forwardedAmount.token == JBConstants.NATIVE_TOKEN
+        uint256 terminalTokensInThisContract = context.forwardedAmount.token == JBConstants.NATIVE_TOKEN
             ? address(this).balance
             : IERC20(context.forwardedAmount.token).balanceOf(address(this));
 
         // Mint a corresponding number of project tokens using any terminal tokens left over.
         // Keep a reference to the number of tokens being minted.
         uint256 partialMintTokenCount;
-        if (terminalTokenInThisContract != 0) {
-            partialMintTokenCount = mulDiv(terminalTokenInThisContract, context.weight, 10 ** context.amount.decimals);
+        if (terminalTokensInThisContract != 0) {
+            partialMintTokenCount = mulDiv(terminalTokensInThisContract, context.weight, 10 ** context.amount.decimals);
 
             // If the token paid in wasn't the native token, grant the terminal permission to pull them back into its
             // balance.
             if (context.forwardedAmount.token != JBConstants.NATIVE_TOKEN) {
-                IERC20(context.forwardedAmount.token).approve(msg.sender, terminalTokenInThisContract);
+                IERC20(context.forwardedAmount.token).approve(msg.sender, terminalTokensInThisContract);
             }
 
             // Keep a reference to the amount being paid as `msg.value`.
             uint256 payValue =
-                context.forwardedAmount.token == JBConstants.NATIVE_TOKEN ? terminalTokenInThisContract : 0;
+                context.forwardedAmount.token == JBConstants.NATIVE_TOKEN ? terminalTokensInThisContract : 0;
 
             // Add the paid amount back to the project's balance in the terminal.
             IJBMultiTerminal(msg.sender).addToBalanceOf{value: payValue}({
                 projectId: context.projectId,
                 token: context.forwardedAmount.token,
-                amount: terminalTokenInThisContract,
+                amount: terminalTokensInThisContract,
                 shouldReturnHeldFees: false,
                 memo: "",
                 metadata: bytes("")
             });
 
-            emit Mint(context.projectId, terminalTokenInThisContract, partialMintTokenCount, msg.sender);
+            emit Mint(context.projectId, terminalTokensInThisContract, partialMintTokenCount, msg.sender);
         }
 
         // Add the amount to mint to the leftover mint amount (avoiding stack too deep here).
