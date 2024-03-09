@@ -322,7 +322,8 @@ contract Test_BuybackHook_Unit is Test {
         assertEq(weightReturned, tokenCount);
     }
 
-    /// @notice Test `beforePayRecordedWith` with a TWAP but a non-deployed pool, which should lead to the payment minting
+    /// @notice Test `beforePayRecordedWith` with a TWAP but a non-deployed pool, which should lead to the payment
+    /// minting
     /// from the terminal.
     function test_beforePayRecordedContext_useTwapNonDeployedPool(uint256 tokenCount) public {
         tokenCount = bound(tokenCount, 1, type(uint120).max);
