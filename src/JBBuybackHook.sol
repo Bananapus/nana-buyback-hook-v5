@@ -560,12 +560,15 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         // Get a reference to the pool that'll be used to make the swap.
         IUniswapV3Pool pool = poolOf[projectId][address(terminalToken)];
 
-        // Make sure the pool exists.
+        // Make sure the pool exists, if not, return an empty quote.
+        if (address(pool).code.length == 0) return 0;
+
+        // If there is a contract at the address, try to get the pool's slot 0.
         try pool.slot0() returns (uint160, int24, uint16, uint16, uint16, uint8, bool unlocked) {
             // If the pool hasn't been initialized, return an empty quote.
             if (!unlocked) return 0;
         } catch {
-            // If the address is invalid, or if the pool has not been deployed yet, return an empty quote.
+            // If the address is invalid, return an empty quote.
             return 0;
         }
 

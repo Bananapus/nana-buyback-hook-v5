@@ -322,6 +322,64 @@ contract Test_BuybackHook_Unit is Test {
         assertEq(weightReturned, tokenCount);
     }
 
+    /// @notice Test `beforePayRecordedWith` with a TWAP but a non-deployed pool, which should lead to the payment
+    /// minting
+    /// from the terminal.
+    function test_beforePayRecordedContext_useTwapNonDeployedPool(uint256 tokenCount) public {
+        // The pool address as no bytecode (yet)
+        vm.etch(address(pool), "");
+        assert(address(pool).code.length == 0);
+
+        tokenCount = bound(tokenCount, 1, type(uint120).max);
+
+        // Set the relevant context.
+        beforePayRecordedContext.weight = tokenCount;
+        beforePayRecordedContext.metadata = "";
+
+        // Return values to catch:
+        JBPayHookSpecification[] memory specificationsReturned;
+        uint256 weightReturned;
+
+        // Test: call `beforePayRecordedWith` - notice we don't mock the pool, as the address should remain empty
+        vm.prank(terminalStore);
+        (weightReturned, specificationsReturned) = hook.beforePayRecordedWith(beforePayRecordedContext);
+
+        // No hook specifications should be returned.
+        assertEq(specificationsReturned.length, 0);
+
+        // The weight should be returned unchanged.
+        assertEq(weightReturned, tokenCount);
+    }
+
+    /// @notice Test `beforePayRecordedWith` with a TWAP but an invalid pool address, which should lead to the payment
+    /// minting from the terminal.
+    function test_beforePayRecordedContext_useTwapInvalidPool(uint256 tokenCount) public {
+        // Invalid bytecode at the pool address - notice it shouldn't be possible, as we rely on create2 pool address
+        vm.etch(address(pool), "12345678");
+        vm.expectRevert();
+        pool.slot0();
+
+        tokenCount = bound(tokenCount, 1, type(uint120).max);
+
+        // Set the relevant context.
+        beforePayRecordedContext.weight = tokenCount;
+        beforePayRecordedContext.metadata = "";
+
+        // Return values to catch:
+        JBPayHookSpecification[] memory specificationsReturned;
+        uint256 weightReturned;
+
+        // Test: call `beforePayRecordedWith` - notice we don't mock the pool, as the address should remain empty
+        vm.prank(terminalStore);
+        (weightReturned, specificationsReturned) = hook.beforePayRecordedWith(beforePayRecordedContext);
+
+        // No hook specifications should be returned.
+        assertEq(specificationsReturned.length, 0);
+
+        // The weight should be returned unchanged.
+        assertEq(weightReturned, tokenCount);
+    }
+
     /// @notice Test the `beforePayRecordedWith` function when the amount to use for the swap is greater than the amount
     /// of tokens sent (should revert).
     function test_beforePayRecordedWith_RevertIfTryingToOverspend(uint256 swapOutCount, uint256 amountIn) public {
