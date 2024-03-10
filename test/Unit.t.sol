@@ -326,6 +326,7 @@ contract Test_BuybackHook_Unit is Test {
     /// minting
     /// from the terminal.
     function test_beforePayRecordedContext_useTwapNonDeployedPool(uint256 tokenCount) public {
+        // The pool address as no bytecode (yet)
         vm.etch(address(pool), "");
         assert(address(pool).code.length == 0);
 
@@ -353,7 +354,10 @@ contract Test_BuybackHook_Unit is Test {
     /// @notice Test `beforePayRecordedWith` with a TWAP but an invalid pool address, which should lead to the payment
     /// minting from the terminal.
     function test_beforePayRecordedContext_useTwapInvalidPool(uint256 tokenCount) public {
+        // Invalid bytecode at the pool address - notice it shouldn't be possible, as we rely on create2 pool address
         vm.etch(address(pool), "12345678");
+        vm.expectRevert();
+        pool.slot0();
 
         tokenCount = bound(tokenCount, 1, type(uint120).max);
 
