@@ -4,12 +4,12 @@ pragma solidity 0.8.23;
 import {stdJson} from "forge-std/Script.sol";
 import {Vm} from "forge-std/Vm.sol";
 
-import {JBBuybackHook} from "src/JBBuybackHook.sol";
+import {IJBBuybackHook} from "../../src/interfaces/IJBBuybackHook.sol";
 
 import {SphinxConstants, NetworkInfo} from "@sphinx-labs/contracts/SphinxConstants.sol";
 
 struct BuybackDeployment {
-    JBBuybackHook hook;
+    IJBBuybackHook hook;
 }
 
 library BuybackDeploymentLib{
@@ -36,7 +36,7 @@ library BuybackDeploymentLib{
     }
 
     function getDeployment(string memory path, string memory network_name) internal view returns (BuybackDeployment memory deployment)  {
-        deployment.hook = JBBuybackHook(_getDeploymentAddress(
+        deployment.hook = IJBBuybackHook(_getDeploymentAddress(
             path,
             "nana-buyback-hook",
             network_name,
