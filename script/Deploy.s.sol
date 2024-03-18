@@ -13,6 +13,9 @@ contract DeployScript is Script, Sphinx {
     /// @notice tracks the deployment of the core contracts for the chain we are deploying to.
     CoreDeployment core;
 
+    /// @notice the salts that are used to deploy the contracts.
+    bytes32 BUYBACK_HOOK = "JBBuybackHook";
+
     /// @notice tracks the addresses that are required for the chain we are deploying to.
     address weth;
     address factory;
@@ -73,8 +76,31 @@ contract DeployScript is Script, Sphinx {
         // TODO: Determine if we want create or create2 here. 
         // Since the args are different, create2 will deploy to different addresses,
         // unless we fetch the weth address in the constructor.
-        new JBBuybackHook(
-            IWETH9(weth), factory, core.directory, core.controller
-        );
+        if(!_isDeployed(
+            BUYBACK_HOOK,
+            type(JBBuybackHook).creationCode,
+            abi.encode(
+                IWETH9(weth), factory, core.directory, core.controller
+            )
+        )){
+            new JBBuybackHook{salt: BUYBACK_HOOK}(
+                IWETH9(weth), factory, core.directory, core.controller
+            );
+        }
+    }
+
+    function _isDeployed(bytes32 salt, bytes memory creationCode, bytes memory arguments) internal view returns (bool) {
+        address _deployedTo = vm.computeCreate2Address({
+            salt: salt,
+            initCodeHash: keccak256(abi.encodePacked(
+                creationCode,
+                arguments
+            )),
+            // Arachnid/deterministic-deployment-proxy address.
+            deployer: address(0x4e59b44847b379578588920cA78FbF26c0B4956C)
+        });
+
+        // Return if code is already present at this address. 
+        return address(_deployedTo).code.length != 0;
     }
 }
