@@ -8,8 +8,8 @@ import {mulDiv} from "@prb/math/src/Common.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {OracleLibrary} from "@uniswap/v3-periphery/contracts/libraries/OracleLibrary.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import {IJBTerminal} from "@bananapus/core/src/interfaces/terminal/IJBTerminal.sol";
-import {IJBMultiTerminal} from "@bananapus/core/src/interfaces/terminal/IJBMultiTerminal.sol";
+import {IJBTerminal} from "@bananapus/core/src/interfaces/IJBTerminal.sol";
+import {IJBMultiTerminal} from "@bananapus/core/src/interfaces/IJBMultiTerminal.sol";
 import {JBAfterPayRecordedContext} from "@bananapus/core/src/structs/JBAfterPayRecordedContext.sol";
 import {JBPermissioned} from "@bananapus/core/src/abstract/JBPermissioned.sol";
 import {IJBDirectory} from "@bananapus/core/src/interfaces/IJBDirectory.sol";
@@ -410,7 +410,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         _requirePermissionFrom({
             account: PROJECTS.ownerOf(projectId),
             projectId: projectId,
-            permissionId: JBPermissionIds.CHANGE_BUYBACK_POOL
+            permissionId: JBPermissionIds.SET_BUYBACK_POOL
         });
 
         // Make sure the provided TWAP slippage tolerance is within reasonable bounds.
