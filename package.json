@@ -22,8 +22,10 @@
     "@bananapus/permission-ids": "^0.0.5",
     "@exhausted-pigeon/uniswap-v3-forge-quoter": "^1.0.1",
     "@openzeppelin/contracts": "^5.0.1",
-    "@sphinx-labs/plugins": "^0.30.5",
     "@uniswap/v3-core": "1.0.2-solc-0.8-simulate",
     "@uniswap/v3-periphery": "github:uniswap/v3-periphery#0.8"
+  },
+  "devDependencies": {
+    "@sphinx-labs/plugins": "^0.30.5"
   }
 }
