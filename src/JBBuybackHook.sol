@@ -2,7 +2,6 @@
 pragma solidity 0.8.23;
 
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
-import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {mulDiv} from "@prb/math/src/Common.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
@@ -35,7 +34,7 @@ import {IWETH9} from "./interfaces/external/IWETH9.sol";
 /// Depending on which route would yield more tokens for the beneficiary. The project's reserved rate applies to either
 /// route.
 /// @dev Compatible with any `JBTerminal` and any project token that can be pooled on Uniswap v3.
-contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
+contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     //*********************************************************************//
     // --------------------------- custom errors ------------------------- //
     //*********************************************************************//
@@ -257,9 +256,9 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
     // -------------------------- public views --------------------------- //
     //*********************************************************************//
 
-    function supportsInterface(bytes4 interfaceId) public view override(ERC165, IERC165) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public pure override returns (bool) {
         return interfaceId == type(IJBRulesetDataHook).interfaceId || interfaceId == type(IJBPayHook).interfaceId
-            || interfaceId == type(IJBBuybackHook).interfaceId || super.supportsInterface(interfaceId);
+            || interfaceId == type(IJBBuybackHook).interfaceId || interfaceId == type(IERC165).interfaceId;
     }
 
     //*********************************************************************//
