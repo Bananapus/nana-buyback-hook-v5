@@ -1337,22 +1337,22 @@ contract Test_BuybackHook_Unit is Test {
         // Mock and expect calls to check the permissions of the caller.
         vm.mockCall(
             address(permissions),
-            abi.encodeCall(permissions.hasPermission, (dude, owner, projectId, JBPermissionIds.CHANGE_BUYBACK_POOL)),
+            abi.encodeCall(permissions.hasPermission, (dude, owner, projectId, JBPermissionIds.SET_BUYBACK_POOL)),
             abi.encode(false)
         );
         vm.expectCall(
             address(permissions),
-            abi.encodeCall(permissions.hasPermission, (dude, owner, projectId, JBPermissionIds.CHANGE_BUYBACK_POOL))
+            abi.encodeCall(permissions.hasPermission, (dude, owner, projectId, JBPermissionIds.SET_BUYBACK_POOL))
         );
 
         vm.mockCall(
             address(permissions),
-            abi.encodeCall(permissions.hasPermission, (dude, owner, 0, JBPermissionIds.CHANGE_BUYBACK_POOL)),
+            abi.encodeCall(permissions.hasPermission, (dude, owner, 0, JBPermissionIds.SET_BUYBACK_POOL)),
             abi.encode(false)
         );
         vm.expectCall(
             address(permissions),
-            abi.encodeCall(permissions.hasPermission, (dude, owner, 0, JBPermissionIds.CHANGE_BUYBACK_POOL))
+            abi.encodeCall(permissions.hasPermission, (dude, owner, 0, JBPermissionIds.SET_BUYBACK_POOL))
         );
 
         // Expect revert on account of the caller not being authorized.
@@ -1465,26 +1465,22 @@ contract Test_BuybackHook_Unit is Test {
         // Mock and expect calls to check the permissions of the caller.
         vm.mockCall(
             address(permissions),
-            abi.encodeCall(
-                permissions.hasPermission, (notOwner, owner, projectId, JBPermissionIds.SET_BUYBACK_POOL_PARAMS)
-            ),
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, projectId, JBPermissionIds.SET_BUYBACK_TWAP)),
             abi.encode(false)
         );
         vm.expectCall(
             address(permissions),
-            abi.encodeCall(
-                permissions.hasPermission, (notOwner, owner, projectId, JBPermissionIds.SET_BUYBACK_POOL_PARAMS)
-            )
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, projectId, JBPermissionIds.SET_BUYBACK_TWAP))
         );
 
         vm.mockCall(
             address(permissions),
-            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBPermissionIds.SET_BUYBACK_POOL_PARAMS)),
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBPermissionIds.SET_BUYBACK_TWAP)),
             abi.encode(false)
         );
         vm.expectCall(
             address(permissions),
-            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBPermissionIds.SET_BUYBACK_POOL_PARAMS))
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBPermissionIds.SET_BUYBACK_TWAP))
         );
 
         // Expect revert on account of the caller not being authorized to set the TWAP window.
@@ -1552,26 +1548,22 @@ contract Test_BuybackHook_Unit is Test {
         // Mock and expect calls to check the permissions of the caller.
         vm.mockCall(
             address(permissions),
-            abi.encodeCall(
-                permissions.hasPermission, (notOwner, owner, projectId, JBPermissionIds.SET_BUYBACK_POOL_PARAMS)
-            ),
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, projectId, JBPermissionIds.SET_BUYBACK_TWAP)),
             abi.encode(false)
         );
         vm.expectCall(
             address(permissions),
-            abi.encodeCall(
-                permissions.hasPermission, (notOwner, owner, projectId, JBPermissionIds.SET_BUYBACK_POOL_PARAMS)
-            )
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, projectId, JBPermissionIds.SET_BUYBACK_TWAP))
         );
 
         vm.mockCall(
             address(permissions),
-            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBPermissionIds.SET_BUYBACK_POOL_PARAMS)),
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBPermissionIds.SET_BUYBACK_TWAP)),
             abi.encode(false)
         );
         vm.expectCall(
             address(permissions),
-            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBPermissionIds.SET_BUYBACK_POOL_PARAMS))
+            abi.encodeCall(permissions.hasPermission, (notOwner, owner, 0, JBPermissionIds.SET_BUYBACK_TWAP))
         );
 
         // Expect revert on account of the caller not being authorized to set the TWAP slippage tolerance.

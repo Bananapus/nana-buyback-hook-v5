@@ -8,8 +8,8 @@ import {mulDiv} from "@prb/math/src/Common.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {OracleLibrary} from "@uniswap/v3-periphery/contracts/libraries/OracleLibrary.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import {IJBTerminal} from "@bananapus/core/src/interfaces/terminal/IJBTerminal.sol";
-import {IJBMultiTerminal} from "@bananapus/core/src/interfaces/terminal/IJBMultiTerminal.sol";
+import {IJBTerminal} from "@bananapus/core/src/interfaces/IJBTerminal.sol";
+import {IJBMultiTerminal} from "@bananapus/core/src/interfaces/IJBMultiTerminal.sol";
 import {JBAfterPayRecordedContext} from "@bananapus/core/src/structs/JBAfterPayRecordedContext.sol";
 import {JBPermissioned} from "@bananapus/core/src/abstract/JBPermissioned.sol";
 import {IJBDirectory} from "@bananapus/core/src/interfaces/IJBDirectory.sol";
@@ -410,7 +410,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         _requirePermissionFrom({
             account: PROJECTS.ownerOf(projectId),
             projectId: projectId,
-            permissionId: JBPermissionIds.CHANGE_BUYBACK_POOL
+            permissionId: JBPermissionIds.SET_BUYBACK_POOL
         });
 
         // Make sure the provided TWAP slippage tolerance is within reasonable bounds.
@@ -477,7 +477,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
 
     /// @notice Change the TWAP window for a project.
     /// The TWAP window is the period of time over which the TWAP is computed.
-    /// @dev This can be called by the project's owner or an address with `JBPermissionIds.SET_BUYBACK_POOL_PARAMS`
+    /// @dev This can be called by the project's owner or an address with `JBPermissionIds.SET_BUYBACK_TWAP`
     /// permission from the owner.
     /// @param projectId The ID of the project to set the TWAP window of.
     /// @param newWindow The new TWAP window.
@@ -486,7 +486,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         _requirePermissionFrom({
             account: PROJECTS.ownerOf(projectId),
             projectId: projectId,
-            permissionId: JBPermissionIds.SET_BUYBACK_POOL_PARAMS
+            permissionId: JBPermissionIds.SET_BUYBACK_TWAP
         });
 
         // Make sure the specified window is within reasonable bounds.
@@ -508,7 +508,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
 
     /// @notice Set the TWAP slippage tolerance for a project.
     /// The TWAP slippage tolerance is the maximum spread allowed between the amount received and the TWAP.
-    /// @dev This can be called by the project's owner or an address with `JBPermissionIds.SET_BUYBACK_POOL_PARAMS`
+    /// @dev This can be called by the project's owner or an address with `JBPermissionIds.SET_BUYBACK_TWAP`
     /// permission from the owner.
     /// @param projectId The ID of the project to set the TWAP slippage tolerance of.
     /// @param newSlippageTolerance The new TWAP slippage tolerance, out of `TWAP_SLIPPAGE_DENOMINATOR`.
@@ -517,7 +517,7 @@ contract JBBuybackHook is ERC165, JBPermissioned, IJBBuybackHook {
         _requirePermissionFrom({
             account: PROJECTS.ownerOf(projectId),
             projectId: projectId,
-            permissionId: JBPermissionIds.SET_BUYBACK_POOL_PARAMS
+            permissionId: JBPermissionIds.SET_BUYBACK_TWAP
         });
 
         // Make sure the provided TWAP slippage tolerance is within reasonable bounds.

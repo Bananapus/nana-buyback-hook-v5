@@ -40,7 +40,7 @@ contract DeployScript is Script, Sphinx {
 
         uint256 chainId = block.chainid;
 
-         // Ethereum Mainnet
+        // Ethereum Mainnet
         if (chainId == 1) {
             weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
             factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
@@ -73,34 +73,37 @@ contract DeployScript is Script, Sphinx {
     }
 
     function deploy() public sphinx {
-        // TODO: Determine if we want create or create2 here. 
+        // TODO: Determine if we want create or create2 here.
         // Since the args are different, create2 will deploy to different addresses,
         // unless we fetch the weth address in the constructor.
-        if(!_isDeployed(
-            BUYBACK_HOOK,
-            type(JBBuybackHook).creationCode,
-            abi.encode(
-                IWETH9(weth), factory, core.directory, core.controller
+        if (
+            !_isDeployed(
+                BUYBACK_HOOK,
+                type(JBBuybackHook).creationCode,
+                abi.encode(IWETH9(weth), factory, core.directory, core.controller)
             )
-        )){
-            new JBBuybackHook{salt: BUYBACK_HOOK}(
-                IWETH9(weth), factory, core.directory, core.controller
-            );
+        ) {
+            new JBBuybackHook{salt: BUYBACK_HOOK}(IWETH9(weth), factory, core.directory, core.controller);
         }
     }
 
-    function _isDeployed(bytes32 salt, bytes memory creationCode, bytes memory arguments) internal view returns (bool) {
+    function _isDeployed(
+        bytes32 salt,
+        bytes memory creationCode,
+        bytes memory arguments
+    )
+        internal
+        view
+        returns (bool)
+    {
         address _deployedTo = vm.computeCreate2Address({
             salt: salt,
-            initCodeHash: keccak256(abi.encodePacked(
-                creationCode,
-                arguments
-            )),
+            initCodeHash: keccak256(abi.encodePacked(creationCode, arguments)),
             // Arachnid/deterministic-deployment-proxy address.
             deployer: address(0x4e59b44847b379578588920cA78FbF26c0B4956C)
         });
 
-        // Return if code is already present at this address. 
+        // Return if code is already present at this address.
         return address(_deployedTo).code.length != 0;
     }
 }
