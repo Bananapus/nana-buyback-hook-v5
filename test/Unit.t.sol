@@ -399,7 +399,7 @@ contract Test_BuybackHook_Unit is Test {
 
         // Pass the hook ID.
         bytes4[] memory ids = new bytes4[](1);
-        ids[0] =  JBMetadataResolver.getId("quote", address(hook));
+        ids[0] = JBMetadataResolver.getId("quote", address(hook));
 
         // Generate the metadata.
         bytes memory metadata = metadataHelper.createMetadata(ids, data);

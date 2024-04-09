@@ -212,7 +212,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
                     projectTokenIs0,
                     totalPaid == amountToSwapWith ? 0 : totalPaid - amountToSwapWith,
                     minimumSwapAmountOut
-                    )
+                )
             });
 
             // All the minting will be done in `afterPayRecordedWith`. Return a weight of 0 to any additional minting
