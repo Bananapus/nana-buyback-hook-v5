@@ -164,7 +164,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             bytes memory metadata;
 
             // The metadata ID is the first 4 bytes of this contract's address.
-            bytes4 metadataId = bytes4(bytes20(address(this)));
+            bytes4 metadataId = JBMetadataResolver.getId("quote");
 
             // Unpack the quote specified by the payer/client (typically from the pool).
             (quoteExists, metadata) = JBMetadataResolver.getDataFor(metadataId, context.metadata);
