@@ -26,8 +26,8 @@ contract DeployScript is Script, Sphinx {
         sphinxConfig.orgId = "cltepuu9u0003j58rjtbd0hvu";
         sphinxConfig.projectName = "nana-buyback-hook";
         sphinxConfig.threshold = 1;
-        sphinxConfig.mainnets = ["ethereum", "optimism", "polygon"];
-        sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "polygon_mumbai"];
+        sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum"];
+        sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia"];
         sphinxConfig.saltNonce = 7;
     }
 
@@ -38,32 +38,38 @@ contract DeployScript is Script, Sphinx {
             vm.envOr("NANA_CORE_DEPLOYMENT_PATH", string("node_modules/@bananapus/core/deployments/"))
         );
 
-        uint256 chainId = block.chainid;
-
         // Ethereum Mainnet
-        if (chainId == 1) {
+        if (block.chainid == 1) {
             weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
             factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
             // Ethereum Sepolia
-        } else if (chainId == 11_155_111) {
+        } else if (block.chainid == 11_155_111) {
             weth = 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9;
             factory = 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
             // Optimism Mainnet
-        } else if (chainId == 420) {
+        } else if (block.chainid == 420) {
             weth = 0x4200000000000000000000000000000000000006;
             factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+            // Base Mainnet
+        } else if (block.chainid == 8453) {
+            weth = 0x4200000000000000000000000000000000000006;
+            factory = 0x33128a8fC17869897dcE68Ed026d694621f6FDfD;
             // Optimism Sepolia
-        } else if (chainId == 11_155_420) {
+        } else if (block.chainid == 11_155_420) {
             weth = 0x4200000000000000000000000000000000000006;
-            factory = address(0);
-            // Polygon Mainnet
-        } else if (chainId == 137) {
-            weth = 0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619;
+            factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
+            // BASE Sepolia
+        } else if (block.chainid == 84_532) {
+            weth = 0x4200000000000000000000000000000000000006;
+            factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
+            // Arbitrum Mainnet
+        } else if (block.chainid == 42_161) {
+            weth = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
             factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-            // Polygon Mumbai
-        } else if (chainId == 80_001) {
-            weth = 0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa;
-            factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+            // Arbitrum Sepolia
+        } else if (block.chainid == 421_614) {
+            weth = 0x980B62Da83eFf3D4576C647993b0c1D7faf17c73;
+            factory = 0x248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e;
         } else {
             revert("Invalid RPC / no juice contracts deployed on this network");
         }
