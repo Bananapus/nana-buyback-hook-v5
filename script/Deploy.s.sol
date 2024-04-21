@@ -58,16 +58,16 @@ contract DeployScript is Script, Sphinx {
         } else if (block.chainid == 11_155_420) {
             weth = 0x4200000000000000000000000000000000000006;
             factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
-            // BASE Sepolia 
-        } else if ( block.chainid == 84532) {
+            // BASE Sepolia
+        } else if (block.chainid == 84_532) {
             weth = 0x4200000000000000000000000000000000000006;
             factory = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
             // Arbitrum Mainnet
-        } else if (block.chainid == 42161) {
+        } else if (block.chainid == 42_161) {
             weth = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
             factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
             // Arbitrum Sepolia
-        } else if (block.chainid == 421614) {
+        } else if (block.chainid == 421_614) {
             weth = 0x980B62Da83eFf3D4576C647993b0c1D7faf17c73;
             factory = 0x248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e;
         } else {
