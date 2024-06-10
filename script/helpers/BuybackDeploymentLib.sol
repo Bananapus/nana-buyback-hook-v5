@@ -44,7 +44,7 @@ library BuybackDeploymentLib {
         returns (BuybackDeployment memory deployment)
     {
         deployment.hook =
-            IJBBuybackHook(_getDeploymentAddress(path, "nana-buyback-hook", network_name, "JBBuybackHook"));
+            IJBBuybackHook(_getDeploymentAddress(path, "nana-buyback-hook-testnet", network_name, "JBBuybackHook"));
     }
 
     /// @notice Get the address of a contract that was deployed by the Deploy script.
