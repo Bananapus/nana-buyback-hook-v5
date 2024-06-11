@@ -386,7 +386,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @notice Set the pool to use for a given project and terminal token (the default for the project's token <->
     /// terminal token pair).
     /// @dev Uses create2 for callback auth and to allow adding pools which haven't been deployed yet.
-    /// This can be called by the project's owner or an address which has the `JBPermissionIds.CHANGE_BUYBACK_POOL`
+    /// This can be called by the project's owner or an address which has the `JBPermissionIds.SET_BUYBACK_POOL`
     /// permission from the owner.
     /// @param projectId The ID of the project to set the pool for.
     /// @param fee The fee used in the pool being set, as a fixed-point number of basis points with 2 decimals. A 0.01%
