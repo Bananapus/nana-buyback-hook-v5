@@ -168,6 +168,9 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             if (quoteExists) (amountToSwapWith, minimumSwapAmountOut) = abi.decode(metadata, (uint256, uint256));
         }
 
+        // If the amount to swap with is greater than the actual amount paid in, revert.
+        if (amountToSwapWith > totalPaid) revert InsufficientPayAmount();
+
         // If the payer/client did not specify an amount to use towards the swap, use the `totalPaid`.
         if (amountToSwapWith == 0) amountToSwapWith = totalPaid;
 
@@ -191,9 +194,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // If the minimum amount of tokens from the swap exceeds the amount that paying the project directly would
         // yield, swap.
         if (tokenCountWithoutHook < minimumSwapAmountOut) {
-            // If the amount to swap with is greater than the actual amount paid in, revert.
-            if (amountToSwapWith > totalPaid) revert InsufficientPayAmount();
-
             // Keep a reference to a flag indicating whether the Uniswap pool will reference the project token first in
             // the pair.
             bool projectTokenIs0 = address(projectToken) < terminalToken;
