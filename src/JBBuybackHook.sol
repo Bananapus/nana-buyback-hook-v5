@@ -301,6 +301,14 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         (bool projectTokenIs0, uint256 amountToMintWith, uint256 minimumSwapAmountOut) =
             abi.decode(context.hookMetadata, (bool, uint256, uint256));
 
+        // If the token paid in isn't the native token, pull the amount to swap from the terminal.
+        if (context.forwardedAmount.token != JBConstants.NATIVE_TOKEN)
+            IERC20(context.forwardedAmount.token).transferFrom(
+                msg.sender,
+                address(this),
+                context.forwardedAmount.value
+            );
+
         // Get a reference to the number of project tokens that was swapped for.
         uint256 exactSwapAmountOut = _swap(context, projectTokenIs0);
 
