@@ -158,8 +158,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
         // Scoped section to prevent stack too deep.
         {
-            // bytes memory metadata;
-
             // The metadata ID is the first 4 bytes of this contract's address.
             bytes4 metadataId = JBMetadataResolver.getId("quote");
 
@@ -205,9 +203,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
                 hook: IJBPayHook(this),
                 amount: amountToSwapWith,
                 metadata: abi.encode(
-                    projectTokenIs0,
-                    totalPaid == amountToSwapWith ? 0 : totalPaid - amountToSwapWith,
-                    minimumSwapAmountOut
+                    projectTokenIs0, totalPaid == amountToSwapWith ? 0 : totalPaid - amountToSwapWith, minimumSwapAmountOut
                 )
             });
 
@@ -302,12 +298,9 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             abi.decode(context.hookMetadata, (bool, uint256, uint256));
 
         // If the token paid in isn't the native token, pull the amount to swap from the terminal.
-        if (context.forwardedAmount.token != JBConstants.NATIVE_TOKEN)
-            IERC20(context.forwardedAmount.token).transferFrom(
-                msg.sender,
-                address(this),
-                context.forwardedAmount.value
-            );
+        if (context.forwardedAmount.token != JBConstants.NATIVE_TOKEN) {
+            IERC20(context.forwardedAmount.token).transferFrom(msg.sender, address(this), context.forwardedAmount.value);
+        }
 
         // Get a reference to the number of project tokens that was swapped for.
         uint256 exactSwapAmountOut = _swap(context, projectTokenIs0);
