@@ -105,13 +105,13 @@ contract TestBaseWorkflowV3 is Test {
         jbProjects = new JBProjects(multisig, address(0));
         vm.label(address(jbProjects), "JBProjects");
 
-        // JBPrices
-        jbPrices = new JBPrices(jbPermissions, jbProjects, multisig);
-        vm.label(address(jbPrices), "JBPrices");
-
         // JBDirectory
         jbDirectory = new JBDirectory(jbPermissions, jbProjects, multisig);
         vm.label(address(jbDirectory), "JBDirectory");
+
+        // JBPrices
+        jbPrices = new JBPrices(jbPermissions, jbProjects, jbDirectory, multisig);
+        vm.label(address(jbPrices), "JBPrices");
 
         // JBRulesets
         jbRulesets = new JBRulesets(jbDirectory);
@@ -135,7 +135,15 @@ contract TestBaseWorkflowV3 is Test {
 
         // JBController
         jbController = new JBController(
-            jbPermissions, jbProjects, jbDirectory, jbRulesets, jbTokens, jbSplits, jbFundAccessLimits, address(0)
+            jbPermissions,
+            jbProjects,
+            jbDirectory,
+            jbRulesets,
+            jbTokens,
+            jbSplits,
+            jbFundAccessLimits,
+            jbPrices,
+            address(0)
         );
         vm.label(address(jbController), "JBController");
 
@@ -148,14 +156,7 @@ contract TestBaseWorkflowV3 is Test {
 
         // JBMultiTerminal
         jbMultiTerminal = new JBMultiTerminal(
-            jbPermissions,
-            jbProjects,
-            jbDirectory,
-            jbSplits,
-            jbTerminalStore,
-            jbFeelessAddresses,
-            IPermit2(address(0)),
-            address(0)
+            jbPermissions, jbProjects, jbSplits, jbTerminalStore, jbFeelessAddresses, IPermit2(address(0)), address(0)
         );
         vm.label(address(jbMultiTerminal), "JBMultiTerminal");
 
@@ -178,6 +179,8 @@ contract TestBaseWorkflowV3 is Test {
             allowSetCustomToken: false,
             allowTerminalMigration: false,
             allowSetTerminals: false,
+            allowAddAccountingContext: false,
+            allowAddPriceFeed: false,
             ownerMustSendPayouts: false,
             allowSetController: false,
             holdFees: false,
@@ -215,9 +218,14 @@ contract TestBaseWorkflowV3 is Test {
         rulesetConfigurations[0].fundAccessLimitGroups = fundAccessLimitGroups;
 
         JBTerminalConfig[] memory terminalConfigurations = new JBTerminalConfig[](1);
-        address[] memory tokensToAccept = new address[](1);
-        tokensToAccept[0] = JBConstants.NATIVE_TOKEN;
-        terminalConfigurations[0] = JBTerminalConfig({terminal: jbMultiTerminal, tokensToAccept: tokensToAccept});
+        JBAccountingContext[] memory accountingContextsToAccept = new JBAccountingContext[](1);
+        accountingContextsToAccept[0] = JBAccountingContext({
+            token: JBConstants.NATIVE_TOKEN,
+            currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            decimals: 18
+        });
+        terminalConfigurations[0] =
+            JBTerminalConfig({terminal: jbMultiTerminal, accountingContextsToAccept: accountingContextsToAccept});
 
         // Launch the project with the `multisig` as the owner.
         projectId = jbController.launchProjectFor({
