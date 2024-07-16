@@ -2,7 +2,7 @@
 pragma solidity ^0.8.16;
 
 import "src/interfaces/external/IWETH9.sol";
-import "./helpers/TestBaseWorkflowV3.sol";
+import /* {*} from */ "@bananapus/core/test/helpers/TestBaseWorkflow.sol";
 
 import {MetadataResolverHelper} from "@bananapus/core/test/helpers/MetadataResolverHelper.sol";
 

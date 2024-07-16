@@ -2,7 +2,7 @@
 pragma solidity ^0.8.16;
 
 import "src/interfaces/external/IWETH9.sol";
-import "./helpers/TestBaseWorkflowV3.sol";
+import /* {*} from */ "@bananapus/core/test/helpers/TestBaseWorkflow.sol";
 
 import "@bananapus/core/src/interfaces/IJBController.sol";
 import "@bananapus/core/src/interfaces/IJBDirectory.sol";
@@ -10,7 +10,7 @@ import "@bananapus/core/src/interfaces/IJBRedeemHook.sol";
 import "@bananapus/core/src/libraries/JBConstants.sol";
 import "@bananapus/permission-ids/src/JBPermissionIds.sol";
 
-import {MetadataResolverHelper} from "@bananapus/core/src/../test/helpers/MetadataResolverHelper.sol";
+import /* {*} from */ "@bananapus/core/test/helpers/TestBaseWorkflow.sol";
 
 import "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
