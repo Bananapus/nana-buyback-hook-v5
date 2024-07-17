@@ -1300,13 +1300,14 @@ contract Test_BuybackHook_Unit is Test {
     function test_setPoolFor_revertIfPoolAlreadyExists(
         uint256 _twapWindow,
         uint256 _twapTolerance,
-        address _terminalToken,
         address _projectToken,
         uint24 _fee
     )
         public
     {
-        vm.assume(_terminalToken != address(0) && _projectToken != address(0) && _fee != 0);
+        address _terminalToken = address(weth);
+
+        vm.assume(_projectToken != address(0) && _fee != 0);
         vm.assume(_terminalToken != _projectToken);
 
         // Get references to the hook's bounds for the TWAP window and slippage tolerance.
@@ -1325,13 +1326,7 @@ contract Test_BuybackHook_Unit is Test {
 
         // Test: call `setPoolFor`.
         vm.prank(owner);
-        hook.setPoolFor(projectId, _fee, uint32(_twapWindow), _twapTolerance, _terminalToken);
-
-        // Expect a revert on account of the pool already existing.
         vm.expectRevert(JBBuybackHook.PoolAlreadySet.selector);
-        vm.prank(owner);
-
-        // Test: call `setPoolFor` again.
         hook.setPoolFor(projectId, _fee, uint32(_twapWindow), _twapTolerance, _terminalToken);
     }
 
