@@ -457,7 +457,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         );
 
         // Make sure this pool hasn't already been set in this hook.
-        if (poolOf[projectId][terminalToken] == newPool) revert PoolAlreadySet();
+        if (poolOf[projectId][terminalToken] != IUniswapV3Pool(address(0))) revert PoolAlreadySet();
 
         // Store the pool.
         poolOf[projectId][terminalToken] = newPool;
