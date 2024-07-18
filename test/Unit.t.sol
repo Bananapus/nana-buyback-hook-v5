@@ -803,7 +803,8 @@ contract Test_BuybackHook_Unit is Test {
         hook.afterPayRecordedWith(afterPayRecordedContext);
     }
 
-    /// @notice Test `afterPayRecordedWith`: if the swap reverts while using the TWAP-based quote, the hook should then
+    /// @notice ~DEPRECATED~ Test `afterPayRecordedWith`: if the swap reverts while using the TWAP-based quote, the hook
+    /// should then
     /// mint tokens based on the hook's balance and the weight. In this test, an ERC-20 token is used as the terminal
     /// token.
     function test_afterPayRecordedWith_ERC20SwapRevertWithoutQuote(
@@ -814,6 +815,9 @@ contract Test_BuybackHook_Unit is Test {
     )
         public
     {
+        // deprecated as spec has been modified
+        vm.skip(true);
+
         // The current weight.
         weight = bound(weight, 1, 1 ether);
 
@@ -968,7 +972,8 @@ contract Test_BuybackHook_Unit is Test {
         hook.afterPayRecordedWith(afterPayRecordedContext);
     }
 
-    /// @notice Test `afterPayRecordedWith`: if the swap reverts while using the TWAP-based quote, the hook should then
+    /// @notice ~DEPRECATED~ Test `afterPayRecordedWith`: if the swap reverts while using the TWAP-based quote, the hook
+    /// should then
     /// mint tokens based on the hook's balance and the weight. In this test, ETH is used as the terminal token.
     function test_afterPayRecordedWith_ETHSwapRevertWithoutQuote(
         uint256 tokenCount,
@@ -978,6 +983,9 @@ contract Test_BuybackHook_Unit is Test {
     )
         public
     {
+        // deprecated as spec has been modified
+        vm.skip(true);
+
         // The current weight.
         weight = bound(weight, 1, 1 ether);
 

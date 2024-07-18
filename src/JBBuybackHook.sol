@@ -305,7 +305,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // Get a reference to the number of project tokens that was swapped for.
         uint256 exactSwapAmountOut = _swap(context, projectTokenIs0);
 
-        // If the payer/client specified a minimum amount to receive, make sure the swap meets that minimum.
+        // Ensure swap satisfies payer/client minimum amount or calculated TWAP if payer/client did not specify.
         if (exactSwapAmountOut < minimumSwapAmountOut) revert SpecifiedSlippageExceeded();
 
         // Get a reference to any terminal tokens which were paid in and are still held by this contract.
