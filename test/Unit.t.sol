@@ -2,7 +2,7 @@
 pragma solidity ^0.8.16;
 
 import "src/interfaces/external/IWETH9.sol";
-import "./helpers/TestBaseWorkflowV3.sol";
+import /* {*} from */ "@bananapus/core/test/helpers/TestBaseWorkflow.sol";
 
 import "@bananapus/core/src/interfaces/IJBController.sol";
 import "@bananapus/core/src/interfaces/IJBDirectory.sol";
@@ -10,7 +10,7 @@ import "@bananapus/core/src/interfaces/IJBRedeemHook.sol";
 import "@bananapus/core/src/libraries/JBConstants.sol";
 import "@bananapus/permission-ids/src/JBPermissionIds.sol";
 
-import {MetadataResolverHelper} from "@bananapus/core/src/../test/helpers/MetadataResolverHelper.sol";
+import /* {*} from */ "@bananapus/core/test/helpers/TestBaseWorkflow.sol";
 
 import "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
@@ -206,7 +206,6 @@ contract Test_BuybackHook_Unit is Test {
             assertEq(
                 specificationsReturned[0].metadata,
                 abi.encode(
-                    true,
                     address(projectToken) < address(weth),
                     beforePayRecordedContext.amount.value - amountIn,
                     swapOutCount
@@ -286,7 +285,7 @@ contract Test_BuybackHook_Unit is Test {
             // the correct metadata,
             assertEq(
                 specificationsReturned[0].metadata,
-                abi.encode(false, address(projectToken) < address(weth), 0, twapAmountOut),
+                abi.encode(address(projectToken) < address(weth), 0, twapAmountOut),
                 "Wrong metadata returned in hook specification"
             );
             // and a weight of 0 to prevent additional minting from the terminal.
@@ -423,15 +422,17 @@ contract Test_BuybackHook_Unit is Test {
     /// @notice Test the `afterPayRecordedWith` function by swapping ETH/wETH for project tokens, ensuring that the
     /// right number of project tokens are burned from the hook and minted to the beneficiary.
     function test_afterPayRecordedWith_swapETH(uint256 tokenCount, uint256 twapQuote) public {
+        // Account for MSB as sign when casting to int256 later.
+        uint256 intMax = type(uint256).max / 2;
+
         // Bound to avoid overflow and ensure that the swap quote exceeds the mint quote.
-        tokenCount = bound(tokenCount, 2, type(uint256).max - 1);
-        twapQuote = bound(twapQuote, tokenCount + 1, type(uint256).max);
+        tokenCount = bound(tokenCount, 2, intMax - 1);
+        twapQuote = bound(twapQuote, tokenCount, intMax);
 
         afterPayRecordedContext.weight = twapQuote;
 
         // The metadata coming from `beforePayRecordedWith(...)`
         afterPayRecordedContext.hookMetadata = abi.encode(
-            true, // Use the specified quote.
             address(projectToken) < address(weth),
             0,
             tokenCount // The token count is used.
@@ -528,15 +529,17 @@ contract Test_BuybackHook_Unit is Test {
     /// @notice Test the `afterPayRecordedWith` function by swapping ETH/wETH for project tokens, ensuring that the
     /// right number of project tokens are burned from the hook and minted to the beneficiary.
     function test_afterPayRecordedWith_swapETHWithExtraFunds(uint256 tokenCount, uint256 twapQuote) public {
+        // Account for MSB as sign when casting to int256 later.
+        uint256 intMax = type(uint256).max / 2;
+
         // Bound to avoid overflow and ensure that the swap quote exceeds the mint quote.
-        tokenCount = bound(tokenCount, 2, type(uint256).max - 1);
-        twapQuote = bound(twapQuote, tokenCount + 1, type(uint256).max);
+        tokenCount = bound(tokenCount, 2, intMax - 1);
+        twapQuote = bound(twapQuote, tokenCount, intMax);
 
         afterPayRecordedContext.weight = twapQuote;
 
         // The metadata coming from `beforePayRecordedWith(...)`
         afterPayRecordedContext.hookMetadata = abi.encode(
-            true, // Use the specified quote.
             address(projectToken) < address(weth),
             0,
             twapQuote // The TWAP quote, which exceeds the token count, is used.
@@ -631,9 +634,12 @@ contract Test_BuybackHook_Unit is Test {
     /// @notice Test the `afterPayRecordedWith` function by swapping ERC-20 tokens for project tokens, ensuring that the
     /// right number of project tokens are burned from the hook and minted to the beneficiary.
     function test_afterPayRecordedWith_swapERC20(uint256 tokenCount, uint256 twapQuote, uint256 decimals) public {
+        // Account for MSB as sign when casting to int256 later.
+        uint256 intMax = type(uint256).max / 2;
+
         // Bound to avoid overflow and ensure that the swap quote exceeds the mint quote.
-        tokenCount = bound(tokenCount, 2, type(uint256).max - 1);
-        twapQuote = bound(twapQuote, tokenCount + 1, type(uint256).max);
+        tokenCount = bound(tokenCount, 2, intMax - 1);
+        twapQuote = bound(twapQuote, tokenCount, intMax);
 
         decimals = bound(decimals, 1, 18);
 
@@ -646,12 +652,7 @@ contract Test_BuybackHook_Unit is Test {
         afterPayRecordedContext.weight = twapQuote;
 
         // The metadata coming from `beforePayRecordedWith(...)`.
-        afterPayRecordedContext.hookMetadata = abi.encode(
-            true, // Use the specified quote.
-            address(projectToken) < address(weth),
-            0,
-            tokenCount
-        );
+        afterPayRecordedContext.hookMetadata = abi.encode(address(projectToken) < address(weth), 0, tokenCount);
 
         // Mock and expect the swap call.
         vm.mockCall(
@@ -699,6 +700,17 @@ contract Test_BuybackHook_Unit is Test {
             abi.encodeCall(
                 directory.isTerminalOf, (afterPayRecordedContext.projectId, IJBTerminal(address(multiTerminal)))
             )
+        );
+
+        // Mock and expect the transferFrom from the terminal to the hook
+        vm.mockCall(
+            address(randomTerminalToken),
+            abi.encodeCall(randomTerminalToken.transferFrom, (address(multiTerminal), address(hook), 1 ether)),
+            abi.encode(true)
+        );
+        vm.expectCall(
+            address(randomTerminalToken),
+            abi.encodeCall(randomTerminalToken.transferFrom, (address(multiTerminal), address(hook), 1 ether))
         );
 
         // Mock and expect the call to burn tokens from the hook.
@@ -758,12 +770,7 @@ contract Test_BuybackHook_Unit is Test {
         afterPayRecordedContext.weight = 1 ether; // weight - unused
 
         // The metadata coming from `beforePayRecordedWith(...)`.
-        afterPayRecordedContext.hookMetadata = abi.encode(
-            true, // Use the specified quote.
-            address(projectToken) < address(weth),
-            0,
-            tokenCount
-        );
+        afterPayRecordedContext.hookMetadata = abi.encode(address(projectToken) < address(weth), 0, tokenCount);
 
         // Mock the swap call reverting.
         vm.mockCallRevert(
@@ -805,7 +812,8 @@ contract Test_BuybackHook_Unit is Test {
         hook.afterPayRecordedWith(afterPayRecordedContext);
     }
 
-    /// @notice Test `afterPayRecordedWith`: if the swap reverts while using the TWAP-based quote, the hook should then
+    /// @notice ~DEPRECATED~ Test `afterPayRecordedWith`: if the swap reverts while using the TWAP-based quote, the hook
+    /// should then
     /// mint tokens based on the hook's balance and the weight. In this test, an ERC-20 token is used as the terminal
     /// token.
     function test_afterPayRecordedWith_ERC20SwapRevertWithoutQuote(
@@ -816,6 +824,9 @@ contract Test_BuybackHook_Unit is Test {
     )
         public
     {
+        // deprecated as spec has been modified
+        vm.skip(true);
+
         // The current weight.
         weight = bound(weight, 1, 1 ether);
 
@@ -838,10 +849,20 @@ contract Test_BuybackHook_Unit is Test {
 
         // The metadata coming from `beforePayRecordedWith(...)`.
         afterPayRecordedContext.hookMetadata = abi.encode(
-            false, // use quote
             address(otherRandomProjectToken) < address(randomTerminalToken),
             extraMint, // extra amount to mint with
             tokenCount
+        );
+
+        // Mock and expect the call to transferFrom to pull token from the terminal to the hook
+        vm.mockCall(
+            address(randomTerminalToken),
+            abi.encodeCall(randomTerminalToken.transferFrom, (address(multiTerminal), address(hook), tokenCount)),
+            abi.encode(true)
+        );
+        vm.expectCall(
+            address(randomTerminalToken),
+            abi.encodeCall(randomTerminalToken.transferFrom, (address(multiTerminal), address(hook), tokenCount))
         );
 
         // Mock the swap call reverting.
@@ -960,7 +981,8 @@ contract Test_BuybackHook_Unit is Test {
         hook.afterPayRecordedWith(afterPayRecordedContext);
     }
 
-    /// @notice Test `afterPayRecordedWith`: if the swap reverts while using the TWAP-based quote, the hook should then
+    /// @notice ~DEPRECATED~ Test `afterPayRecordedWith`: if the swap reverts while using the TWAP-based quote, the hook
+    /// should then
     /// mint tokens based on the hook's balance and the weight. In this test, ETH is used as the terminal token.
     function test_afterPayRecordedWith_ETHSwapRevertWithoutQuote(
         uint256 tokenCount,
@@ -970,6 +992,9 @@ contract Test_BuybackHook_Unit is Test {
     )
         public
     {
+        // deprecated as spec has been modified
+        vm.skip(true);
+
         // The current weight.
         weight = bound(weight, 1, 1 ether);
 
@@ -992,12 +1017,7 @@ contract Test_BuybackHook_Unit is Test {
         afterPayRecordedContext.weight = weight;
 
         // The metadata coming from `beforePayRecordedWith(...)`.
-        afterPayRecordedContext.hookMetadata = abi.encode(
-            false, // use quote
-            address(projectToken) < address(weth),
-            extraMint,
-            tokenCount
-        );
+        afterPayRecordedContext.hookMetadata = abi.encode(address(projectToken) < address(weth), extraMint, tokenCount);
 
         // Mock the swap call reverting.
         vm.mockCallRevert(
@@ -1009,7 +1029,7 @@ contract Test_BuybackHook_Unit is Test {
                     address(weth) < address(projectToken),
                     int256(tokenCount),
                     address(projectToken) < address(weth) ? TickMath.MAX_SQRT_RATIO - 1 : TickMath.MIN_SQRT_RATIO + 1,
-                    abi.encode(projectId, weth)
+                    abi.encode(projectId, JBConstants.NATIVE_TOKEN)
                 )
             ),
             abi.encode("no swap")
@@ -1231,7 +1251,7 @@ contract Test_BuybackHook_Unit is Test {
         hook.uniswapV3SwapCallback(delta0, delta1, abi.encode(projectId, weth, address(projectToken) < address(weth)));
     }
 
-    /// @notice Test adding a new pool, whether it has been deployed or not.
+    /// @notice ~DEPRECATED~ Test adding a new pool, whether it has been deployed or not.
     function test_setPoolFor(
         uint256 twapWindowOverride,
         uint256 twapToleranceOverride,
@@ -1241,6 +1261,9 @@ contract Test_BuybackHook_Unit is Test {
     )
         public
     {
+        // Deprecated due to change in spec
+        vm.skip(true);
+
         vm.assume(terminalToken != address(0) && projectTokenOverride != address(0) && feeOverride != 0);
         vm.assume(terminalToken != projectTokenOverride);
 
@@ -1297,13 +1320,14 @@ contract Test_BuybackHook_Unit is Test {
     function test_setPoolFor_revertIfPoolAlreadyExists(
         uint256 _twapWindow,
         uint256 _twapTolerance,
-        address _terminalToken,
         address _projectToken,
         uint24 _fee
     )
         public
     {
-        vm.assume(_terminalToken != address(0) && _projectToken != address(0) && _fee != 0);
+        address _terminalToken = address(weth);
+
+        vm.assume(_projectToken != address(0) && _fee != 0);
         vm.assume(_terminalToken != _projectToken);
 
         // Get references to the hook's bounds for the TWAP window and slippage tolerance.
@@ -1322,13 +1346,7 @@ contract Test_BuybackHook_Unit is Test {
 
         // Test: call `setPoolFor`.
         vm.prank(owner);
-        hook.setPoolFor(projectId, _fee, uint32(_twapWindow), _twapTolerance, _terminalToken);
-
-        // Expect a revert on account of the pool already existing.
         vm.expectRevert(JBBuybackHook.PoolAlreadySet.selector);
-        vm.prank(owner);
-
-        // Test: call `setPoolFor` again.
         hook.setPoolFor(projectId, _fee, uint32(_twapWindow), _twapTolerance, _terminalToken);
     }
 
