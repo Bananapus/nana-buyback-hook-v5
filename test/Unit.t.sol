@@ -142,7 +142,7 @@ contract Test_BuybackHook_Unit is Test {
         uint256 weight,
         uint256 swapOutCount,
         uint256 amountIn,
-        uint256 decimals
+        uint8 decimals
     )
         public
     {
@@ -156,7 +156,7 @@ contract Test_BuybackHook_Unit is Test {
         amountIn = bound(amountIn, 1, beforePayRecordedContext.amount.value);
 
         // The terminal token decimals.
-        decimals = bound(decimals, 1, 18);
+        decimals = uint8(bound(decimals, 1, 18));
 
         // Calculate the number of project tokens that a direct payment of `amountIn` terminal tokens would yield.
         uint256 tokenCount = mulDiv(amountIn, weight, 10 ** decimals);
@@ -633,7 +633,7 @@ contract Test_BuybackHook_Unit is Test {
 
     /// @notice Test the `afterPayRecordedWith` function by swapping ERC-20 tokens for project tokens, ensuring that the
     /// right number of project tokens are burned from the hook and minted to the beneficiary.
-    function test_afterPayRecordedWith_swapERC20(uint256 tokenCount, uint256 twapQuote, uint256 decimals) public {
+    function test_afterPayRecordedWith_swapERC20(uint256 tokenCount, uint256 twapQuote, uint8 decimals) public {
         // Account for MSB as sign when casting to int256 later.
         uint256 intMax = type(uint256).max / 2;
 
@@ -641,7 +641,7 @@ contract Test_BuybackHook_Unit is Test {
         tokenCount = bound(tokenCount, 2, intMax - 1);
         twapQuote = bound(twapQuote, tokenCount, intMax);
 
-        decimals = bound(decimals, 1, 18);
+        decimals = uint8(bound(decimals, 1, 18));
 
         // Set up the context with the amount of ERC-20 tokens to swap and other information.
         afterPayRecordedContext.amount =
@@ -819,7 +819,7 @@ contract Test_BuybackHook_Unit is Test {
     function test_afterPayRecordedWith_ERC20SwapRevertWithoutQuote(
         uint256 tokenCount,
         uint256 weight,
-        uint256 decimals,
+        uint8 decimals,
         uint256 extraMint
     )
         public
@@ -837,7 +837,7 @@ contract Test_BuybackHook_Unit is Test {
         extraMint = bound(extraMint, 2, type(uint128).max);
 
         // The number of decimals that the terminal token uses.
-        decimals = bound(decimals, 1, 18);
+        decimals = uint8(bound(decimals, 1, 18));
 
         // Set up the context with the amount of ERC-20 tokens to use and other information.
         afterPayRecordedContext.amount =
@@ -987,7 +987,7 @@ contract Test_BuybackHook_Unit is Test {
     function test_afterPayRecordedWith_ETHSwapRevertWithoutQuote(
         uint256 tokenCount,
         uint256 weight,
-        uint256 decimals,
+        uint8 decimals,
         uint256 extraMint
     )
         public
@@ -1005,7 +1005,7 @@ contract Test_BuybackHook_Unit is Test {
         extraMint = bound(extraMint, 2, type(uint128).max);
 
         // The number of decimals that the terminal token uses.
-        decimals = bound(decimals, 1, 18);
+        decimals = uint8(bound(decimals, 1, 18));
 
         // Set up the context with the amount of ETH to use and other information.
         afterPayRecordedContext.amount =

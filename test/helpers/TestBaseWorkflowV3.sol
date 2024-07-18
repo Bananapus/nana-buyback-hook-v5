@@ -63,8 +63,8 @@ contract TestBaseWorkflowV3 is Test {
     JBBuybackHook hook;
 
     uint256 projectId;
-    uint256 reservedRate = 4500;
-    uint256 weight = 10 ether; // Minting 10 token per eth
+    uint16 reservedRate = 4500;
+    uint112 weight = 10 ether; // Minting 10 token per eth
     uint32 cardinality = 1000;
     uint256 twapDelta = 500;
 
@@ -197,7 +197,7 @@ contract TestBaseWorkflowV3 is Test {
         JBCurrencyAmount[] memory surplusAllowances = new JBCurrencyAmount[](1);
         payoutLimits[0] = JBCurrencyAmount({amount: 2 ether, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))});
         surplusAllowances[0] =
-            JBCurrencyAmount({amount: type(uint232).max, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))});
+            JBCurrencyAmount({amount: type(uint224).max, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))});
         fundAccessLimitGroups[0] = JBFundAccessLimitGroup({
             terminal: address(jbMultiTerminal),
             token: JBConstants.NATIVE_TOKEN,
