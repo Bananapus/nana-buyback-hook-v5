@@ -352,7 +352,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             tokenCount: exactSwapAmountOut + partialMintTokenCount,
             beneficiary: address(context.beneficiary),
             memo: "",
-            useReservedRate: true
+            useReservedPercent: true
         });
     }
 
