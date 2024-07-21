@@ -265,7 +265,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 // //  *
 // //  * @dev    Should swap for both beneficiary and reserve (by burning/minting)
 // //  */
-// // function test_swapIfQuoteBetter(uint256 _weight, uint256 _amountIn, uint256 _reservedRate) public {
+// // function test_swapIfQuoteBetter(uint256 _weight, uint256 _amountIn, uint256 _reservedPercent) public {
 // //     _amountIn = bound(_amountIn, 100, 100 ether);
 
 // //     uint256 _amountOutQuoted = getAmountOut(pool, _amountIn, address(weth));
@@ -273,9 +273,9 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 // //     // Reconfigure with a weight smaller than the price implied by the quote
 // //     _weight = bound(_weight, 1, (_amountOutQuoted * 10 ** 18 / _amountIn) - 1);
 
-// //     _reservedRate = bound(_reservedRate, 0, 10_000);
+// //     _reservedPercent = bound(_reservedPercent, 0, 10_000);
 
-// //     _reconfigure(1, address(delegate), _weight, _reservedRate);
+// //     _reconfigure(1, address(delegate), _weight, _reservedPercent);
 
 // //     uint256 _reservedBalanceBefore = jbController.reservedTokenBalanceOf(1);
 
@@ -314,7 +314,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 // //     // Check: token received by the beneficiary
 // //     assertApproxEqAbs(
 // //         jbx.balanceOf(beneficiary) - _balBeforePayment,
-// //         _amountOutQuoted - (_amountOutQuoted * _reservedRate / 10_000),
+// //         _amountOutQuoted - (_amountOutQuoted * _reservedPercent / 10_000),
 // //         1,
 // //         "wrong balance"
 // //     );
@@ -322,7 +322,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 // //     // Check: token added to the reserve - 1 wei sensitivity for rounding errors
 // //     assertApproxEqAbs(
 // //         jbController.reservedTokenBalanceOf(1),
-// //         _reservedBalanceBefore + _amountOutQuoted * _reservedRate / 10_000,
+// //         _reservedBalanceBefore + _amountOutQuoted * _reservedPercent / 10_000,
 // //         1,
 // //         "wrong reserve"
 // //     );
@@ -468,13 +468,13 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 // //  *
 // //  * @dev    Should swap for both beneficiary and reserve (by burning/minting)
 // //  */
-// // function test_swapWhenQuoteNotProvidedInMetadata(uint256 _amountIn, uint256 _reservedRate) public {
+// // function test_swapWhenQuoteNotProvidedInMetadata(uint256 _amountIn, uint256 _reservedPercent) public {
 // //     _amountIn = bound(_amountIn, 10, 10 ether);
-// //     _reservedRate = bound(_reservedRate, 0, 10_000);
+// //     _reservedPercent = bound(_reservedPercent, 0, 10_000);
 
 // //     uint256 _weight = 10 ether;
 
-// //     _reconfigure(1, address(delegate), _weight, _reservedRate);
+// //     _reconfigure(1, address(delegate), _weight, _reservedPercent);
 
 // //     uint256 _reservedBalanceBefore = jbController.reservedTokenBalanceOf(1);
 
@@ -511,18 +511,19 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 // //     // 1 wei sensitivity for rounding errors
 // //     if (_twap > _tokenCount) {
 // //         // Path is picked based on twap, but the token received are the one quoted
-// //         assertApproxEqAbs(_tokenReceived, _quote - (_quote * _reservedRate) / 10_000, 1, "wrong swap");
+// //         assertApproxEqAbs(_tokenReceived, _quote - (_quote * _reservedPercent) / 10_000, 1, "wrong swap");
 // //         assertApproxEqAbs(
 // //             jbController.reservedTokenBalanceOf(1),
-// //             _reservedBalanceBefore + (_quote * _reservedRate) / 10_000,
+// //             _reservedBalanceBefore + (_quote * _reservedPercent) / 10_000,
 // //             1,
 // //             "Reserve"
 // //         );
 // //     } else {
-// //         assertApproxEqAbs(_tokenReceived, _tokenCount - (_tokenCount * _reservedRate) / 10_000, 1, "Wrong mint");
+// //         assertApproxEqAbs(_tokenReceived, _tokenCount - (_tokenCount * _reservedPercent) / 10_000, 1, "Wrong
+// mint");
 // //         assertApproxEqAbs(
 // //             jbController.reservedTokenBalanceOf(1),
-// //             _reservedBalanceBefore + (_tokenCount * _reservedRate) / 10_000,
+// //             _reservedBalanceBefore + (_tokenCount * _reservedPercent) / 10_000,
 // //             1,
 // //             "Reserve"
 // //         );
@@ -676,7 +677,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 // //     );
 // // }
 
-// function _reconfigure(uint256 _projectId, address _delegate, uint256 _weight, uint256 _reservedRate) internal {
+// function _reconfigure(uint256 _projectId, address _delegate, uint256 _weight, uint256 _reservedPercent) internal {
 //     address _projectOwner = jbProjects.ownerOf(_projectId);
 
 //     JBRuleset memory _fundingCycle = jbRulesets.currentOf(_projectId);
@@ -696,7 +697,7 @@ contract TestJBBuybackHook_Fork is Test, UniswapV3ForgeQuoter {
 //     metadata.useDataHookForPay = true;
 //     metadata.dataHook = _delegate;
 
-//     metadata.reservedRate = _reservedRate;
+//     metadata.reservedPercent = _reservedPercent;
 
 //     data.weight = _weight;
 //     data.duration = 14 days;

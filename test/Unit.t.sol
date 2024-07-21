@@ -78,7 +78,7 @@ contract Test_BuybackHook_Unit is Test {
         rulesetId: 0,
         beneficiary: dude,
         weight: 69,
-        reservedRate: 0,
+        reservedPercent: 0,
         metadata: ""
     });
 

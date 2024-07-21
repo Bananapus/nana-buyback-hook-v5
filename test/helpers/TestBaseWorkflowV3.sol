@@ -63,7 +63,7 @@ contract TestBaseWorkflowV3 is Test {
     JBBuybackHook hook;
 
     uint256 projectId;
-    uint16 reservedRate = 4500;
+    uint16 reservedPercent = 4500;
     uint112 weight = 10 ether; // Minting 10 token per eth
     uint32 cardinality = 1000;
     uint256 twapDelta = 500;
@@ -170,7 +170,7 @@ contract TestBaseWorkflowV3 is Test {
 
         // Ruleset metadata: use the hook for payments.
         metadata = JBRulesetMetadata({
-            reservedRate: reservedRate,
+            reservedPercent: reservedPercent,
             redemptionRate: 5000,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
@@ -210,7 +210,7 @@ contract TestBaseWorkflowV3 is Test {
         rulesetConfigurations[0].mustStartAtOrAfter = 0;
         rulesetConfigurations[0].duration = 6 days;
         rulesetConfigurations[0].weight = weight;
-        rulesetConfigurations[0].decayRate = 0;
+        rulesetConfigurations[0].decayPercent = 0;
         rulesetConfigurations[0].approvalHook = IJBRulesetApprovalHook(address(0));
 
         rulesetConfigurations[0].metadata = metadata;
