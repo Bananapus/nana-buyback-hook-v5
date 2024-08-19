@@ -1661,7 +1661,7 @@ contract ForTest_JBBuybackHook is JBBuybackHook {
         IJBDirectory directory,
         IJBController controller
     )
-        JBBuybackHook(weth, factory, directory, controller)
+        JBBuybackHook(directory, controller, weth, factory)
     {}
 
     function ForTest_getQuote(

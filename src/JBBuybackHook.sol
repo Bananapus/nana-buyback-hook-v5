@@ -323,24 +323,24 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     // ---------------------------- constructor -------------------------- //
     //*********************************************************************//
 
-    /// @param weth The WETH contract.
-    /// @param factory The address of the Uniswap v3 factory. Used to calculate pool addresses.
     /// @param directory The directory of terminals and controllers.
     /// @param controller The controller used to mint and burn tokens.
+    /// @param weth The WETH contract.
+    /// @param factory The address of the Uniswap v3 factory. Used to calculate pool addresses.
     constructor(
-        IWETH9 weth,
-        address factory,
         IJBDirectory directory,
-        IJBController controller
+        IJBController controller,
+        IWETH9 weth,
+        address factory
     )
         JBPermissioned(IJBPermissioned(address(controller)).PERMISSIONS())
     {
-        WETH = weth;
         DIRECTORY = directory;
         CONTROLLER = controller;
+        PROJECTS = controller.PROJECTS();
         // slither-disable-next-line missing-zero-check
         UNISWAP_V3_FACTORY = factory;
-        PROJECTS = controller.PROJECTS();
+        WETH = weth;
     }
 
     //*********************************************************************//

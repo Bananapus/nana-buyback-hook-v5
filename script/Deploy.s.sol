@@ -85,7 +85,7 @@ contract DeployScript is Script, Sphinx {
                 abi.encode(IWETH9(weth), factory, core.directory, core.controller)
             )
         ) {
-            new JBBuybackHook{salt: BUYBACK_HOOK}(IWETH9(weth), factory, core.directory, core.controller);
+            new JBBuybackHook{salt: BUYBACK_HOOK}(core.directory, core.controller, IWETH9(weth), factory);
         }
     }
 
