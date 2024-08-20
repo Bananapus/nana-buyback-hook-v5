@@ -122,6 +122,30 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     mapping(uint256 projectId => uint256) internal _twapParamsOf;
 
     //*********************************************************************//
+    // ---------------------------- constructor -------------------------- //
+    //*********************************************************************//
+
+    /// @param directory The directory of terminals and controllers.
+    /// @param controller The controller used to mint and burn tokens.
+    /// @param weth The WETH contract.
+    /// @param factory The address of the Uniswap v3 factory. Used to calculate pool addresses.
+    constructor(
+        IJBDirectory directory,
+        IJBController controller,
+        IWETH9 weth,
+        address factory
+    )
+        JBPermissioned(IJBPermissioned(address(controller)).PERMISSIONS())
+    {
+        DIRECTORY = directory;
+        CONTROLLER = controller;
+        PROJECTS = controller.PROJECTS();
+        // slither-disable-next-line missing-zero-check
+        UNISWAP_V3_FACTORY = factory;
+        WETH = weth;
+    }
+
+    //*********************************************************************//
     // ------------------------- external views -------------------------- //
     //*********************************************************************//
 
@@ -317,30 +341,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
         // Return the lowest acceptable return based on the TWAP and its parameters.
         amountOut -= (amountOut * twapSlippageTolerance) / TWAP_SLIPPAGE_DENOMINATOR;
-    }
-
-    //*********************************************************************//
-    // ---------------------------- constructor -------------------------- //
-    //*********************************************************************//
-
-    /// @param directory The directory of terminals and controllers.
-    /// @param controller The controller used to mint and burn tokens.
-    /// @param weth The WETH contract.
-    /// @param factory The address of the Uniswap v3 factory. Used to calculate pool addresses.
-    constructor(
-        IJBDirectory directory,
-        IJBController controller,
-        IWETH9 weth,
-        address factory
-    )
-        JBPermissioned(IJBPermissioned(address(controller)).PERMISSIONS())
-    {
-        DIRECTORY = directory;
-        CONTROLLER = controller;
-        PROJECTS = controller.PROJECTS();
-        // slither-disable-next-line missing-zero-check
-        UNISWAP_V3_FACTORY = factory;
-        WETH = weth;
     }
 
     //*********************************************************************//
