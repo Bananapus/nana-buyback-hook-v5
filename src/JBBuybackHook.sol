@@ -44,13 +44,14 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     // --------------------------- custom errors ------------------------- //
     //*********************************************************************//
 
-    error JBBuybackHook_SpecifiedSlippageExceeded();
-    error JBBuybackHook_InsufficientPayAmount();
-    error JBBuybackHook_NoProjectToken();
-    error JBBuybackHook_PoolAlreadySet();
-    error JBBuybackHook_InvalidTwapSlippageTolerance();
-    error JBBuybackHook_InvalidTwapWindow();
-    error JBBuybackHook_Unauthorized();
+    error JBBuybackHook_CallerNotPool(address caller);
+    error JBBuybackHook_InsufficientPayAmount(uint256 swapAmount, uint256 totalPaid);
+    error JBBuybackHook_InvalidTwapSlippageTolerance(uint256 value, uint256 min, uint256 max);
+    error JBBuybackHook_InvalidTwapWindow(uint256 value, uint256 min, uint256 max);
+    error JBBuybackHook_PoolAlreadySet(IUniswapV3Pool pool);
+    error JBBuybackHook_SpecifiedSlippageExceeded(uint256 amount, uint256 minimum);
+    error JBBuybackHook_Unauthorized(address caller);
+    error JBBuybackHook_ZeroProjectToken();
 
     //*********************************************************************//
     // --------------------- public constant properties ------------------ //
@@ -193,7 +194,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         }
 
         // If the amount to swap with is greater than the actual amount paid in, revert.
-        if (amountToSwapWith > totalPaid) revert JBBuybackHook_InsufficientPayAmount();
+        if (amountToSwapWith > totalPaid) revert JBBuybackHook_InsufficientPayAmount(amountToSwapWith, totalPaid);
 
         // If the payer/client did not specify an amount to use towards the swap, use the `totalPaid`.
         if (amountToSwapWith == 0) amountToSwapWith = totalPaid;
@@ -357,7 +358,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     function afterPayRecordedWith(JBAfterPayRecordedContext calldata context) external payable override {
         // Make sure only the project's payment terminals can access this function.
         if (!DIRECTORY.isTerminalOf(context.projectId, IJBTerminal(msg.sender))) {
-            revert JBBuybackHook_Unauthorized();
+            revert JBBuybackHook_Unauthorized(msg.sender);
         }
 
         // Parse the metadata forwarded from the data hook.
@@ -376,7 +377,9 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         uint256 exactSwapAmountOut = _swap(context, projectTokenIs0);
 
         // Ensure swap satisfies payer/client minimum amount or calculated TWAP if payer/client did not specify.
-        if (exactSwapAmountOut < minimumSwapAmountOut) revert JBBuybackHook_SpecifiedSlippageExceeded();
+        if (exactSwapAmountOut < minimumSwapAmountOut) {
+            revert JBBuybackHook_SpecifiedSlippageExceeded(exactSwapAmountOut, minimumSwapAmountOut);
+        }
 
         // Get a reference to any terminal tokens which were paid in and are still held by this contract.
         uint256 leftoverAmountInThisContract = context.forwardedAmount.token == JBConstants.NATIVE_TOKEN
@@ -466,17 +469,21 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // Make sure the provided TWAP slippage tolerance is within reasonable bounds.
         if (twapSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || twapSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE)
         {
-            revert JBBuybackHook_InvalidTwapSlippageTolerance();
+            revert JBBuybackHook_InvalidTwapSlippageTolerance(
+                twapSlippageTolerance, MIN_TWAP_SLIPPAGE_TOLERANCE, MAX_TWAP_SLIPPAGE_TOLERANCE
+            );
         }
 
         // Make sure the provided TWAP window is within reasonable bounds.
-        if (twapWindow < MIN_TWAP_WINDOW || twapWindow > MAX_TWAP_WINDOW) revert JBBuybackHook_InvalidTwapWindow();
+        if (twapWindow < MIN_TWAP_WINDOW || twapWindow > MAX_TWAP_WINDOW) {
+            revert JBBuybackHook_InvalidTwapWindow(twapWindow, MIN_TWAP_WINDOW, MAX_TWAP_WINDOW);
+        }
 
         // Keep a reference to the project's token.
         address projectToken = address(CONTROLLER.TOKENS().tokenOf(projectId));
 
         // Make sure the project has issued a token.
-        if (projectToken == address(0)) revert JBBuybackHook_NoProjectToken();
+        if (projectToken == address(0)) revert JBBuybackHook_ZeroProjectToken();
 
         // If the specified terminal token is the native token, use wETH instead.
         if (terminalToken == JBConstants.NATIVE_TOKEN) terminalToken = address(WETH);
@@ -511,7 +518,9 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         );
 
         // Make sure this pool hasn't already been set in this hook.
-        if (poolOf[projectId][terminalToken] != IUniswapV3Pool(address(0))) revert JBBuybackHook_PoolAlreadySet();
+        if (poolOf[projectId][terminalToken] != IUniswapV3Pool(address(0))) {
+            revert JBBuybackHook_PoolAlreadySet(poolOf[projectId][terminalToken]);
+        }
 
         // Store the pool.
         poolOf[projectId][terminalToken] = newPool;
@@ -546,7 +555,9 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
         // Make sure the provided TWAP slippage tolerance is within reasonable bounds.
         if (newSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || newSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE) {
-            revert JBBuybackHook_InvalidTwapSlippageTolerance();
+            revert JBBuybackHook_InvalidTwapSlippageTolerance(
+                newSlippageTolerance, MIN_TWAP_SLIPPAGE_TOLERANCE, MAX_TWAP_SLIPPAGE_TOLERANCE
+            );
         }
 
         // Keep a reference to the currently stored TWAP params.
@@ -582,7 +593,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
         // Make sure the specified window is within reasonable bounds.
         if (newWindow < MIN_TWAP_WINDOW || newWindow > MAX_TWAP_WINDOW) {
-            revert JBBuybackHook_InvalidTwapWindow();
+            revert JBBuybackHook_InvalidTwapWindow(newWindow, MIN_TWAP_WINDOW, MAX_TWAP_WINDOW);
         }
 
         // Keep a reference to the stored TWAP params.
@@ -609,7 +620,9 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         address terminalTokenWithWETH = terminalToken == JBConstants.NATIVE_TOKEN ? address(WETH) : terminalToken;
 
         // Make sure this call is being made from the right pool.
-        if (msg.sender != address(poolOf[projectId][terminalTokenWithWETH])) revert JBBuybackHook_Unauthorized();
+        if (msg.sender != address(poolOf[projectId][terminalTokenWithWETH])) {
+            revert JBBuybackHook_CallerNotPool(msg.sender);
+        }
 
         // Keep a reference to the number of tokens that should be sent to fulfill the swap (the positive delta).
         uint256 amountToSendToPool = amount0Delta < 0 ? uint256(amount1Delta) : uint256(amount0Delta);

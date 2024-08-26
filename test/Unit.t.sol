@@ -412,7 +412,13 @@ contract Test_BuybackHook_Unit is Test {
         uint256 weightReturned;
 
         // Expect revert on account of the pay amount being too low.
-        vm.expectRevert(JBBuybackHook.JBBuybackHook_InsufficientPayAmount.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                JBBuybackHook.JBBuybackHook_InsufficientPayAmount.selector,
+                amountIn,
+                beforePayRecordedContext.amount.value
+            )
+        );
 
         // Test: call `beforePayRecordedWith`.
         vm.prank(terminalStore);
@@ -804,7 +810,9 @@ contract Test_BuybackHook_Unit is Test {
         );
 
         // Expect a revert on account of the swap failing.
-        vm.expectRevert(JBBuybackHook.JBBuybackHook_SpecifiedSlippageExceeded.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(JBBuybackHook.JBBuybackHook_SpecifiedSlippageExceeded.selector, 0, tokenCount)
+        );
 
         vm.prank(address(multiTerminal));
 
@@ -1137,7 +1145,7 @@ contract Test_BuybackHook_Unit is Test {
         );
 
         // Expect revert on account of the caller not being the terminal.
-        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.JBBuybackHook_Unauthorized.selector));
+        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.JBBuybackHook_Unauthorized.selector, notTerminal));
 
         vm.prank(notTerminal);
 
@@ -1247,7 +1255,7 @@ contract Test_BuybackHook_Unit is Test {
         int256 delta1 = 1 ether;
 
         // Expect revert on account of the caller not being the pool.
-        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.JBBuybackHook_Unauthorized.selector));
+        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.JBBuybackHook_CallerNotPool.selector, address(this)));
         hook.uniswapV3SwapCallback(delta0, delta1, abi.encode(projectId, weth, address(projectToken) < address(weth)));
     }
 
@@ -1342,11 +1350,11 @@ contract Test_BuybackHook_Unit is Test {
         _twapWindow = bound(_twapWindow, MIN_TWAP_WINDOW, MAX_TWAP_WINDOW);
 
         // Mock the call to get the project's token.
-        vm.mockCall(address(tokens), abi.encodeCall(tokens.tokenOf, (projectId)), abi.encode(_projectToken));
+        vm.mockCall(address(tokens), abi.encodeCall(tokens.tokenOf, projectId), abi.encode(_projectToken));
 
         // Test: call `setPoolFor`.
         vm.prank(owner);
-        vm.expectRevert(JBBuybackHook.JBBuybackHook_PoolAlreadySet.selector);
+        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.JBBuybackHook_PoolAlreadySet.selector, pool));
         hook.setPoolFor(projectId, _fee, uint32(_twapWindow), _twapTolerance, _terminalToken);
     }
 
@@ -1392,22 +1400,50 @@ contract Test_BuybackHook_Unit is Test {
         vm.mockCall(address(tokens), abi.encodeCall(tokens.tokenOf, (projectId)), abi.encode(_projectToken));
 
         // Check: is the TWAP window too small?
-        vm.expectRevert(JBBuybackHook.JBBuybackHook_InvalidTwapWindow.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                JBBuybackHook.JBBuybackHook_InvalidTwapWindow.selector,
+                uint32(MIN_TWAP_WINDOW - 1),
+                MIN_TWAP_WINDOW,
+                MAX_TWAP_WINDOW
+            )
+        );
         vm.prank(owner);
         hook.setPoolFor(projectId, _fee, uint32(MIN_TWAP_WINDOW - 1), MIN_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken);
 
         // Check: is the TWAP window too large?
-        vm.expectRevert(JBBuybackHook.JBBuybackHook_InvalidTwapWindow.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                JBBuybackHook.JBBuybackHook_InvalidTwapWindow.selector,
+                uint32(MAX_TWAP_WINDOW + 1),
+                MIN_TWAP_WINDOW,
+                MAX_TWAP_WINDOW
+            )
+        );
         vm.prank(owner);
         hook.setPoolFor(projectId, _fee, uint32(MAX_TWAP_WINDOW + 1), MIN_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken);
 
         // Check: is the TWAP slippage tolerance too small?
-        vm.expectRevert(JBBuybackHook.JBBuybackHook_InvalidTwapSlippageTolerance.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                JBBuybackHook.JBBuybackHook_InvalidTwapSlippageTolerance.selector,
+                MIN_TWAP_SLIPPAGE_TOLERANCE - 1,
+                MIN_TWAP_SLIPPAGE_TOLERANCE,
+                MAX_TWAP_SLIPPAGE_TOLERANCE
+            )
+        );
         vm.prank(owner);
         hook.setPoolFor(projectId, _fee, uint32(MIN_TWAP_WINDOW + 1), MIN_TWAP_SLIPPAGE_TOLERANCE - 1, _terminalToken);
 
         // Check: is the TWAP slippage tolerance too large?
-        vm.expectRevert(JBBuybackHook.JBBuybackHook_InvalidTwapSlippageTolerance.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                JBBuybackHook.JBBuybackHook_InvalidTwapSlippageTolerance.selector,
+                MAX_TWAP_SLIPPAGE_TOLERANCE + 1,
+                MIN_TWAP_SLIPPAGE_TOLERANCE,
+                MAX_TWAP_SLIPPAGE_TOLERANCE
+            )
+        );
         vm.prank(owner);
         hook.setPoolFor(projectId, _fee, uint32(MIN_TWAP_WINDOW + 1), MAX_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken);
     }
@@ -1441,7 +1477,7 @@ contract Test_BuybackHook_Unit is Test {
         vm.mockCall(address(tokens), abi.encodeCall(tokens.tokenOf, (projectId)), abi.encode(address(0)));
 
         // Expect revert on account of the project not having a token.
-        vm.expectRevert(JBBuybackHook.JBBuybackHook_NoProjectToken.selector);
+        vm.expectRevert(JBBuybackHook.JBBuybackHook_ZeroProjectToken.selector);
         vm.prank(owner);
 
         // Test: call `setPoolFor`.
@@ -1507,7 +1543,11 @@ contract Test_BuybackHook_Unit is Test {
         uint256 newValue = bound(newValueSeed, MAX_TWAP_WINDOW + 1, type(uint32).max);
 
         // Expect revert on account of the new TWAP window being too big.
-        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.JBBuybackHook_InvalidTwapWindow.selector));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                JBBuybackHook.JBBuybackHook_InvalidTwapWindow.selector, newValue, MIN_TWAP_WINDOW, MAX_TWAP_WINDOW
+            )
+        );
 
         // Test: try to set the TWAP window to the too-big value.
         vm.prank(owner);
@@ -1517,7 +1557,11 @@ contract Test_BuybackHook_Unit is Test {
         newValue = bound(newValueSeed, 0, MIN_TWAP_WINDOW - 1);
 
         // Expect revert on account of the new TWAP window being too small.
-        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.JBBuybackHook_InvalidTwapWindow.selector));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                JBBuybackHook.JBBuybackHook_InvalidTwapWindow.selector, newValue, MIN_TWAP_WINDOW, MAX_TWAP_WINDOW
+            )
+        );
 
         // Test: try to set the TWAP window to the too-small value.
         vm.prank(owner);
@@ -1585,7 +1629,14 @@ contract Test_BuybackHook_Unit is Test {
         uint256 newTolerance = bound(newToleranceSeed, 0, MIN_TWAP_SLIPPAGE_TOLERANCE - 1);
 
         // Expect revert on account of the new TWAP slippage tolerance being too small.
-        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.JBBuybackHook_InvalidTwapSlippageTolerance.selector));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                JBBuybackHook.JBBuybackHook_InvalidTwapSlippageTolerance.selector,
+                newTolerance,
+                MIN_TWAP_SLIPPAGE_TOLERANCE,
+                MAX_TWAP_SLIPPAGE_TOLERANCE
+            )
+        );
 
         // Test: try to set the TWAP slippage tolerance to the too-small value.
         vm.prank(owner);
@@ -1595,7 +1646,14 @@ contract Test_BuybackHook_Unit is Test {
         newTolerance = bound(newToleranceSeed, MAX_TWAP_SLIPPAGE_TOLERANCE + 1, type(uint256).max);
 
         // Expect revert on account of the new TWAP slippage tolerance being too big.
-        vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.JBBuybackHook_InvalidTwapSlippageTolerance.selector));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                JBBuybackHook.JBBuybackHook_InvalidTwapSlippageTolerance.selector,
+                newTolerance,
+                MIN_TWAP_SLIPPAGE_TOLERANCE,
+                MAX_TWAP_SLIPPAGE_TOLERANCE
+            )
+        );
 
         // Test: try to set the TWAP slippage tolerance to the too-big value.
         vm.prank(owner);
