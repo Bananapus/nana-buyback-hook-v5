@@ -3,6 +3,7 @@ pragma solidity ^0.8.16;
 
 import "forge-std/Test.sol";
 
+import "@bananapus/core/src/abstract/JBPermissioned.sol";
 import "@bananapus/core/src/JBController.sol";
 import "@bananapus/core/src/JBDirectory.sol";
 import "@bananapus/core/src/JBMultiTerminal.sol";
@@ -15,6 +16,7 @@ import "@bananapus/core/src/JBPrices.sol";
 import "@bananapus/core/src/JBProjects.sol";
 import "@bananapus/core/src/JBSplits.sol";
 import "@bananapus/core/src/JBTokens.sol";
+import "@bananapus/core/src/JBERC20.sol";
 
 import "@bananapus/core/src/structs/JBAfterPayRecordedContext.sol";
 import "@bananapus/core/src/structs/JBAfterRedeemRecordedContext.sol";
@@ -110,7 +112,7 @@ contract TestBaseWorkflowV3 is Test {
         vm.label(address(jbDirectory), "JBDirectory");
 
         // JBPrices
-        jbPrices = new JBPrices(jbPermissions, jbProjects, jbDirectory, multisig);
+        jbPrices = new JBPrices(jbDirectory, jbPermissions, jbProjects, multisig);
         vm.label(address(jbPrices), "JBPrices");
 
         // JBRulesets
@@ -135,14 +137,14 @@ contract TestBaseWorkflowV3 is Test {
 
         // JBController
         jbController = new JBController(
-            jbPermissions,
-            jbProjects,
             jbDirectory,
-            jbRulesets,
-            jbTokens,
-            jbSplits,
             jbFundAccessLimits,
+            jbPermissions,
             jbPrices,
+            jbProjects,
+            jbRulesets,
+            jbSplits,
+            jbTokens,
             address(0)
         );
         vm.label(address(jbController), "JBController");
@@ -151,12 +153,12 @@ contract TestBaseWorkflowV3 is Test {
         jbDirectory.setIsAllowedToSetFirstController(address(jbController), true);
 
         // JBTerminalStore
-        jbTerminalStore = new JBTerminalStore(jbDirectory, jbRulesets, jbPrices);
+        jbTerminalStore = new JBTerminalStore(jbDirectory, jbPrices, jbRulesets);
         vm.label(address(jbTerminalStore), "JBTerminalStore");
 
         // JBMultiTerminal
         jbMultiTerminal = new JBMultiTerminal(
-            jbPermissions, jbProjects, jbSplits, jbTerminalStore, jbFeelessAddresses, IPermit2(address(0)), address(0)
+            jbFeelessAddresses, jbPermissions, jbProjects, jbSplits, jbTerminalStore, IPermit2(address(0)), address(0)
         );
         vm.label(address(jbMultiTerminal), "JBMultiTerminal");
 
@@ -181,6 +183,7 @@ contract TestBaseWorkflowV3 is Test {
             allowSetTerminals: false,
             allowAddAccountingContext: false,
             allowAddPriceFeed: false,
+            allowCrosschainSuckerExtension: false,
             ownerMustSendPayouts: false,
             allowSetController: false,
             holdFees: false,
