@@ -1376,7 +1376,15 @@ contract Test_BuybackHook_Unit is Test {
         );
 
         // Expect revert on account of the caller not being authorized.
-        vm.expectRevert(JBPermissioned.JBPermissioned_Unauthorized.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                JBPermissioned.JBPermissioned_Unauthorized.selector,
+                owner,
+                dude,
+                projectId,
+                JBPermissionIds.SET_BUYBACK_POOL
+            )
+        );
 
         // Test: call `setPoolFor` from an unauthorized address (`dude`).
         vm.prank(dude);
@@ -1526,7 +1534,15 @@ contract Test_BuybackHook_Unit is Test {
         );
 
         // Expect revert on account of the caller not being authorized to set the TWAP window.
-        vm.expectRevert(JBPermissioned.JBPermissioned_Unauthorized.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                JBPermissioned.JBPermissioned_Unauthorized.selector,
+                owner,
+                notOwner,
+                projectId,
+                JBPermissionIds.SET_BUYBACK_TWAP
+            )
+        );
 
         // Test: call `setTwapWindowOf` from an unauthorized address (`notOwner`).
         vm.startPrank(notOwner);
@@ -1611,7 +1627,15 @@ contract Test_BuybackHook_Unit is Test {
         );
 
         // Expect revert on account of the caller not being authorized to set the TWAP slippage tolerance.
-        vm.expectRevert(JBPermissioned.JBPermissioned_Unauthorized.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                JBPermissioned.JBPermissioned_Unauthorized.selector,
+                owner,
+                notOwner,
+                projectId,
+                JBPermissionIds.SET_BUYBACK_TWAP
+            )
+        );
 
         // Test: call `setTwapSlippageToleranceOf` from an unauthorized address (`notOwner`).
         vm.prank(notOwner);
