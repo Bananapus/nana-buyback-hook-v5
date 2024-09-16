@@ -163,9 +163,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @return hookSpecifications Specifications containing pay hooks, as well as the amount and metadata to send to
     /// them. Fulfilled by the terminal.
     /// If tokens are only being minted, `hookSpecifications` will be empty.
-    function beforePayRecordedWith(
-        JBBeforePayRecordedContext calldata context
-    )
+    function beforePayRecordedWith(JBBeforePayRecordedContext calldata context)
         external
         view
         override
@@ -243,9 +241,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @notice To fulfill the `IJBRulesetDataHook` interface.
     /// @dev Pass redeem context back to the terminal without changes.
     /// @param context The redeem context passed in by the terminal.
-    function beforeRedeemRecordedWith(
-        JBBeforeRedeemRecordedContext calldata context
-    )
+    function beforeRedeemRecordedWith(JBBeforeRedeemRecordedContext calldata context)
         external
         pure
         override
