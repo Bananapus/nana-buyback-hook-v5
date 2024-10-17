@@ -13,6 +13,9 @@ import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 
 import "@exhausted-pigeon/uniswap-v3-forge-quoter/src/UniswapV3ForgeQuoter.sol";
 
+import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
+/* import '@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol'; */
+
 import "src/JBBuybackHook.sol";
 
 import {mulDiv, mulDiv18} from "@prb/math/src/Common.sol";
@@ -37,17 +40,18 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
     uint256 constant TWAP_SLIPPAGE_DENOMINATOR = 10_000;
 
     IUniswapV3Factory constant factory = IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984);
-    IERC20 jbx = IERC20(0x4554CC10898f92D45378b98D6D6c2dD54c687Fb2);
+    IJBToken jbx;
     IWETH9 constant weth = IWETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2); // 1 - 1*10**18
 
     uint256 constant price = 69_420 ether;
-    uint32 constant cardinality = 100_000;
+    uint32 constant cardinality = 2 minutes;
     uint256 constant twapDelta = 5000;
     uint24 constant fee = 10_000;
 
     uint256 constant amountPaid = 1 ether;
 
     // Contracts needed
+    ISwapRouter router = ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
     IUniswapV3Pool pool;
 
     // Structure needed
@@ -78,11 +82,10 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
             allowSetController: false,
             allowAddAccountingContext: true,
             allowAddPriceFeed: true,
-            allowCrosschainSuckerExtension: true,
             ownerMustSendPayouts: false,
             holdFees: false,
             useTotalSurplusForRedemptions: true,
-            useDataHookForPay: false,
+            useDataHookForPay: true,
             useDataHookForRedeem: false,
             dataHook: address(delegate),
             metadata: 0
@@ -145,7 +148,9 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
 
             // Setup an erc20 for the project
             vm.prank(multisig());
-            jbController().setTokenFor(1, IJBToken(address(jbx)));
+            jbx = jbController().deployERC20For(1, "JUICEBOXXX", "JBX", bytes32(0));
+            vm.label(address(jbx), "$JBX");
+            vm.label(address(jbErc20()), "jbErc20");
         }
     }
 
@@ -168,13 +173,14 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         pool = IUniswapV3Pool(factory.createPool(address(weth), address(jbx), fee));
         pool.initialize(sqrtPriceX96); // 1 eth <=> 69420 jbx
 
-        vm.warp(block.timestamp + 60);
-        pool.increaseObservationCardinalityNext(60);
-
         address LP = makeAddr("LP");
+
+        vm.prank(multisig());
+        jbController().mintTokensOf(1, 10_000_000 ether, LP, "", false);
+
         vm.startPrank(LP, LP);
         deal(address(weth), LP, 10_000_000 ether);
-        deal(address(jbx), LP, 10_000_000 ether);
+        /* deal(address(jbx), LP, 10_000_000 ether); */
 
         // create a full range position
         address POSITION_MANAGER = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88;
@@ -202,7 +208,9 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         vm.stopPrank();
 
         vm.prank(jbProjects().ownerOf(1));
-        delegate.setPoolFor(1, fee, cardinality, twapDelta, address(weth));
+        delegate.setPoolFor(1, fee, 2 minutes, twapDelta, address(weth));
+
+        primePool();
 
         amountOutQuoted = getAmountOut(pool, 1 ether, address(weth));
 
@@ -210,10 +218,37 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         vm.label(address(factory), "uniswapFactory");
         vm.label(address(weth), "$WETH");
         vm.label(address(jbx), "$JBX");
+        vm.label(address(delegate), "delegate");
     }
 
     // placeholder so that our setup actually runs
     function test_isSetup() external {}
+
+    function primePool() internal {
+        uint256 amountIn = 1 ether;
+
+        // *** Simulate a trade to create an observation ***
+        deal(address(weth), address(this), 1 ether);
+        /* vm.startPrank(address(this)); // Assume your test contract can make the trade */
+        weth.approve(address(router), amountIn); // Approve the pool to spend WETH
+
+        // Perform a swap (adjust parameters as needed)
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+            tokenIn: address(weth),
+            tokenOut: address(jbx),
+            fee: fee,
+            recipient: address(this),
+            deadline: block.timestamp,
+            amountIn: amountIn,
+            amountOutMinimum: 0, // Set a suitable minimum output amount
+            sqrtPriceLimitX96: 0 // Set a suitable price limit
+        });
+        router.exactInputSingle(params);
+
+        // Now advance time and increase cardinality
+        vm.warp(block.timestamp + 2 minutes);
+        pool.increaseObservationCardinalityNext(2 minutes);
+    }
 
     function _getTwapQuote(
         uint256 _amountIn,
@@ -257,19 +292,18 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
 
         // Pass the delegate id
         bytes4[] memory _ids = new bytes4[](1);
-        _ids[0] = bytes4(hex"69");
+        _ids[0] = bytes4(hex"b55923f0");
 
         // Generate the metadata
         bytes memory _delegateMetadata = metadataHelper().createMetadata(_ids, _data);
 
         // This shouldn't mint via the delegate
         vm.expectEmit(true, true, true, true);
-        emit Mint({
+        emit IJBTokens.Mint({
             holder: multisig(),
             projectId: 1,
-            amount: mulDiv18(_weight, _amountIn) / 2, // Half is reserved
-            tokensWereClaimed: true,
-            preferClaimedTokens: true,
+            count: mulDiv18(_weight, _amountIn) / 2, // Half is reserved
+            shouldClaimTokens: true,
             caller: address(jbController())
         });
 
@@ -311,10 +345,11 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
     function test_swapIfQuoteBetter(uint256 _weight, uint256 _amountIn, uint256 _reservedPercent) public {
         _amountIn = bound(_amountIn, 100, 100 ether);
 
+        primePool();
         uint256 _amountOutQuoted = getAmountOut(pool, _amountIn, address(weth));
 
         // Reconfigure with a weight smaller than the price implied by the quote
-        _weight = bound(_weight, 1, (_amountOutQuoted * 10 ** 18 / _amountIn) - 1);
+        _weight = 1;
 
         _reservedPercent = bound(_reservedPercent, 0, 10_000);
 
@@ -367,6 +402,7 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         // Reconfigure with a weight of 1 wei, to force swapping
         uint256 _weight = 1;
         _reconfigure(1, address(delegate), _weight, 5000);
+        primePool();
 
         // Build the metadata using the quote at that block
         // Build the metadata using the quote at that block
@@ -506,6 +542,7 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         uint256 _weight = 10 ether;
 
         _reconfigure(1, address(delegate), _weight, _reservedPercent);
+        primePool();
 
         uint256 _reservedBalanceBefore = jbController().pendingReservedTokenBalanceOf(1);
 
@@ -573,6 +610,7 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
 
         // Reconfigure with a weight of amountOutQuoted + 1
         _reconfigure(1, address(delegate), amountOutQuoted + 1, 0);
+        primePool();
 
         uint256 _balBeforePayment = jbx.balanceOf(multisig());
 
@@ -598,7 +636,7 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
      *         revert if a quote was passed in the pay data
      */
     function test_revertIfSlippageTooHighAndQuote() public {
-        uint256 _weight = 50;
+        uint256 _weight = 1;
         // Reconfigure with a weight smaller than the quote, slippage included
         _reconfigure(1, address(delegate), _weight, 5000);
 
@@ -606,17 +644,18 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         bytes[] memory _data = new bytes[](1);
         _data[0] = abi.encode(
             0,
-            69_412_820_131_620_254_304_865 + 10 // 10 more than quote at that block
+            302_767_581_477_830_835_954_604_933 + 10 // 10 more than quote at that block
         );
 
         // Pass the delegate id
         bytes4[] memory _ids = new bytes4[](1);
-        _ids[0] = bytes4(hex"69");
+        vm.prank(address(delegate));
+        _ids[0] = bytes4(hex"b55923f0");
 
         // Generate the metadata
         bytes memory _delegateMetadata = metadataHelper().createMetadata(_ids, _data);
 
-        vm.expectRevert(JBBuybackHook.JBBuybackHook_SpecifiedSlippageExceeded.selector);
+        vm.expectPartialRevert(JBBuybackHook.JBBuybackHook_SpecifiedSlippageExceeded.selector);
 
         // Pay the project
         jbMultiTerminal().pay{value: 1 ether}(
@@ -653,7 +692,7 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
 
         // Pass the delegate id
         bytes4[] memory _ids = new bytes4[](1);
-        _ids[0] = bytes4(hex"69");
+        _ids[0] = bytes4(hex"b55923f0");
 
         // Generate the metadata
         bytes memory _delegateMetadata = metadataHelper().createMetadata(_ids, _data);
