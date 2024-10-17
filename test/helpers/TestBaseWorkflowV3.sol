@@ -183,7 +183,6 @@ contract TestBaseWorkflowV3 is Test {
             allowSetTerminals: false,
             allowAddAccountingContext: false,
             allowAddPriceFeed: false,
-            allowCrosschainSuckerExtension: false,
             ownerMustSendPayouts: false,
             allowSetController: false,
             holdFees: false,
