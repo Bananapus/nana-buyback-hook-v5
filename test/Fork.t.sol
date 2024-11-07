@@ -162,6 +162,7 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         delegate = new JBBuybackHook({
             directory: jbDirectory(),
             controller: jbController(),
+            prices: jbPrices(),
             weth: weth,
             factory: address(factory)
         });
@@ -655,7 +656,13 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         // Generate the metadata
         bytes memory _delegateMetadata = metadataHelper().createMetadata(_ids, _data);
 
-        vm.expectPartialRevert(JBBuybackHook.JBBuybackHook_SpecifiedSlippageExceeded.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                JBBuybackHook.JBBuybackHook_SpecifiedSlippageExceeded.selector,
+                0,
+                302_767_581_477_830_835_954_604_933 + 10
+            )
+        );
 
         // Pay the project
         jbMultiTerminal().pay{value: 1 ether}(

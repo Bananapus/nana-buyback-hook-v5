@@ -55,6 +55,7 @@ contract Test_BuybackHook_Unit is Test {
     IJBProjects projects = IJBProjects(makeAddr("IJBProjects"));
     IJBPermissions permissions = IJBPermissions(makeAddr("IJBPermissions"));
     IJBController controller = IJBController(makeAddr("controller"));
+    IJBPrices prices = IJBPrices(makeAddr("prices"));
     IJBDirectory directory = IJBDirectory(makeAddr("directory"));
     IJBTokens tokens = IJBTokens(makeAddr("tokens"));
 
@@ -122,7 +123,8 @@ contract Test_BuybackHook_Unit is Test {
             weth: weth,
             factory: uniswapFactory,
             directory: directory,
-            controller: controller
+            controller: controller,
+            prices: prices
         });
 
         hook.ForTest_initPool(pool, projectId, twapWindow, twapTolerance, address(projectToken), address(weth));
@@ -1168,7 +1170,8 @@ contract Test_BuybackHook_Unit is Test {
             weth: terminalToken,
             factory: uniswapFactory,
             directory: directory,
-            controller: controller
+            controller: controller,
+            prices: prices
         });
 
         // Initialize the pool with wETH (if you pass in the `NATIVE_TOKEN` address, the pool is initialized with wETH).
@@ -1220,7 +1223,8 @@ contract Test_BuybackHook_Unit is Test {
             weth: terminalToken,
             factory: uniswapFactory,
             directory: directory,
-            controller: controller
+            controller: controller,
+            prices: prices
         });
 
         hook.ForTest_initPool(pool, projectId, twapWindow, twapTolerance, address(projectToken), address(terminalToken));
@@ -1741,9 +1745,10 @@ contract ForTest_JBBuybackHook is JBBuybackHook {
         IWETH9 weth,
         address factory,
         IJBDirectory directory,
-        IJBController controller
+        IJBController controller,
+        IJBPrices prices
     )
-        JBBuybackHook(directory, controller, weth, factory)
+        JBBuybackHook(directory, controller, prices, weth, factory)
     {}
 
     function ForTest_getQuote(
