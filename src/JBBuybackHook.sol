@@ -324,6 +324,10 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         uint32 twapWindow = uint32(twapParams);
         uint256 twapSlippageTolerance = twapParams >> 128;
 
+        // If the oldest observation is older than the TWAP window, use the oldest observation.
+        uint32 oldestObservation = OracleLibrary.getOldestObservationSecondsAgo(pool);
+        if (oldestObservation < twapWindow) twapWindow = oldestObservation;
+
         // Keep a reference to the TWAP tick.
         // slither-disable-next-line unused-return
         (int24 arithmeticMeanTick,) = OracleLibrary.consult(address(pool), twapWindow);
