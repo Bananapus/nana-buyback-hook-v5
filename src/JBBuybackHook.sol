@@ -409,11 +409,26 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             ? address(this).balance
             : IERC20(context.forwardedAmount.token).balanceOf(address(this));
 
+        // Get a reference to the ruleset.
+        (JBRuleset memory ruleset,) = CONTROLLER.currentRulesetOf(context.projectId);
+
+        // If the hook should base its weight on a currency other than the terminal's currency, determine the
+        // factor. The weight is always a fixed point mumber with 18 decimals. To ensure this, the ratio should use
+        // the same number of decimals as the `leftoverAmountInThisContract`.
+        uint256 weightRatio = context.amount.currency == ruleset.baseCurrency()
+            ? 10 ** context.amount.decimals
+            : PRICES.pricePerUnitOf({
+                projectId: context.projectId,
+                pricingCurrency: context.amount.currency,
+                unitCurrency: ruleset.baseCurrency(),
+                decimals: context.amount.decimals
+            });
+
         // Mint a corresponding number of project tokens using any terminal tokens left over.
         // Keep a reference to the number of tokens being minted.
         uint256 partialMintTokenCount;
         if (leftoverAmountInThisContract != 0) {
-            partialMintTokenCount = mulDiv(leftoverAmountInThisContract, context.weight, 10 ** context.amount.decimals);
+            partialMintTokenCount = mulDiv(leftoverAmountInThisContract, context.weight, weightRatio);
 
             // If the token paid in wasn't the native token, grant the terminal permission to pull them back into its
             // balance.
@@ -446,7 +461,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         }
 
         // Add the amount to mint to the leftover mint amount (avoiding stack too deep here).
-        partialMintTokenCount += mulDiv(amountToMintWith, context.weight, 10 ** context.amount.decimals);
+        partialMintTokenCount += mulDiv(amountToMintWith, context.weight, weightRatio);
 
         // Mint the calculated amount of tokens for the beneficiary, including any leftover amount.
         // This takes the reserved rate into account.
