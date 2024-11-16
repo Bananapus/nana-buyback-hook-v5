@@ -645,7 +645,7 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         bytes[] memory _data = new bytes[](1);
         _data[0] = abi.encode(
             0,
-            302_767_581_477_830_835_954_604_933 + 10 // 10 more than quote at that block
+            67_331_221_947_532_926_107_815 + 10 // 10 more than quote at that block
         );
 
         // Pass the delegate id
@@ -659,8 +659,8 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         vm.expectRevert(
             abi.encodeWithSelector(
                 JBBuybackHook.JBBuybackHook_SpecifiedSlippageExceeded.selector,
-                0,
-                302_767_581_477_830_835_954_604_933 + 10
+                67_331_221_947_532_926_107_815,
+                67_331_221_947_532_926_107_815 + 10 // 10 more than quote at block as before
             )
         );
 
