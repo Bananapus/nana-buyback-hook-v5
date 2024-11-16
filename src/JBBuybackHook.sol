@@ -210,6 +210,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         if (amountToSwapWith == 0) amountToSwapWith = totalPaid;
 
         // Get a reference to the ruleset.
+        // slither-disable-next-line unused-return
         (JBRuleset memory ruleset,) = CONTROLLER.currentRulesetOf(context.projectId);
 
         // If the hook should base its weight on a currency other than the terminal's currency, determine the
@@ -410,6 +411,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             : IERC20(context.forwardedAmount.token).balanceOf(address(this));
 
         // Get a reference to the ruleset.
+        // slither-disable-next-line unused-return
         (JBRuleset memory ruleset,) = CONTROLLER.currentRulesetOf(context.projectId);
 
         // If the hook should base its weight on a currency other than the terminal's currency, determine the
