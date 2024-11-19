@@ -392,7 +392,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             // balance.
             if (context.forwardedAmount.token != JBConstants.NATIVE_TOKEN) {
                 // slither-disable-next-line unused-return
-                IERC20(context.forwardedAmount.token).approve(msg.sender, leftoverAmountInThisContract);
+                IERC20(context.forwardedAmount.token).forceApprove(msg.sender, leftoverAmountInThisContract);
             }
 
             // Keep a reference to the amount being paid as `msg.value`.
