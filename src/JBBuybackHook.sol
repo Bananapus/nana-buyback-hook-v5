@@ -462,7 +462,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             });
         }
 
-        // Add the amount to mint to the leftover mint amount (avoiding stack too deep here).
+        // Add the amount to mint to the leftover mint amount.
         partialMintTokenCount += mulDiv(amountToMintWith, context.weight, weightRatio);
 
         // Mint the calculated amount of tokens for the beneficiary, including any leftover amount.
