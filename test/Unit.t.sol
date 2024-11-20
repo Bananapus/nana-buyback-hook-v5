@@ -9,6 +9,7 @@ import "@bananapus/core/src/interfaces/IJBDirectory.sol";
 import "@bananapus/core/src/interfaces/IJBRedeemHook.sol";
 import "@bananapus/core/src/libraries/JBConstants.sol";
 import "@bananapus/permission-ids/src/JBPermissionIds.sol";
+import {JBRulesetMetadataResolver} from "@bananapus/core/src/libraries/JBRulesetMetadataResolver.sol";
 
 import /* {*} from */ "@bananapus/core/test/helpers/TestBaseWorkflow.sol";
 
@@ -21,8 +22,9 @@ import "./helpers/PoolAddress.sol";
 import "src/JBBuybackHook.sol";
 
 /// @notice Unit tests for `JBBuybackHook`.
-contract Test_BuybackHook_Unit is Test {
+contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
     using stdStorage for StdStorage;
+    using JBRulesetMetadataResolver for JBRulesetMetadata;
 
     ForTest_JBBuybackHook hook;
 
@@ -55,10 +57,9 @@ contract Test_BuybackHook_Unit is Test {
     IJBProjects projects = IJBProjects(makeAddr("IJBProjects"));
     IJBPermissions permissions = IJBPermissions(makeAddr("IJBPermissions"));
     IJBController controller = IJBController(makeAddr("controller"));
+    IJBPrices prices = IJBPrices(makeAddr("prices"));
     IJBDirectory directory = IJBDirectory(makeAddr("directory"));
     IJBTokens tokens = IJBTokens(makeAddr("tokens"));
-
-    MetadataResolverHelper metadataHelper = new MetadataResolverHelper();
 
     address terminalStore = makeAddr("terminalStore");
 
@@ -73,7 +74,12 @@ contract Test_BuybackHook_Unit is Test {
     JBBeforePayRecordedContext beforePayRecordedContext = JBBeforePayRecordedContext({
         terminal: address(multiTerminal),
         payer: dude,
-        amount: JBTokenAmount({token: address(weth), value: 1 ether, decimals: 18, currency: 1}),
+        amount: JBTokenAmount({
+            token: address(weth),
+            value: 1 ether,
+            decimals: 18,
+            currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
+        }),
         projectId: projectId,
         rulesetId: 0,
         beneficiary: dude,
@@ -86,8 +92,18 @@ contract Test_BuybackHook_Unit is Test {
         payer: dude,
         projectId: projectId,
         rulesetId: 0,
-        amount: JBTokenAmount({token: JBConstants.NATIVE_TOKEN, value: 1 ether, decimals: 18, currency: 1}),
-        forwardedAmount: JBTokenAmount({token: JBConstants.NATIVE_TOKEN, value: 1 ether, decimals: 18, currency: 1}),
+        amount: JBTokenAmount({
+            token: JBConstants.NATIVE_TOKEN,
+            value: 1 ether,
+            decimals: 18,
+            currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
+        }),
+        forwardedAmount: JBTokenAmount({
+            token: JBConstants.NATIVE_TOKEN,
+            value: 1 ether,
+            decimals: 18,
+            currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
+        }),
         weight: 1,
         projectTokenCount: 69,
         beneficiary: dude,
@@ -95,7 +111,9 @@ contract Test_BuybackHook_Unit is Test {
         payerMetadata: ""
     });
 
-    function setUp() external {
+    function setUp() public override {
+        super.setUp();
+
         vm.etch(address(projectToken), "6969");
         vm.etch(address(weth), "6969");
         vm.etch(address(pool), "6969");
@@ -122,7 +140,8 @@ contract Test_BuybackHook_Unit is Test {
             weth: weth,
             factory: uniswapFactory,
             directory: directory,
-            controller: controller
+            controller: controller,
+            prices: prices
         });
 
         hook.ForTest_initPool(pool, projectId, twapWindow, twapTolerance, address(projectToken), address(weth));
@@ -170,17 +189,65 @@ contract Test_BuybackHook_Unit is Test {
         ids[0] = JBMetadataResolver.getId("quote", address(hook));
 
         // Generate the metadata.
-        bytes memory metadata = metadataHelper.createMetadata(ids, data);
+        bytes memory metadata = metadataHelper().createMetadata(ids, data);
 
         // Set the relevant context.
         beforePayRecordedContext.weight = weight;
         beforePayRecordedContext.metadata = metadata;
-        beforePayRecordedContext.amount =
-            JBTokenAmount({token: address(weth), value: 1 ether, decimals: decimals, currency: 1});
+        beforePayRecordedContext.amount = JBTokenAmount({
+            token: address(weth),
+            value: 1 ether,
+            decimals: decimals,
+            currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
+        });
 
         // Return values to catch:
         JBPayHookSpecification[] memory specificationsReturned;
         uint256 weightReturned;
+
+        // Package data for ruleset call.
+        JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
+            reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
+            redemptionRate: JBConstants.MAX_REDEMPTION_RATE,
+            baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            pausePay: false,
+            pauseCreditTransfers: false,
+            allowOwnerMinting: true,
+            allowSetCustomToken: true,
+            allowTerminalMigration: true,
+            allowSetTerminals: true,
+            ownerMustSendPayouts: false,
+            allowSetController: true,
+            allowAddAccountingContext: true,
+            allowAddPriceFeed: true,
+            holdFees: false,
+            useTotalSurplusForRedemptions: true,
+            useDataHookForPay: false,
+            useDataHookForRedeem: false,
+            dataHook: address(0),
+            metadata: 0
+        });
+
+        uint256 packed = _rulesMetadata.packRulesetMetadata();
+
+        JBRuleset memory _ruleset = JBRuleset({
+            cycleNumber: 1,
+            id: 1,
+            basedOnId: 0,
+            start: uint48(block.timestamp),
+            duration: 10 days,
+            weight: 1e18,
+            decayPercent: 0,
+            approvalHook: IJBRulesetApprovalHook(address(0)),
+            metadata: packed
+        });
+
+        // Mock call to controller grabbing the current ruleset
+        mockExpect(
+            address(controller),
+            abi.encodeCall(IJBController.currentRulesetOf, (projectId)),
+            abi.encode(_ruleset, _rulesMetadata)
+        );
 
         // Test: call `beforePayRecordedWith`.
         vm.prank(terminalStore);
@@ -259,6 +326,50 @@ contract Test_BuybackHook_Unit is Test {
         JBPayHookSpecification[] memory specificationsReturned;
         uint256 weightReturned;
 
+        // Package data for ruleset call.
+        JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
+            reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
+            redemptionRate: JBConstants.MAX_REDEMPTION_RATE,
+            baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            pausePay: false,
+            pauseCreditTransfers: false,
+            allowOwnerMinting: true,
+            allowSetCustomToken: true,
+            allowTerminalMigration: true,
+            allowSetTerminals: true,
+            ownerMustSendPayouts: false,
+            allowSetController: true,
+            allowAddAccountingContext: true,
+            allowAddPriceFeed: true,
+            holdFees: false,
+            useTotalSurplusForRedemptions: true,
+            useDataHookForPay: false,
+            useDataHookForRedeem: false,
+            dataHook: address(0),
+            metadata: 0
+        });
+
+        uint256 packed = _rulesMetadata.packRulesetMetadata();
+
+        JBRuleset memory _ruleset = JBRuleset({
+            cycleNumber: 1,
+            id: 1,
+            basedOnId: 0,
+            start: uint48(block.timestamp),
+            duration: 10 days,
+            weight: 1e18,
+            decayPercent: 0,
+            approvalHook: IJBRulesetApprovalHook(address(0)),
+            metadata: packed
+        });
+
+        // Mock call to controller grabbing the current ruleset
+        mockExpect(
+            address(controller),
+            abi.encodeCall(IJBController.currentRulesetOf, (projectId)),
+            abi.encode(_ruleset, _rulesMetadata)
+        );
+
         // Test: call `beforePayRecordedWith`.
         vm.prank(terminalStore);
         (weightReturned, specificationsReturned) = hook.beforePayRecordedWith(beforePayRecordedContext);
@@ -310,6 +421,50 @@ contract Test_BuybackHook_Unit is Test {
         JBPayHookSpecification[] memory specificationsReturned;
         uint256 weightReturned;
 
+        // Package data for ruleset call.
+        JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
+            reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
+            redemptionRate: JBConstants.MAX_REDEMPTION_RATE,
+            baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            pausePay: false,
+            pauseCreditTransfers: false,
+            allowOwnerMinting: true,
+            allowSetCustomToken: true,
+            allowTerminalMigration: true,
+            allowSetTerminals: true,
+            ownerMustSendPayouts: false,
+            allowSetController: true,
+            allowAddAccountingContext: true,
+            allowAddPriceFeed: true,
+            holdFees: false,
+            useTotalSurplusForRedemptions: true,
+            useDataHookForPay: false,
+            useDataHookForRedeem: false,
+            dataHook: address(0),
+            metadata: 0
+        });
+
+        uint256 packed = _rulesMetadata.packRulesetMetadata();
+
+        JBRuleset memory _ruleset = JBRuleset({
+            cycleNumber: 1,
+            id: 1,
+            basedOnId: 0,
+            start: uint48(block.timestamp),
+            duration: 10 days,
+            weight: 1e18,
+            decayPercent: 0,
+            approvalHook: IJBRulesetApprovalHook(address(0)),
+            metadata: packed
+        });
+
+        // Mock call to controller grabbing the current ruleset
+        mockExpect(
+            address(controller),
+            abi.encodeCall(IJBController.currentRulesetOf, (projectId)),
+            abi.encode(_ruleset, _rulesMetadata)
+        );
+
         // Test: call `beforePayRecordedWith`.
         vm.prank(terminalStore);
         (weightReturned, specificationsReturned) = hook.beforePayRecordedWith(beforePayRecordedContext);
@@ -339,6 +494,50 @@ contract Test_BuybackHook_Unit is Test {
         JBPayHookSpecification[] memory specificationsReturned;
         uint256 weightReturned;
 
+        // Package data for ruleset call.
+        JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
+            reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
+            redemptionRate: JBConstants.MAX_REDEMPTION_RATE,
+            baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            pausePay: false,
+            pauseCreditTransfers: false,
+            allowOwnerMinting: true,
+            allowSetCustomToken: true,
+            allowTerminalMigration: true,
+            allowSetTerminals: true,
+            ownerMustSendPayouts: false,
+            allowSetController: true,
+            allowAddAccountingContext: true,
+            allowAddPriceFeed: true,
+            holdFees: false,
+            useTotalSurplusForRedemptions: true,
+            useDataHookForPay: false,
+            useDataHookForRedeem: false,
+            dataHook: address(0),
+            metadata: 0
+        });
+
+        uint256 packed = _rulesMetadata.packRulesetMetadata();
+
+        JBRuleset memory _ruleset = JBRuleset({
+            cycleNumber: 1,
+            id: 1,
+            basedOnId: 0,
+            start: uint48(block.timestamp),
+            duration: 10 days,
+            weight: 1e18,
+            decayPercent: 0,
+            approvalHook: IJBRulesetApprovalHook(address(0)),
+            metadata: packed
+        });
+
+        // Mock call to controller grabbing the current ruleset
+        mockExpect(
+            address(controller),
+            abi.encodeCall(IJBController.currentRulesetOf, (projectId)),
+            abi.encode(_ruleset, _rulesMetadata)
+        );
+
         // Test: call `beforePayRecordedWith` - notice we don't mock the pool, as the address should remain empty
         vm.prank(terminalStore);
         (weightReturned, specificationsReturned) = hook.beforePayRecordedWith(beforePayRecordedContext);
@@ -367,6 +566,50 @@ contract Test_BuybackHook_Unit is Test {
         // Return values to catch:
         JBPayHookSpecification[] memory specificationsReturned;
         uint256 weightReturned;
+
+        // Package data for ruleset call.
+        JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
+            reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
+            redemptionRate: JBConstants.MAX_REDEMPTION_RATE,
+            baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            pausePay: false,
+            pauseCreditTransfers: false,
+            allowOwnerMinting: true,
+            allowSetCustomToken: true,
+            allowTerminalMigration: true,
+            allowSetTerminals: true,
+            ownerMustSendPayouts: false,
+            allowSetController: true,
+            allowAddAccountingContext: true,
+            allowAddPriceFeed: true,
+            holdFees: false,
+            useTotalSurplusForRedemptions: true,
+            useDataHookForPay: false,
+            useDataHookForRedeem: false,
+            dataHook: address(0),
+            metadata: 0
+        });
+
+        uint256 packed = _rulesMetadata.packRulesetMetadata();
+
+        JBRuleset memory _ruleset = JBRuleset({
+            cycleNumber: 1,
+            id: 1,
+            basedOnId: 0,
+            start: uint48(block.timestamp),
+            duration: 10 days,
+            weight: 1e18,
+            decayPercent: 0,
+            approvalHook: IJBRulesetApprovalHook(address(0)),
+            metadata: packed
+        });
+
+        // Mock call to controller grabbing the current ruleset
+        mockExpect(
+            address(controller),
+            abi.encodeCall(IJBController.currentRulesetOf, (projectId)),
+            abi.encode(_ruleset, _rulesMetadata)
+        );
 
         // Test: call `beforePayRecordedWith` - notice we don't mock the pool, as the address should remain empty
         vm.prank(terminalStore);
@@ -401,7 +644,7 @@ contract Test_BuybackHook_Unit is Test {
         ids[0] = JBMetadataResolver.getId("quote", address(hook));
 
         // Generate the metadata.
-        bytes memory metadata = metadataHelper.createMetadata(ids, data);
+        bytes memory metadata = metadataHelper().createMetadata(ids, data);
 
         // Set the relevant context.
         beforePayRecordedContext.weight = weight;
@@ -514,6 +757,50 @@ contract Test_BuybackHook_Unit is Test {
             )
         );
 
+        // Package data for ruleset call.
+        JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
+            reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
+            redemptionRate: JBConstants.MAX_REDEMPTION_RATE,
+            baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            pausePay: false,
+            pauseCreditTransfers: false,
+            allowOwnerMinting: true,
+            allowSetCustomToken: true,
+            allowTerminalMigration: true,
+            allowSetTerminals: true,
+            ownerMustSendPayouts: false,
+            allowSetController: true,
+            allowAddAccountingContext: true,
+            allowAddPriceFeed: true,
+            holdFees: false,
+            useTotalSurplusForRedemptions: true,
+            useDataHookForPay: false,
+            useDataHookForRedeem: false,
+            dataHook: address(0),
+            metadata: 0
+        });
+
+        uint256 packed = _rulesMetadata.packRulesetMetadata();
+
+        JBRuleset memory _ruleset = JBRuleset({
+            cycleNumber: 1,
+            id: 1,
+            basedOnId: 0,
+            start: uint48(block.timestamp),
+            duration: 10 days,
+            weight: 1e18,
+            decayPercent: 0,
+            approvalHook: IJBRulesetApprovalHook(address(0)),
+            metadata: packed
+        });
+
+        // Mock call to controller grabbing the current ruleset
+        mockExpect(
+            address(controller),
+            abi.encodeCall(IJBController.currentRulesetOf, (projectId)),
+            abi.encode(_ruleset, _rulesMetadata)
+        );
+
         // Expect the swap event.
         vm.expectEmit(true, true, true, true);
         emit Swap(
@@ -619,6 +906,50 @@ contract Test_BuybackHook_Unit is Test {
             abi.encodeCall(
                 controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)
             )
+        );
+
+        // Package data for ruleset call.
+        JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
+            reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
+            redemptionRate: JBConstants.MAX_REDEMPTION_RATE,
+            baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            pausePay: false,
+            pauseCreditTransfers: false,
+            allowOwnerMinting: true,
+            allowSetCustomToken: true,
+            allowTerminalMigration: true,
+            allowSetTerminals: true,
+            ownerMustSendPayouts: false,
+            allowSetController: true,
+            allowAddAccountingContext: true,
+            allowAddPriceFeed: true,
+            holdFees: false,
+            useTotalSurplusForRedemptions: true,
+            useDataHookForPay: false,
+            useDataHookForRedeem: false,
+            dataHook: address(0),
+            metadata: 0
+        });
+
+        uint256 packed = _rulesMetadata.packRulesetMetadata();
+
+        JBRuleset memory _ruleset = JBRuleset({
+            cycleNumber: 1,
+            id: 1,
+            basedOnId: 0,
+            start: uint48(block.timestamp),
+            duration: 10 days,
+            weight: 1e18,
+            decayPercent: 0,
+            approvalHook: IJBRulesetApprovalHook(address(0)),
+            metadata: packed
+        });
+
+        // Mock call to controller grabbing the current ruleset
+        mockExpect(
+            address(controller),
+            abi.encodeCall(IJBController.currentRulesetOf, (projectId)),
+            abi.encode(_ruleset, _rulesMetadata)
         );
 
         // Expect the swap event.
@@ -750,6 +1081,57 @@ contract Test_BuybackHook_Unit is Test {
             address(randomTerminalToken), abi.encodeCall(randomTerminalToken.balanceOf, (address(hook))), abi.encode(0)
         );
         vm.expectCall(address(randomTerminalToken), abi.encodeCall(randomTerminalToken.balanceOf, (address(hook))));
+
+        // Package data for ruleset call.
+        JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
+            reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
+            redemptionRate: JBConstants.MAX_REDEMPTION_RATE,
+            baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            pausePay: false,
+            pauseCreditTransfers: false,
+            allowOwnerMinting: true,
+            allowSetCustomToken: true,
+            allowTerminalMigration: true,
+            allowSetTerminals: true,
+            ownerMustSendPayouts: false,
+            allowSetController: true,
+            allowAddAccountingContext: true,
+            allowAddPriceFeed: true,
+            holdFees: false,
+            useTotalSurplusForRedemptions: true,
+            useDataHookForPay: false,
+            useDataHookForRedeem: false,
+            dataHook: address(0),
+            metadata: 0
+        });
+
+        uint256 packed = _rulesMetadata.packRulesetMetadata();
+
+        JBRuleset memory _ruleset = JBRuleset({
+            cycleNumber: 1,
+            id: 1,
+            basedOnId: 0,
+            start: uint48(block.timestamp),
+            duration: 10 days,
+            weight: 1e18,
+            decayPercent: 0,
+            approvalHook: IJBRulesetApprovalHook(address(0)),
+            metadata: packed
+        });
+
+        // Mock call to controller grabbing the current ruleset
+        mockExpect(
+            address(controller),
+            abi.encodeCall(IJBController.currentRulesetOf, (randomId)),
+            abi.encode(_ruleset, _rulesMetadata)
+        );
+
+        // Mock call to prices that normalizes the mint ratios per the ERC20 paid and the base currency.
+        mockExpect(
+            address(prices),
+            abi.encodeCall(prices.pricePerUnitOf, (randomId, 1, uint32(uint160(JBConstants.NATIVE_TOKEN)), decimals)),
+            abi.encode(1e18)
+        );
 
         // Expect the swap event.
         vm.expectEmit(true, true, true, true);
@@ -1168,7 +1550,8 @@ contract Test_BuybackHook_Unit is Test {
             weth: terminalToken,
             factory: uniswapFactory,
             directory: directory,
-            controller: controller
+            controller: controller,
+            prices: prices
         });
 
         // Initialize the pool with wETH (if you pass in the `NATIVE_TOKEN` address, the pool is initialized with wETH).
@@ -1220,7 +1603,8 @@ contract Test_BuybackHook_Unit is Test {
             weth: terminalToken,
             factory: uniswapFactory,
             directory: directory,
-            controller: controller
+            controller: controller,
+            prices: prices
         });
 
         hook.ForTest_initPool(pool, projectId, twapWindow, twapTolerance, address(projectToken), address(terminalToken));
@@ -1720,7 +2104,7 @@ contract Test_BuybackHook_Unit is Test {
         assertEq(redeemSpecifications.length, 0);
     }
 
-    function test_supportsInterface(bytes4 random) public {
+    function test_supportsInterface(bytes4 random) public view {
         vm.assume(
             random != type(IJBBuybackHook).interfaceId && random != type(IJBRulesetDataHook).interfaceId
                 && random != type(IJBPayHook).interfaceId && random != type(IERC165).interfaceId
@@ -1741,9 +2125,10 @@ contract ForTest_JBBuybackHook is JBBuybackHook {
         IWETH9 weth,
         address factory,
         IJBDirectory directory,
-        IJBController controller
+        IJBController controller,
+        IJBPrices prices
     )
-        JBBuybackHook(directory, controller, weth, factory)
+        JBBuybackHook(directory, controller, prices, weth, factory)
     {}
 
     function ForTest_getQuote(
