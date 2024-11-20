@@ -661,7 +661,6 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
                 JBBuybackHook.JBBuybackHook_SpecifiedSlippageExceeded.selector,
                 67_331_221_947_532_926_107_815,
                 67_331_221_947_532_926_107_815 + 10 // 10 more than quote at block as before
-
             )
         );
 
