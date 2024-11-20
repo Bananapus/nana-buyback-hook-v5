@@ -329,8 +329,15 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         if (oldestObservation < twapWindow) twapWindow = oldestObservation;
 
         // Keep a reference to the TWAP tick.
+        int24 arithmeticMeanTick;
+
         // slither-disable-next-line unused-return
-        (int24 arithmeticMeanTick,) = OracleLibrary.consult(address(pool), twapWindow);
+        // Get the current tick from the pool's slot0 if the oldest observation is 0.
+        if (oldestObservation == 0) {
+            (, arithmeticMeanTick,,,,,) = pool.slot0();
+        } else {
+            (arithmeticMeanTick,) = OracleLibrary.consult(address(pool), twapWindow);
+        }
 
         // Get a quote based on this TWAP tick.
         amountOut = OracleLibrary.getQuoteAtTick({
