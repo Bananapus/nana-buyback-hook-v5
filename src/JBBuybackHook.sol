@@ -7,16 +7,19 @@ import {IJBDirectory} from "@bananapus/core/src/interfaces/IJBDirectory.sol";
 import {IJBMultiTerminal} from "@bananapus/core/src/interfaces/IJBMultiTerminal.sol";
 import {IJBPayHook} from "@bananapus/core/src/interfaces/IJBPayHook.sol";
 import {IJBPermissioned} from "@bananapus/core/src/interfaces/IJBPermissioned.sol";
+import {IJBPrices} from "@bananapus/core/src/interfaces/IJBPrices.sol";
 import {IJBProjects} from "@bananapus/core/src/interfaces/IJBProjects.sol";
 import {IJBRulesetDataHook} from "@bananapus/core/src/interfaces/IJBRulesetDataHook.sol";
 import {IJBTerminal} from "@bananapus/core/src/interfaces/IJBTerminal.sol";
 import {JBConstants} from "@bananapus/core/src/libraries/JBConstants.sol";
 import {JBMetadataResolver} from "@bananapus/core/src/libraries/JBMetadataResolver.sol";
+import {JBRulesetMetadataResolver} from "@bananapus/core/src/libraries/JBRulesetMetadataResolver.sol";
 import {JBAfterPayRecordedContext} from "@bananapus/core/src/structs/JBAfterPayRecordedContext.sol";
 import {JBBeforePayRecordedContext} from "@bananapus/core/src/structs/JBBeforePayRecordedContext.sol";
 import {JBBeforeRedeemRecordedContext} from "@bananapus/core/src/structs/JBBeforeRedeemRecordedContext.sol";
 import {JBPayHookSpecification} from "@bananapus/core/src/structs/JBPayHookSpecification.sol";
 import {JBRedeemHookSpecification} from "@bananapus/core/src/structs/JBRedeemHookSpecification.sol";
+import {JBRuleset} from "@bananapus/core/src/structs/JBRuleset.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
@@ -37,6 +40,9 @@ import {IWETH9} from "./interfaces/external/IWETH9.sol";
 /// route.
 /// @dev Compatible with any `JBTerminal` and any project token that can be pooled on Uniswap v3.
 contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
+    // A library that parses the packed ruleset metadata into a friendlier format.
+    using JBRulesetMetadataResolver for JBRuleset;
+
     // A library that adds default safety checks to ERC20 functionality.
     using SafeERC20 for IERC20;
 
@@ -89,6 +95,9 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @notice The directory of terminals and controllers.
     IJBDirectory public immutable override DIRECTORY;
 
+    /// @notice  The contract that exposes price feeds.
+    IJBPrices public immutable override PRICES;
+
     /// @notice The project registry.
     IJBProjects public immutable override PROJECTS;
 
@@ -128,11 +137,13 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
     /// @param directory The directory of terminals and controllers.
     /// @param controller The controller used to mint and burn tokens.
+    /// @param prices The contract that exposes price feeds.
     /// @param weth The WETH contract.
     /// @param factory The address of the Uniswap v3 factory. Used to calculate pool addresses.
     constructor(
         IJBDirectory directory,
         IJBController controller,
+        IJBPrices prices,
         IWETH9 weth,
         address factory
     )
@@ -141,6 +152,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         DIRECTORY = directory;
         CONTROLLER = controller;
         PROJECTS = controller.PROJECTS();
+        PRICES = prices;
         // slither-disable-next-line missing-zero-check
         UNISWAP_V3_FACTORY = factory;
         WETH = weth;
@@ -197,9 +209,25 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // If the payer/client did not specify an amount to use towards the swap, use the `totalPaid`.
         if (amountToSwapWith == 0) amountToSwapWith = totalPaid;
 
+        // Get a reference to the ruleset.
+        // slither-disable-next-line unused-return
+        (JBRuleset memory ruleset,) = CONTROLLER.currentRulesetOf(context.projectId);
+
+        // If the hook should base its weight on a currency other than the terminal's currency, determine the
+        // factor. The weight is always a fixed point mumber with 18 decimals. To ensure this, the ratio should use the
+        // same number of decimals as the `amountToSwapWith`.
+        uint256 weightRatio = context.amount.currency == ruleset.baseCurrency()
+            ? 10 ** context.amount.decimals
+            : PRICES.pricePerUnitOf({
+                projectId: context.projectId,
+                pricingCurrency: context.amount.currency,
+                unitCurrency: ruleset.baseCurrency(),
+                decimals: context.amount.decimals
+            });
+
         // Calculate how many tokens would be minted by a direct payment to the project.
         // `tokenCountWithoutHook` is a fixed point number with 18 decimals.
-        uint256 tokenCountWithoutHook = mulDiv(amountToSwapWith, weight, 10 ** context.amount.decimals);
+        uint256 tokenCountWithoutHook = mulDiv(amountToSwapWith, weight, weightRatio);
 
         // Keep a reference to the project's token.
         address projectToken = projectTokenOf[context.projectId];
@@ -393,17 +421,33 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             ? address(this).balance
             : IERC20(context.forwardedAmount.token).balanceOf(address(this));
 
+        // Get a reference to the ruleset.
+        // slither-disable-next-line unused-return
+        (JBRuleset memory ruleset,) = CONTROLLER.currentRulesetOf(context.projectId);
+
+        // If the hook should base its weight on a currency other than the terminal's currency, determine the
+        // factor. The weight is always a fixed point mumber with 18 decimals. To ensure this, the ratio should use
+        // the same number of decimals as the `leftoverAmountInThisContract`.
+        uint256 weightRatio = context.amount.currency == ruleset.baseCurrency()
+            ? 10 ** context.amount.decimals
+            : PRICES.pricePerUnitOf({
+                projectId: context.projectId,
+                pricingCurrency: context.amount.currency,
+                unitCurrency: ruleset.baseCurrency(),
+                decimals: context.amount.decimals
+            });
+
         // Mint a corresponding number of project tokens using any terminal tokens left over.
         // Keep a reference to the number of tokens being minted.
         uint256 partialMintTokenCount;
         if (leftoverAmountInThisContract != 0) {
-            partialMintTokenCount = mulDiv(leftoverAmountInThisContract, context.weight, 10 ** context.amount.decimals);
+            partialMintTokenCount = mulDiv(leftoverAmountInThisContract, context.weight, weightRatio);
 
             // If the token paid in wasn't the native token, grant the terminal permission to pull them back into its
             // balance.
             if (context.forwardedAmount.token != JBConstants.NATIVE_TOKEN) {
                 // slither-disable-next-line unused-return
-                IERC20(context.forwardedAmount.token).approve(msg.sender, leftoverAmountInThisContract);
+                IERC20(context.forwardedAmount.token).forceApprove(msg.sender, leftoverAmountInThisContract);
             }
 
             // Keep a reference to the amount being paid as `msg.value`.
@@ -429,8 +473,8 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             });
         }
 
-        // Add the amount to mint to the leftover mint amount (avoiding stack too deep here).
-        partialMintTokenCount += mulDiv(amountToMintWith, context.weight, 10 ** context.amount.decimals);
+        // Add the amount to mint to the leftover mint amount.
+        partialMintTokenCount += mulDiv(amountToMintWith, context.weight, weightRatio);
 
         // Mint the calculated amount of tokens for the beneficiary, including any leftover amount.
         // This takes the reserved rate into account.

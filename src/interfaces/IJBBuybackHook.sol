@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {IJBController} from "@bananapus/core/src/interfaces/IJBController.sol";
 import {IJBDirectory} from "@bananapus/core/src/interfaces/IJBDirectory.sol";
 import {IJBPayHook} from "@bananapus/core/src/interfaces/IJBPayHook.sol";
+import {IJBPrices} from "@bananapus/core/src/interfaces/IJBPrices.sol";
 import {IJBProjects} from "@bananapus/core/src/interfaces/IJBProjects.sol";
 import {IJBRulesetDataHook} from "@bananapus/core/src/interfaces/IJBRulesetDataHook.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
@@ -24,6 +25,7 @@ interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallba
 
     function CONTROLLER() external view returns (IJBController);
     function DIRECTORY() external view returns (IJBDirectory);
+    function PRICES() external view returns (IJBPrices);
     function MAX_TWAP_SLIPPAGE_TOLERANCE() external view returns (uint256);
     function MIN_TWAP_SLIPPAGE_TOLERANCE() external view returns (uint256);
     function MAX_TWAP_WINDOW() external view returns (uint256);

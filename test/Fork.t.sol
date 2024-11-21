@@ -162,6 +162,7 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         delegate = new JBBuybackHook({
             directory: jbDirectory(),
             controller: jbController(),
+            prices: jbPrices(),
             weth: weth,
             factory: address(factory)
         });
@@ -644,7 +645,7 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         bytes[] memory _data = new bytes[](1);
         _data[0] = abi.encode(
             0,
-            302_767_581_477_830_835_954_604_933 + 10 // 10 more than quote at that block
+            67_331_221_947_532_926_107_815 + 10 // 10 more than quote at that block
         );
 
         // Pass the delegate id
@@ -655,7 +656,13 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         // Generate the metadata
         bytes memory _delegateMetadata = metadataHelper().createMetadata(_ids, _data);
 
-        vm.expectPartialRevert(JBBuybackHook.JBBuybackHook_SpecifiedSlippageExceeded.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                JBBuybackHook.JBBuybackHook_SpecifiedSlippageExceeded.selector,
+                67_331_221_947_532_926_107_815,
+                67_331_221_947_532_926_107_815 + 10 // 10 more than quote at block as before
+            )
+        );
 
         // Pay the project
         jbMultiTerminal().pay{value: 1 ether}(

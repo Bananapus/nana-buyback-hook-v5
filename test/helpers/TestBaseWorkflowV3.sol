@@ -167,7 +167,8 @@ contract TestBaseWorkflowV3 is Test {
             weth: weth,
             factory: uniswapFactory,
             directory: IJBDirectory(address(jbDirectory)),
-            controller: jbController
+            controller: jbController,
+            prices: jbPrices
         });
 
         // Ruleset metadata: use the hook for payments.
