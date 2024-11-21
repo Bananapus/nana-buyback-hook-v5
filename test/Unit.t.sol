@@ -232,32 +232,6 @@ contract Test_BuybackHook_Unit is JBTest {
         // Return the oldest observationTimestamp as the current block, making oldest observation 0.
         mockExpect(address(pool), abi.encodeCall(pool.observations, (0)), abi.encode(block.timestamp, 0, 0, true));
 
-        /* // Mock the pool's TWAP.
-        // Set up the two points in time to mock the TWAP at.
-        uint32[] memory secondsAgos = new uint32[](2);
-        secondsAgos[0] = twapWindow;
-        secondsAgos[1] = 0;
-
-        // Mock the seconds per liquidity for those two points.
-        // Each represents the amount of time the pool spent at the corresponding level of liquidity.
-        uint160[] memory secondsPerLiquidity = new uint160[](2);
-        secondsPerLiquidity[0] = 100;
-        secondsPerLiquidity[1] = 1000;
-
-        // Mock the tick cumulative values for the two mock TWAP points.
-        // Tick cumulatives are running totals of tick values.
-        int56[] memory tickCumulatives = new int56[](2);
-        tickCumulatives[0] = 100;
-        tickCumulatives[1] = 1000; */
-
-        /* // Mock a call to the pool's `observe` function, passing in the `secondsAgo` array and returning the
-        // `tickCumulatives` and `secondsPerLiquidity` arrays.
-        vm.mockCall(
-        address(pool), abi.encodeCall(pool.observe, (secondsAgos)), abi.encode(tickCumulatives, secondsPerLiquidity)
-        );
-        // Expect a call to the pool's `observe` function with the `secondsAgo` array.
-        vm.expectCall(address(pool), abi.encodeCall(pool.observe, (secondsAgos))); */
-
         // Return values to catch:
         JBPayHookSpecification[] memory specificationsReturned;
         uint256 weightReturned;
