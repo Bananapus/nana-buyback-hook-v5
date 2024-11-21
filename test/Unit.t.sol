@@ -220,19 +220,32 @@ contract Test_BuybackHook_Unit is Test {
     /// @notice Test `beforePayRecordedContext` when no quote is provided.
     /// @dev This means the hook must calculate its own quote based on the TWAP.
     /// @dev This bypasses testing the Uniswap Oracle lib by re-using the internal `_getQuote(...)`.
-    function test_beforePayRecordedWith_useTwap(uint256 tokenCount) public {
+    function test_beforePayRecordedWith_useTwap(
+        uint256 tokenCount,
+        bool poolHasObservationCardinality,
+        uint8 oldestSecondsAgo
+    )
+        public
+    {
+        // The oldest swap can't be before timestamp 0.
+        vm.assume(block.timestamp >= oldestSecondsAgo);
+
         // Set the relevant context.
         beforePayRecordedContext.weight = tokenCount;
         beforePayRecordedContext.metadata = "";
 
         // Mock the pool being unlocked.
-        vm.mockCall(address(pool), abi.encodeCall(pool.slot0, ()), abi.encode(0, 0, 0, 0, 0, 0, true));
+        vm.mockCall(
+            address(pool),
+            abi.encodeCall(pool.slot0, ()),
+            abi.encode(0, 0, 0, poolHasObservationCardinality ? 1 : 0, 0, 0, true)
+        );
         vm.expectCall(address(pool), abi.encodeCall(pool.slot0, ()));
 
         // Mock the pool's TWAP.
         // Set up the two points in time to mock the TWAP at.
         uint32[] memory secondsAgos = new uint32[](2);
-        secondsAgos[0] = twapWindow;
+        secondsAgos[0] = twapWindow > oldestSecondsAgo ? oldestSecondsAgo : twapWindow;
         secondsAgos[1] = 0;
 
         // Mock the seconds per liquidity for those two points.
@@ -252,8 +265,25 @@ contract Test_BuybackHook_Unit is Test {
         vm.mockCall(
             address(pool), abi.encodeCall(pool.observe, (secondsAgos)), abi.encode(tickCumulatives, secondsPerLiquidity)
         );
-        // Expect a call to the pool's `observe` function with the `secondsAgo` array.
-        vm.expectCall(address(pool), abi.encodeCall(pool.observe, (secondsAgos)));
+
+        if (poolHasObservationCardinality) {
+            vm.mockCall(
+                address(pool),
+                abi.encodeCall(pool.observations, (0)),
+                abi.encode(
+                    uint32(block.timestamp - oldestSecondsAgo),
+                    int56(tickCumulatives[0]),
+                    uint160(secondsPerLiquidity[0]),
+                    true
+                )
+            );
+
+            if (oldestSecondsAgo > 0) {
+                // Expect a call to the pool's `observe` function with the `secondsAgo` array.
+                // This call only happens if there is enough observationCardinality, otherwise it uses the current tick.
+                vm.expectCall(address(pool), abi.encodeCall(pool.observe, (secondsAgos)));
+            }
+        }
 
         // Return values to catch:
         JBPayHookSpecification[] memory specificationsReturned;

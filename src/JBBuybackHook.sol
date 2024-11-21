@@ -311,32 +311,46 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
         // If there is a contract at the address, try to get the pool's slot 0.
         // slither-disable-next-line unused-return
-        try pool.slot0() returns (uint160, int24, uint16, uint16, uint16, uint8, bool unlocked) {
+        int24 currentTick;
+        uint16 observationCardinality;
+        try pool.slot0() returns (
+            uint160, int24 _currentTick, uint16, uint16 _observationCardinality, uint16, uint8, bool unlocked
+        ) {
             // If the pool hasn't been initialized, return an empty quote.
             if (!unlocked) return 0;
+
+            // Update our local variables.
+            currentTick = _currentTick;
+            observationCardinality = _observationCardinality;
         } catch {
             // If the address is invalid, return an empty quote.
             return 0;
         }
+
+        // Keep a reference to the TWAP tick.
+        int24 arithmeticMeanTick;
 
         // Unpack the TWAP params and get a reference to the period and slippage.
         uint256 twapParams = _twapParamsOf[projectId];
         uint32 twapWindow = uint32(twapParams);
         uint256 twapSlippageTolerance = twapParams >> 128;
 
-        // If the oldest observation is older than the TWAP window, use the oldest observation.
-        uint32 oldestObservation = OracleLibrary.getOldestObservationSecondsAgo(address(pool));
-        if (oldestObservation < twapWindow) twapWindow = oldestObservation;
+        // Check if the pool has any previous price observations.
+        if (observationCardinality != 0) {
+            // If the oldest observation is older than the TWAP window, use the oldest observation.
+            uint32 oldestObservation = OracleLibrary.getOldestObservationSecondsAgo(address(pool));
+            if (oldestObservation < twapWindow) twapWindow = oldestObservation;
 
-        // Keep a reference to the TWAP tick.
-        int24 arithmeticMeanTick;
-
-        // slither-disable-next-line unused-return
-        // Get the current tick from the pool's slot0 if the oldest observation is 0.
-        if (oldestObservation == 0) {
-            (, arithmeticMeanTick,,,,,) = pool.slot0();
+            if (oldestObservation != 0) {
+                // Get the arithmetic mean tick based on the TWAP window.
+                (arithmeticMeanTick,) = OracleLibrary.consult(address(pool), twapWindow);
+            } else {
+                // If there are no observations, we have to use the current tick.
+                arithmeticMeanTick = currentTick;
+            }
         } else {
-            (arithmeticMeanTick,) = OracleLibrary.consult(address(pool), twapWindow);
+            // If there are no observations, use the current tick.
+            arithmeticMeanTick = currentTick;
         }
 
         // Get a quote based on this TWAP tick.
