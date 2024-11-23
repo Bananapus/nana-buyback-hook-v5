@@ -11,6 +11,7 @@ import {IJBPrices} from "@bananapus/core/src/interfaces/IJBPrices.sol";
 import {IJBProjects} from "@bananapus/core/src/interfaces/IJBProjects.sol";
 import {IJBRulesetDataHook} from "@bananapus/core/src/interfaces/IJBRulesetDataHook.sol";
 import {IJBTerminal} from "@bananapus/core/src/interfaces/IJBTerminal.sol";
+import {IJBToken} from "@bananapus/core/src/interfaces/IJBToken.sol";
 import {JBConstants} from "@bananapus/core/src/libraries/JBConstants.sol";
 import {JBMetadataResolver} from "@bananapus/core/src/libraries/JBMetadataResolver.sol";
 import {JBRulesetMetadataResolver} from "@bananapus/core/src/libraries/JBRulesetMetadataResolver.sol";
@@ -500,16 +501,30 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // Add the amount to mint to the leftover mint amount.
         partialMintTokenCount += mulDiv(amountToMintWith, context.weight, weightRatio);
 
+        // Get a reference to the total amount of tokens to be vested.
+        uint256 totalAmountToVest = exactSwapAmountOut + partialMintTokenCount;
+
         // Add the calculated amount of tokens to be vested for the beneficiary, including any leftover amount.
         // This takes the reserved rate into account.
         // slither-disable-next-line unused-return
         _vestingBuybacksFor[context.projectId][context.beneficiary].push(
             JBVestingBuyback({
-                amount: exactSwapAmountOut + partialMintTokenCount,
+                amount: totalAmountToVest,
                 startTime: block.timestamp,
                 endTime: block.timestamp + VESTING_PERIOD
             })
         );
+
+        // Mint the total amount of tokens to be vested to this contract.
+        // This takes the reserved rate into account.
+        // slither-disable-next-line unused-return
+        CONTROLLER.mintTokensOf({
+            projectId: context.projectId,
+            tokenCount: totalAmountToVest,
+            beneficiary: address(this),
+            memo: "",
+            useReservedPercent: true
+        });
     }
 
     /// @notice Claim multiple vested buybacks for multiple beneficiaries.
@@ -763,16 +778,11 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             }
         }
 
-        // Mint the vested amount of tokens for the beneficiary.
-        // This takes the reserved rate into account.
-        // slither-disable-next-line unused-return
-        CONTROLLER.mintTokensOf({
-            projectId: projectId,
-            tokenCount: amount,
-            beneficiary: beneficiary,
-            memo: "",
-            useReservedPercent: true
-        });
+        // Get a reference to the project's token.
+        IJBToken token = CONTROLLER.TOKENS().tokenOf(projectId);
+
+        // Transfer the tokens to the beneficiary.
+        IERC20(address(token)).safeTransfer({to: beneficiary, value: amount});
     }
 
     //*********************************************************************//
