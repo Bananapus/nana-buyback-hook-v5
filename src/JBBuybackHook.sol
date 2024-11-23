@@ -138,9 +138,9 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     mapping(uint256 projectId => uint256) internal _twapParamsOf;
 
     /// @notice The buybacks that are vesting to each beneficiary.
-    /// @custom:param projectId The ID of the project which the buybacks apply to.
+    /// @custom:param token The token which the buybacks apply to.
     /// @custom:param beneficiary The address which the buybacks belong to.
-    mapping(uint256 projectId => mapping(address beneficiary => JBVestingBuyback[])) internal _vestingBuybacksFor;
+    mapping(IJBToken token => mapping(address beneficiary => JBVestingBuyback[])) internal _vestingBuybacksFor;
 
     //*********************************************************************//
     // ---------------------------- constructor -------------------------- //
@@ -290,19 +290,12 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     }
 
     /// @notice Get the total number of claimable vested buybacks for a beneficiary.
-    /// @param projectId The ID of the project which the buybacks apply to.
+    /// @param token The token which the buybacks apply to.
     /// @param beneficiary The address which the buybacks belong to.
     /// @return amount The total number of claimable vested buybacks.
-    function claimableVestedBuybacksFor(
-        uint256 projectId,
-        address beneficiary
-    )
-        external
-        view
-        returns (uint256 amount)
-    {
+    function claimableVestedBuybacksFor(IJBToken token, address beneficiary) external view returns (uint256 amount) {
         // Get a reference to the buybacks.
-        JBVestingBuyback[] memory buybacks = _vestingBuybacksFor[projectId][beneficiary];
+        JBVestingBuyback[] memory buybacks = _vestingBuybacksFor[token][beneficiary];
 
         // Get a reference to the buyback being iterated on.
         JBVestingBuyback memory buyback;
@@ -504,10 +497,13 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // Get a reference to the total amount of tokens to be vested.
         uint256 totalAmountToVest = exactSwapAmountOut + partialMintTokenCount;
 
+        // Get a reference to the project's token.
+        IJBToken token = CONTROLLER.TOKENS().tokenOf(context.projectId);
+
         // Add the calculated amount of tokens to be vested for the beneficiary, including any leftover amount.
         // This takes the reserved rate into account.
         // slither-disable-next-line unused-return
-        _vestingBuybacksFor[context.projectId][context.beneficiary].push(
+        _vestingBuybacksFor[token][context.beneficiary].push(
             JBVestingBuyback({
                 amount: totalAmountToVest,
                 startTime: block.timestamp,
@@ -536,7 +532,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // Iterate over the claims and mint the tokens for the beneficiary.
         for (uint256 i; i < claims.length; i++) {
             claim = claims[i];
-            claimVestedBuybacksFor({projectId: claim.projectId, beneficiary: claim.beneficiary});
+            claimVestedBuybacksFor({token: claim.token, beneficiary: claim.beneficiary});
         }
     }
 
@@ -742,15 +738,15 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     //*********************************************************************//
 
     /// @notice Claim all vested buybacks for a beneficiary.
-    /// @param projectId The ID of the project which the buybacks apply to.
+    /// @param token The token to claim the vested buybacks of.
     /// @param beneficiary The address which the buybacks belong to.
     /// @return amount The total number of tokens claimed.
-    function claimVestedBuybacksFor(uint256 projectId, address beneficiary) public returns (uint256 amount) {
+    function claimVestedBuybacksFor(IJBToken token, address beneficiary) public returns (uint256 amount) {
         // Get a reference to the buybacks.
-        JBVestingBuyback[] memory buybacks = _vestingBuybacksFor[projectId][beneficiary];
+        JBVestingBuyback[] memory buybacks = _vestingBuybacksFor[token][beneficiary];
 
         // Delete the buybacks, the ones still vesting will be added back.
-        delete _vestingBuybacksFor[projectId][beneficiary];
+        delete _vestingBuybacksFor[token][beneficiary];
 
         // Keep a reference to the buyback being iterated on.
         JBVestingBuyback memory buyback;
@@ -768,7 +764,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
             // If the buyback hasn't been fully vested, add the remaining amount back to the vesting buybacks.
             if (vestedAmount != buyback.amount) {
-                _vestingBuybacksFor[projectId][beneficiary].push(
+                _vestingBuybacksFor[token][beneficiary].push(
                     JBVestingBuyback({
                         amount: buyback.amount - vestedAmount,
                         startTime: buyback.startTime,
@@ -777,9 +773,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
                 );
             }
         }
-
-        // Get a reference to the project's token.
-        IJBToken token = CONTROLLER.TOKENS().tokenOf(projectId);
 
         // Transfer the tokens to the beneficiary.
         IERC20(address(token)).safeTransfer({to: beneficiary, value: amount});

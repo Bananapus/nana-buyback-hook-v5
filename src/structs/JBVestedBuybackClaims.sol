@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/// @custom:member projectId The ID of the project which the buybacks apply to.
+import {IJBToken} from "@bananapus/core/src/interfaces/IJBToken.sol";
+
+/// @custom:member token The token to claim the vested buybacks of.
 /// @custom:member beneficiary The address which the buybacks belong to.
 struct JBVestedBuybackClaims {
-    uint256 projectId;
+    IJBToken token;
     address beneficiary;
 }

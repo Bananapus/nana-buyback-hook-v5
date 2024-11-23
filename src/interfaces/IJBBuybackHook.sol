@@ -7,6 +7,7 @@ import {IJBPayHook} from "@bananapus/core/src/interfaces/IJBPayHook.sol";
 import {IJBPrices} from "@bananapus/core/src/interfaces/IJBPrices.sol";
 import {IJBProjects} from "@bananapus/core/src/interfaces/IJBProjects.sol";
 import {IJBRulesetDataHook} from "@bananapus/core/src/interfaces/IJBRulesetDataHook.sol";
+import {IJBToken} from "@bananapus/core/src/interfaces/IJBToken.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 
@@ -41,10 +42,10 @@ interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallba
     function projectTokenOf(uint256 projectId) external view returns (address projectTokenOf);
     function twapSlippageToleranceOf(uint256 projectId) external view returns (uint256 slippageTolerance);
     function twapWindowOf(uint256 projectId) external view returns (uint32 window);
-    function claimableVestedBuybacksFor(uint256 projectId, address beneficiary) external view returns (uint256 total);
+    function claimableVestedBuybacksFor(IJBToken token, address beneficiary) external view returns (uint256 total);
 
     function claimVestedBuybacksFor(JBVestedBuybackClaims[] calldata claims) external;
-    function claimVestedBuybacksFor(uint256 projectId, address beneficiary) external returns (uint256 amount);
+    function claimVestedBuybacksFor(IJBToken token, address beneficiary) external returns (uint256 amount);
     function setPoolFor(
         uint256 projectId,
         uint24 fee,
