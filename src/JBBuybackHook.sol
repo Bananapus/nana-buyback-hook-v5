@@ -815,7 +815,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         }
 
         // Update the last claimed index.
-        _lastClaimedIndexOf[token][beneficiary] = newStartIndex;
+        if (startIndex != newStartIndex) _lastClaimedIndexOf[token][beneficiary] = newStartIndex;
 
         // Transfer the tokens to the beneficiary.
         IERC20(address(token)).safeTransfer({to: beneficiary, value: amount});
