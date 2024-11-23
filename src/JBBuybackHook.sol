@@ -142,6 +142,11 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @custom:param beneficiary The address which the buybacks belong to.
     mapping(IJBToken token => mapping(address beneficiary => JBVestingBuyback[])) internal _vestingBuybacksFor;
 
+    /// @notice The index of the last fully claimed vesting buyback for each beneficiary.
+    /// @custom:param token The token which the buybacks apply to.
+    /// @custom:param beneficiary The address which the buybacks belong to.
+    mapping(IJBToken token => mapping(address beneficiary => uint256 lastClaimedAt)) internal _lastClaimedIndexOf;
+
     //*********************************************************************//
     // ---------------------------- constructor -------------------------- //
     //*********************************************************************//
@@ -292,18 +297,36 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @notice Get the total number of claimable vested buybacks for a beneficiary.
     /// @param token The token which the buybacks apply to.
     /// @param beneficiary The address which the buybacks belong to.
+    /// @param count The number of buybacks to claim.
     /// @return amount The total number of claimable vested buybacks.
-    function claimableVestedBuybacksFor(IJBToken token, address beneficiary) external view returns (uint256 amount) {
+    function claimableVestedBuybacksFor(
+        IJBToken token,
+        address beneficiary,
+        uint256 count
+    )
+        external
+        view
+        returns (uint256 amount)
+    {
+        // Get a reference to the index of the last fully claimed vesting buyback for the beneficiary.
+        uint256 startIndex = _lastClaimedIndexOf[token][beneficiary];
+
         // Get a reference to the buybacks.
         JBVestingBuyback[] memory buybacks = _vestingBuybacksFor[token][beneficiary];
 
         // Get a reference to the buyback being iterated on.
         JBVestingBuyback memory buyback;
 
+        // Get a reference to the number of iterations to perform.
+        uint256 numberOfIterations = count > buybacks.length - startIndex ? buybacks.length - startIndex : count;
+
         // Iterate over the buybacks and sum the vested amounts.
-        for (uint256 i; i < buybacks.length; i++) {
-            buyback = buybacks[i];
-            amount += mulDiv(buyback.amount, block.timestamp - buyback.startTime, buyback.endTime - buyback.startTime);
+        for (uint256 i; i < numberOfIterations; i++) {
+            buyback = buybacks[startIndex + i];
+
+            amount += block.timestamp >= buyback.endsAt
+                ? buyback.amount
+                : mulDiv(buyback.amount, block.timestamp - buyback.lastClaimedAt, buyback.endsAt - buyback.lastClaimedAt);
         }
     }
 
@@ -505,9 +528,10 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // slither-disable-next-line unused-return
         _vestingBuybacksFor[token][context.beneficiary].push(
             JBVestingBuyback({
-                amount: totalAmountToVest,
-                startTime: block.timestamp,
-                endTime: block.timestamp + VESTING_PERIOD
+                amount: uint160(totalAmountToVest),
+                startsAt: uint48(block.timestamp),
+                endsAt: uint48(block.timestamp + VESTING_PERIOD),
+                lastClaimedAt: uint48(block.timestamp)
             })
         );
 
@@ -532,7 +556,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // Iterate over the claims and mint the tokens for the beneficiary.
         for (uint256 i; i < claims.length; i++) {
             claim = claims[i];
-            claimVestedBuybacksFor({token: claim.token, beneficiary: claim.beneficiary});
+            claimVestedBuybacksFor({token: claim.token, beneficiary: claim.beneficiary, count: claim.count});
         }
     }
 
@@ -740,39 +764,58 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @notice Claim all vested buybacks for a beneficiary.
     /// @param token The token to claim the vested buybacks of.
     /// @param beneficiary The address which the buybacks belong to.
+    /// @param count The number of buybacks to claim.
     /// @return amount The total number of tokens claimed.
-    function claimVestedBuybacksFor(IJBToken token, address beneficiary) public returns (uint256 amount) {
+    function claimVestedBuybacksFor(
+        IJBToken token,
+        address beneficiary,
+        uint256 count
+    )
+        public
+        returns (uint256 amount)
+    {
+        // Get a reference to the index of the last fully claimed vesting buyback for the beneficiary.
+        uint256 startIndex = _lastClaimedIndexOf[token][beneficiary];
+
         // Get a reference to the buybacks.
         JBVestingBuyback[] memory buybacks = _vestingBuybacksFor[token][beneficiary];
 
-        // Delete the buybacks, the ones still vesting will be added back.
-        delete _vestingBuybacksFor[token][beneficiary];
+        // If the start index is greater than or equal to the number of buybacks, return 0.
+        if (startIndex >= buybacks.length) return 0;
 
         // Keep a reference to the buyback being iterated on.
         JBVestingBuyback memory buyback;
 
+        // Get a reference to the number of iterations to perform.
+        uint256 numberOfIterations =
+            startIndex + count > buybacks.length - startIndex ? buybacks.length - startIndex : count;
+
+        // Keep a reference to the new start index.
+        uint256 newStartIndex;
+
         // Iterate over the buybacks and sum the vested amounts.
-        for (uint256 i; i < buybacks.length; i++) {
-            buyback = buybacks[i];
+        for (uint256 i; i < numberOfIterations; i++) {
+            buyback = buybacks[startIndex + i];
 
             // Get a reference to the vested amount.
-            uint256 vestedAmount =
-                mulDiv(buyback.amount, block.timestamp - buyback.startTime, buyback.endTime - buyback.startTime);
+            uint256 vestedAmount = block.timestamp >= buyback.endsAt
+                ? buyback.amount
+                : mulDiv(buyback.amount, block.timestamp - buyback.lastClaimedAt, buyback.endsAt - buyback.lastClaimedAt);
 
             // Add the vested amount to the total amount claimed.
             amount += vestedAmount;
 
+            _vestingBuybacksFor[token][beneficiary][i].amount = uint160(buyback.amount - vestedAmount);
+            _vestingBuybacksFor[token][beneficiary][i].lastClaimedAt = uint48(block.timestamp);
+
             // If the buyback hasn't been fully vested, add the remaining amount back to the vesting buybacks.
-            if (vestedAmount != buyback.amount) {
-                _vestingBuybacksFor[token][beneficiary].push(
-                    JBVestingBuyback({
-                        amount: buyback.amount - vestedAmount,
-                        startTime: buyback.startTime,
-                        endTime: buyback.endTime
-                    })
-                );
-            }
+            if (vestedAmount == buyback.amount) newStartIndex = i + 1;
+
+            emit ClaimVestedBuybacks({token: token, beneficiary: beneficiary, amount: vestedAmount, caller: msg.sender});
         }
+
+        // Update the last claimed index.
+        _lastClaimedIndexOf[token][beneficiary] = newStartIndex;
 
         // Transfer the tokens to the beneficiary.
         IERC20(address(token)).safeTransfer({to: beneficiary, value: amount});
