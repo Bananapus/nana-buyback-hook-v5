@@ -31,6 +31,8 @@ import {JBPermissionIds} from "@bananapus/permission-ids/src/JBPermissionIds.sol
 
 import {IJBBuybackHook} from "./interfaces/IJBBuybackHook.sol";
 import {IWETH9} from "./interfaces/external/IWETH9.sol";
+import {JBVestedBuybackClaims} from "./structs/JBVestedBuybackClaims.sol";
+import {JBVestingBuyback} from "./structs/JBVestingBuyback.sol";
 
 /// @custom:benediction DEVS BENEDICAT ET PROTEGAT CONTRACTVS MEAM
 /// @notice The buyback hook allows beneficiaries of a payment to a project to either:
@@ -85,6 +87,9 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @notice The denominator used when calculating TWAP slippage percent values.
     uint256 public constant override TWAP_SLIPPAGE_DENOMINATOR = 10_000;
 
+    /// @notice The duration of the vesting period.
+    uint256 public constant override VESTING_PERIOD = 365 days;
+
     //*********************************************************************//
     // -------------------- public immutable properties ------------------ //
     //*********************************************************************//
@@ -130,6 +135,11 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @dev This includes the TWAP slippage tolerance and TWAP window, packed into a `uint256`.
     /// @custom:param projectId The ID of the project to get the twap parameters for.
     mapping(uint256 projectId => uint256) internal _twapParamsOf;
+
+    /// @notice The buybacks that are vesting to each beneficiary.
+    /// @custom:param projectId The ID of the project which the buybacks apply to.
+    /// @custom:param beneficiary The address which the buybacks belong to.
+    mapping(uint256 projectId => mapping(address beneficiary => JBVestingBuyback[])) internal _vestingBuybacksFor;
 
     //*********************************************************************//
     // ---------------------------- constructor -------------------------- //
@@ -276,6 +286,31 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         returns (uint256, uint256, uint256, JBRedeemHookSpecification[] memory hookSpecifications)
     {
         return (context.redemptionRate, context.redeemCount, context.totalSupply, hookSpecifications);
+    }
+
+    /// @notice Get the total number of claimable vested buybacks for a beneficiary.
+    /// @param projectId The ID of the project which the buybacks apply to.
+    /// @param beneficiary The address which the buybacks belong to.
+    /// @return amount The total number of claimable vested buybacks.
+    function claimableVestedBuybacksFor(
+        uint256 projectId,
+        address beneficiary
+    )
+        external
+        view
+        returns (uint256 amount)
+    {
+        // Get a reference to the buybacks.
+        JBVestingBuyback[] memory buybacks = _vestingBuybacksFor[projectId][beneficiary];
+
+        // Get a reference to the buyback being iterated on.
+        JBVestingBuyback memory buyback;
+
+        // Iterate over the buybacks and sum the vested amounts.
+        for (uint256 i; i < buybacks.length; i++) {
+            buyback = buybacks[i];
+            amount += mulDiv(buyback.amount, block.timestamp - buyback.startTime, buyback.endTime - buyback.startTime);
+        }
     }
 
     /// @notice Required by the `IJBRulesetDataHook` interfaces. Return false to not leak any permissions.
@@ -465,16 +500,29 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // Add the amount to mint to the leftover mint amount.
         partialMintTokenCount += mulDiv(amountToMintWith, context.weight, weightRatio);
 
-        // Mint the calculated amount of tokens for the beneficiary, including any leftover amount.
+        // Add the calculated amount of tokens to be vested for the beneficiary, including any leftover amount.
         // This takes the reserved rate into account.
         // slither-disable-next-line unused-return
-        CONTROLLER.mintTokensOf({
-            projectId: context.projectId,
-            tokenCount: exactSwapAmountOut + partialMintTokenCount,
-            beneficiary: address(context.beneficiary),
-            memo: "",
-            useReservedPercent: true
-        });
+        _vestingBuybacksFor[context.projectId][context.beneficiary].push(
+            JBVestingBuyback({
+                amount: exactSwapAmountOut + partialMintTokenCount,
+                startTime: block.timestamp,
+                endTime: block.timestamp + VESTING_PERIOD
+            })
+        );
+    }
+
+    /// @notice Claim multiple vested buybacks for multiple beneficiaries.
+    /// @param claims An array of `JBVestedBuybackClaims` structs, each representing a buyback to claim.
+    function claimVestedBuybacksFor(JBVestedBuybackClaims[] calldata claims) external {
+        // Keep a reference to the buyback being iterated on.
+        JBVestedBuybackClaims memory claim;
+
+        // Iterate over the claims and mint the tokens for the beneficiary.
+        for (uint256 i; i < claims.length; i++) {
+            claim = claims[i];
+            claimVestedBuybacksFor({projectId: claim.projectId, beneficiary: claim.beneficiary});
+        }
     }
 
     /// @notice Set the pool to use for a given project and terminal token (the default for the project's token <->
@@ -672,6 +720,59 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
         // Transfer the token to the pool.
         IERC20(terminalTokenWithWETH).safeTransfer(msg.sender, amountToSendToPool);
+    }
+
+    //*********************************************************************//
+    // ----------------------- public transactions ----------------------- //
+    //*********************************************************************//
+
+    /// @notice Claim all vested buybacks for a beneficiary.
+    /// @param projectId The ID of the project which the buybacks apply to.
+    /// @param beneficiary The address which the buybacks belong to.
+    /// @return amount The total number of tokens claimed.
+    function claimVestedBuybacksFor(uint256 projectId, address beneficiary) public returns (uint256 amount) {
+        // Get a reference to the buybacks.
+        JBVestingBuyback[] memory buybacks = _vestingBuybacksFor[projectId][beneficiary];
+
+        // Delete the buybacks, the ones still vesting will be added back.
+        delete _vestingBuybacksFor[projectId][beneficiary];
+
+        // Keep a reference to the buyback being iterated on.
+        JBVestingBuyback memory buyback;
+
+        // Iterate over the buybacks and sum the vested amounts.
+        for (uint256 i; i < buybacks.length; i++) {
+            buyback = buybacks[i];
+
+            // Get a reference to the vested amount.
+            uint256 vestedAmount =
+                mulDiv(buyback.amount, block.timestamp - buyback.startTime, buyback.endTime - buyback.startTime);
+
+            // Add the vested amount to the total amount claimed.
+            amount += vestedAmount;
+
+            // If the buyback hasn't been fully vested, add the remaining amount back to the vesting buybacks.
+            if (vestedAmount != buyback.amount) {
+                _vestingBuybacksFor[projectId][beneficiary].push(
+                    JBVestingBuyback({
+                        amount: buyback.amount - vestedAmount,
+                        startTime: buyback.startTime,
+                        endTime: buyback.endTime
+                    })
+                );
+            }
+        }
+
+        // Mint the vested amount of tokens for the beneficiary.
+        // This takes the reserved rate into account.
+        // slither-disable-next-line unused-return
+        CONTROLLER.mintTokensOf({
+            projectId: projectId,
+            tokenCount: amount,
+            beneficiary: beneficiary,
+            memo: "",
+            useReservedPercent: true
+        });
     }
 
     //*********************************************************************//
