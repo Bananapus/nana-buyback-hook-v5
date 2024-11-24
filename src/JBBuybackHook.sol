@@ -322,7 +322,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         JBVestingBuyback memory buyback;
 
         // Get a reference to the number of iterations to perform.
-        if (count > numberOfBuybacks - startIndex) count = numberOfBuybacks - startIndex;
+        if (startIndex + count > numberOfBuybacks) count = numberOfBuybacks - startIndex;
 
         // Iterate over the buybacks and sum the vested amounts.
         for (uint256 i; i < count; i++) {
@@ -809,7 +809,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             amount += vestedAmount;
 
             // Update the buyback if it hasn't been fully vested.
-            if (vestedAmount != buyback.amount) {
+            if (vestedAmount >= buyback.amount) {
                 // If the buyback hasn't been fully vested, update the buyback's amount and last claimed at.
                 _vestingBuybacksFor[token][beneficiary][startIndex + i].amount -= uint160(vestedAmount);
                 _vestingBuybacksFor[token][beneficiary][startIndex + i].lastClaimedAt = uint48(block.timestamp);
