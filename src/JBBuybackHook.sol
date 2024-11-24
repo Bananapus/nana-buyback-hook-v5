@@ -89,7 +89,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     uint256 public constant override TWAP_SLIPPAGE_DENOMINATOR = 10_000;
 
     /// @notice The duration of the vesting period.
-    uint256 public constant override VESTING_PERIOD = 730 days;
+    uint256 public constant override VESTING_PERIOD = 365 days;
 
     //*********************************************************************//
     // -------------------- public immutable properties ------------------ //
