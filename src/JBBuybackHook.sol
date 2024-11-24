@@ -89,7 +89,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     uint256 public constant override TWAP_SLIPPAGE_DENOMINATOR = 10_000;
 
     /// @notice The duration of the vesting period.
-    uint256 public constant override VESTING_PERIOD = 365 days;
+    uint256 public constant override VESTING_PERIOD = 730 days;
 
     //*********************************************************************//
     // -------------------- public immutable properties ------------------ //
@@ -311,18 +311,21 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // Get a reference to the index of the last fully claimed vesting buyback for the beneficiary.
         uint256 startIndex = _lastClaimedIndexOf[token][beneficiary];
 
-        // Get a reference to the buybacks.
-        JBVestingBuyback[] memory buybacks = _vestingBuybacksFor[token][beneficiary];
+        // Get a reference to the number of buybacks for the beneficiary.
+        uint256 numberOfBuybacks = _vestingBuybacksFor[token][beneficiary].length;
+
+        // If the start index is greater than or equal to the number of buybacks, return 0.
+        if (startIndex >= numberOfBuybacks) return 0;
 
         // Get a reference to the buyback being iterated on.
         JBVestingBuyback memory buyback;
 
         // Get a reference to the number of iterations to perform.
-        uint256 numberOfIterations = count > buybacks.length - startIndex ? buybacks.length - startIndex : count;
+        if (count > numberOfBuybacks - startIndex) count = numberOfBuybacks - startIndex;
 
         // Iterate over the buybacks and sum the vested amounts.
-        for (uint256 i; i < numberOfIterations; i++) {
-            buyback = buybacks[startIndex + i];
+        for (uint256 i; i < count; i++) {
+            buyback = _vestingBuybacksFor[token][beneficiary][startIndex + i];
 
             amount += block.timestamp >= buyback.endsAt
                 ? buyback.amount
@@ -777,25 +780,24 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // Get a reference to the index of the last fully claimed vesting buyback for the beneficiary.
         uint256 startIndex = _lastClaimedIndexOf[token][beneficiary];
 
-        // Get a reference to the buybacks.
-        JBVestingBuyback[] memory buybacks = _vestingBuybacksFor[token][beneficiary];
+        // Get a reference to the number of buybacks for the beneficiary.
+        uint256 numberOfBuybacks = _vestingBuybacksFor[token][beneficiary].length;
 
         // If the start index is greater than or equal to the number of buybacks, return 0.
-        if (startIndex >= buybacks.length) return 0;
+        if (startIndex >= numberOfBuybacks) return 0;
 
         // Keep a reference to the buyback being iterated on.
         JBVestingBuyback memory buyback;
 
         // Get a reference to the number of iterations to perform.
-        uint256 numberOfIterations =
-            startIndex + count > buybacks.length - startIndex ? buybacks.length - startIndex : count;
+        if (startIndex + count > numberOfBuybacks) count = numberOfBuybacks - startIndex;
 
         // Keep a reference to the new start index.
-        uint256 newStartIndex;
+        uint256 newStartIndex = startIndex;
 
         // Iterate over the buybacks and sum the vested amounts.
-        for (uint256 i; i < numberOfIterations; i++) {
-            buyback = buybacks[startIndex + i];
+        for (uint256 i; i < count; i++) {
+            buyback = _vestingBuybacksFor[token][beneficiary][startIndex + i];
 
             // Get a reference to the vested amount.
             uint256 vestedAmount = block.timestamp >= buyback.endsAt
@@ -805,11 +807,15 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             // Add the vested amount to the total amount claimed.
             amount += vestedAmount;
 
-            _vestingBuybacksFor[token][beneficiary][i].amount = uint160(buyback.amount - vestedAmount);
-            _vestingBuybacksFor[token][beneficiary][i].lastClaimedAt = uint48(block.timestamp);
-
-            // If the buyback hasn't been fully vested, add the remaining amount back to the vesting buybacks.
-            if (vestedAmount == buyback.amount) newStartIndex = i + 1;
+            // Update the buyback if it hasn't been fully vested.
+            if (vestedAmount != buyback.amount) {
+                // If the buyback hasn't been fully vested, update the buyback's amount and last claimed at.
+                _vestingBuybacksFor[token][beneficiary][startIndex + i].amount -= uint160(vestedAmount);
+                _vestingBuybacksFor[token][beneficiary][startIndex + i].lastClaimedAt = uint48(block.timestamp);
+            } else {
+                // If the buyback hasn't been fully vested, add the remaining amount back to the vesting buybacks.
+                newStartIndex = startIndex + i + 1;
+            }
 
             emit ClaimVestedBuybacks({token: token, beneficiary: beneficiary, amount: vestedAmount, caller: msg.sender});
         }
