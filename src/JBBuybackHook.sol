@@ -145,7 +145,8 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @notice The index of the last fully claimed vesting buyback for each beneficiary.
     /// @custom:param token The token which the buybacks apply to.
     /// @custom:param beneficiary The address which the buybacks belong to.
-    mapping(IJBToken token => mapping(address beneficiary => uint256 lastClaimedAt)) internal _lastClaimedIndexOf;
+    mapping(IJBToken token => mapping(address beneficiary => uint256 lastClaimedAt)) internal
+        _lastClaimedVestedBuybackIndexOf;
 
     //*********************************************************************//
     // ---------------------------- constructor -------------------------- //
@@ -309,7 +310,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         returns (uint256 amount)
     {
         // Get a reference to the index of the last fully claimed vesting buyback for the beneficiary.
-        uint256 startIndex = _lastClaimedIndexOf[token][beneficiary];
+        uint256 startIndex = _lastClaimedVestedBuybackIndexOf[token][beneficiary];
 
         // Get a reference to the number of buybacks for the beneficiary.
         uint256 numberOfBuybacks = _vestingBuybacksFor[token][beneficiary].length;
@@ -778,7 +779,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         returns (uint256 amount)
     {
         // Get a reference to the index of the last fully claimed vesting buyback for the beneficiary.
-        uint256 startIndex = _lastClaimedIndexOf[token][beneficiary];
+        uint256 startIndex = _lastClaimedVestedBuybackIndexOf[token][beneficiary];
 
         // Get a reference to the number of buybacks for the beneficiary.
         uint256 numberOfBuybacks = _vestingBuybacksFor[token][beneficiary].length;
@@ -821,7 +822,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         }
 
         // Update the last claimed index.
-        if (startIndex != newStartIndex) _lastClaimedIndexOf[token][beneficiary] = newStartIndex;
+        if (startIndex != newStartIndex) _lastClaimedVestedBuybackIndexOf[token][beneficiary] = newStartIndex;
 
         // Transfer the tokens to the beneficiary.
         IERC20(address(token)).safeTransfer({to: beneficiary, value: amount});
