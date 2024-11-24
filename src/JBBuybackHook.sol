@@ -521,8 +521,16 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // Add the amount to mint to the leftover mint amount.
         partialMintTokenCount += mulDiv(amountToMintWith, context.weight, weightRatio);
 
-        // Get a reference to the total amount of tokens to be vested.
-        uint256 totalAmountToVest = exactSwapAmountOut + partialMintTokenCount;
+        // Mint the total amount of tokens to be vested to this contract.
+        // This takes the reserved rate into account.
+        // slither-disable-next-line unused-return
+        uint256 amountToVest = CONTROLLER.mintTokensOf({
+            projectId: context.projectId,
+            tokenCount: exactSwapAmountOut + partialMintTokenCount,
+            beneficiary: address(this),
+            memo: "",
+            useReservedPercent: true
+        });
 
         // Get a reference to the project's token.
         IJBToken token = CONTROLLER.TOKENS().tokenOf(context.projectId);
@@ -532,22 +540,20 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // slither-disable-next-line unused-return
         _vestingBuybacksFor[token][context.beneficiary].push(
             JBVestingBuyback({
-                amount: uint160(totalAmountToVest),
+                amount: uint160(amountToVest),
                 startsAt: uint48(block.timestamp),
                 endsAt: uint48(block.timestamp + VESTING_PERIOD),
                 lastClaimedAt: uint48(block.timestamp)
             })
         );
 
-        // Mint the total amount of tokens to be vested to this contract.
-        // This takes the reserved rate into account.
-        // slither-disable-next-line unused-return
-        CONTROLLER.mintTokensOf({
+        emit StartVestingBuyback({
             projectId: context.projectId,
-            tokenCount: totalAmountToVest,
-            beneficiary: address(this),
-            memo: "",
-            useReservedPercent: true
+            beneficiary: context.beneficiary,
+            amount: amountToVest,
+            startsAt: block.timestamp,
+            endsAt: block.timestamp + VESTING_PERIOD,
+            caller: msg.sender
         });
     }
 

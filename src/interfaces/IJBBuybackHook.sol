@@ -20,6 +20,14 @@ interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallba
     );
     event Mint(uint256 indexed projectId, uint256 leftoverAmount, uint256 tokenCount, address caller);
     event PoolAdded(uint256 indexed projectId, address indexed terminalToken, address pool, address caller);
+    event StartVestingBuyback(
+        uint256 indexed projectId,
+        address indexed beneficiary,
+        uint256 amount,
+        uint256 startsAt,
+        uint256 endsAt,
+        address caller
+    );
     event TwapWindowChanged(uint256 indexed projectId, uint256 oldWindow, uint256 newWindow, address caller);
     event TwapSlippageToleranceChanged(
         uint256 indexed projectId, uint256 oldTolerance, uint256 newTolerance, address caller
