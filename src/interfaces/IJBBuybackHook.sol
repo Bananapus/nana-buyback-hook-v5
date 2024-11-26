@@ -51,19 +51,12 @@ interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallba
     function projectTokenOf(uint256 projectId) external view returns (address projectTokenOf);
     function twapSlippageToleranceOf(uint256 projectId) external view returns (uint256 slippageTolerance);
     function twapWindowOf(uint256 projectId) external view returns (uint32 window);
-    function claimableVestedBuybacksFor(
-        IJBToken token,
-        address beneficiary,
-        uint256 count
-    )
-        external
-        view
-        returns (uint256 total);
 
     function claimVestedBuybacksFor(JBVestedBuybackClaims[] calldata claims) external;
     function claimVestedBuybacksFor(
         IJBToken token,
         address beneficiary,
+        uint256 startIndex,
         uint256 count
     )
         external
