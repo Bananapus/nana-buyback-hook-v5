@@ -32,7 +32,14 @@ interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallba
     event TwapSlippageToleranceChanged(
         uint256 indexed projectId, uint256 oldTolerance, uint256 newTolerance, address caller
     );
-    event ClaimVestedBuybacks(IJBToken indexed token, address indexed beneficiary, uint256 amount, address caller);
+    event ClaimVestedBuybacks(
+        IJBToken indexed token,
+        address indexed beneficiary,
+        uint256 indexed index,
+        uint256 amountVested,
+        uint256 amountLeft,
+        address caller
+    );
 
     function CONTROLLER() external view returns (IJBController);
     function DIRECTORY() external view returns (IJBDirectory);

@@ -777,7 +777,14 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             _vestingBuybacksFor[token][beneficiary][startIndex + i].amount -= uint160(vestedAmount);
             _vestingBuybacksFor[token][beneficiary][startIndex + i].lastClaimedAt = uint48(block.timestamp);
 
-            emit ClaimVestedBuybacks({token: token, beneficiary: beneficiary, amount: vestedAmount, caller: msg.sender});
+            emit ClaimVestedBuybacks({
+                token: token,
+                beneficiary: beneficiary,
+                index: startIndex + i,
+                amountVested: vestedAmount,
+                amountLeft: buyback.amount - uint160(vestedAmount),
+                caller: msg.sender
+            });
         }
 
         // Transfer the tokens to the beneficiary.
