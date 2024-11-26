@@ -362,8 +362,10 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // slither-disable-next-line unused-return
         // Get the current tick from the pool's slot0 if the oldest observation is 0.
         if (oldestObservation == 0) {
+            // slither-disable-next-line unused-return
             (, arithmeticMeanTick,,,,,) = pool.slot0();
         } else {
+            // slither-disable-next-line unused-return
             (arithmeticMeanTick,) = OracleLibrary.consult(address(pool), twapWindow);
         }
 
