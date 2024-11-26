@@ -239,7 +239,12 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // If a minimum amount of tokens to swap for wasn't specified by the player/client, calculate a minimum based on
         // the TWAP.
         if (minimumSwapAmountOut == 0) {
-            minimumSwapAmountOut = _getQuote(context.projectId, projectToken, amountToSwapWith, terminalToken);
+            minimumSwapAmountOut = _getQuote({
+                projectId: context.projectId,
+                projectToken: projectToken,
+                amountIn: amountToSwapWith,
+                terminalToken: terminalToken
+            });
         }
 
         // If the minimum amount of tokens from the swap exceeds the amount that paying the project directly would
@@ -352,9 +357,22 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         uint32 twapWindow = uint32(twapParams);
         uint256 twapSlippageTolerance = twapParams >> 128;
 
+        // If the oldest observation is younger than the TWAP window, use the oldest observation.
+        uint32 oldestObservation = OracleLibrary.getOldestObservationSecondsAgo(address(pool));
+        if (oldestObservation < twapWindow) twapWindow = oldestObservation;
+
         // Keep a reference to the TWAP tick.
+        int24 arithmeticMeanTick;
+
         // slither-disable-next-line unused-return
-        (int24 arithmeticMeanTick,) = OracleLibrary.consult(address(pool), twapWindow);
+        // Get the current tick from the pool's slot0 if the oldest observation is 0.
+        if (oldestObservation == 0) {
+            // slither-disable-next-line unused-return
+            (, arithmeticMeanTick,,,,,) = pool.slot0();
+        } else {
+            // slither-disable-next-line unused-return
+            (arithmeticMeanTick,) = OracleLibrary.consult(address(pool), twapWindow);
+        }
 
         // Get a quote based on this TWAP tick.
         amountOut = OracleLibrary.getQuoteAtTick({

@@ -287,26 +287,126 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
     /// @notice Test `beforePayRecordedContext` when no quote is provided.
     /// @dev This means the hook must calculate its own quote based on the TWAP.
     /// @dev This bypasses testing the Uniswap Oracle lib by re-using the internal `_getQuote(...)`.
-    function test_beforePayRecordedWith_useTwap(uint256 tokenCount) public {
+    function test_beforePayRecordedWith_useTwap_OldestObservationZero(uint256 tokenCount) public {
         // Set the relevant context.
         beforePayRecordedContext.weight = tokenCount;
         beforePayRecordedContext.metadata = "";
 
         // Mock the pool being unlocked.
-        vm.mockCall(address(pool), abi.encodeCall(pool.slot0, ()), abi.encode(0, 0, 0, 0, 0, 0, true));
+        vm.mockCall(address(pool), abi.encodeCall(pool.slot0, ()), abi.encode(0, 0, 0, 1, 0, 0, true));
         vm.expectCall(address(pool), abi.encodeCall(pool.slot0, ()));
+
+        // Return the oldest observationTimestamp as the current block, making oldest observation 0.
+        mockExpect(address(pool), abi.encodeCall(pool.observations, (0)), abi.encode(block.timestamp, 0, 0, true));
+
+        // Return values to catch:
+        JBPayHookSpecification[] memory specificationsReturned;
+        uint256 weightReturned;
+
+        // Package data for ruleset call.
+        JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
+            reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
+            redemptionRate: JBConstants.MAX_REDEMPTION_RATE,
+            baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            pausePay: false,
+            pauseCreditTransfers: false,
+            allowOwnerMinting: true,
+            allowSetCustomToken: true,
+            allowTerminalMigration: true,
+            allowSetTerminals: true,
+            ownerMustSendPayouts: false,
+            allowSetController: true,
+            allowAddAccountingContext: true,
+            allowAddPriceFeed: true,
+            holdFees: false,
+            useTotalSurplusForRedemptions: true,
+            useDataHookForPay: false,
+            useDataHookForRedeem: false,
+            dataHook: address(0),
+            metadata: 0
+        });
+
+        uint256 packed = _rulesMetadata.packRulesetMetadata();
+
+        JBRuleset memory _ruleset = JBRuleset({
+            cycleNumber: 1,
+            id: 1,
+            basedOnId: 0,
+            start: uint48(block.timestamp),
+            duration: 10 days,
+            weight: 1e18,
+            decayPercent: 0,
+            approvalHook: IJBRulesetApprovalHook(address(0)),
+            metadata: packed
+        });
+
+        // Mock call to controller grabbing the current ruleset
+        mockExpect(
+            address(controller),
+            abi.encodeCall(IJBController.currentRulesetOf, (projectId)),
+            abi.encode(_ruleset, _rulesMetadata)
+        );
+
+        // Test: call `beforePayRecordedWith`.
+        vm.prank(terminalStore);
+        (weightReturned, specificationsReturned) = hook.beforePayRecordedWith(beforePayRecordedContext);
+
+        // Bypass testing the Uniswap oracle lib by using the internal function `_getQuote(...)`.
+        uint256 twapAmountOut = hook.ForTest_getQuote(projectId, address(projectToken), 1 ether, address(weth));
+
+        // If minting would yield more tokens, mint:
+        if (tokenCount >= twapAmountOut) {
+            // No hook specifications should be returned.
+            assertEq(specificationsReturned.length, 0);
+
+            // The weight should be returned unchanged.
+            assertEq(weightReturned, tokenCount);
+        }
+        // Otherwise, swap (with the appropriate hook specification):
+        else {
+            // There should be 1 hook specification,
+            assertEq(specificationsReturned.length, 1);
+            // with the correct hook address,
+            assertEq(address(specificationsReturned[0].hook), address(hook));
+            // the full amount paid in,
+            assertEq(specificationsReturned[0].amount, 1 ether);
+            // the correct metadata,
+            assertEq(
+                specificationsReturned[0].metadata,
+                abi.encode(address(projectToken) < address(weth), 0, twapAmountOut),
+                "Wrong metadata returned in hook specification"
+            );
+            // and a weight of 0 to prevent additional minting from the terminal.
+            assertEq(weightReturned, 0);
+        }
+    }
+
+    /// @notice Test `beforePayRecordedContext` when no quote is provided.
+    /// @dev This means the hook must calculate its own quote based on the TWAP.
+    /// @dev This bypasses testing the Uniswap Oracle lib by re-using the internal `_getQuote(...)`.
+    function test_beforePayRecordedWith_useTwap_OldestObservationLT_Twap(uint256 tokenCount) public {
+        // Set the relevant context.
+        beforePayRecordedContext.weight = tokenCount;
+        beforePayRecordedContext.metadata = "";
+
+        // Mock the pool being unlocked.
+        vm.mockCall(address(pool), abi.encodeCall(pool.slot0, ()), abi.encode(0, 0, 0, 1, 0, 0, true));
+        vm.expectCall(address(pool), abi.encodeCall(pool.slot0, ()));
+
+        // Return the oldest observationTimestamp as the current block, making oldest observation 0.
+        mockExpect(address(pool), abi.encodeCall(pool.observations, (0)), abi.encode(block.timestamp - 1, 0, 0, true));
 
         // Mock the pool's TWAP.
         // Set up the two points in time to mock the TWAP at.
         uint32[] memory secondsAgos = new uint32[](2);
-        secondsAgos[0] = twapWindow;
+        secondsAgos[0] = 1;
         secondsAgos[1] = 0;
 
         // Mock the seconds per liquidity for those two points.
         // Each represents the amount of time the pool spent at the corresponding level of liquidity.
         uint160[] memory secondsPerLiquidity = new uint160[](2);
-        secondsPerLiquidity[0] = 100;
-        secondsPerLiquidity[1] = 1000;
+        secondsPerLiquidity[0] = 0;
+        secondsPerLiquidity[1] = 1;
 
         // Mock the tick cumulative values for the two mock TWAP points.
         // Tick cumulatives are running totals of tick values.
