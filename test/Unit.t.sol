@@ -303,6 +303,50 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         JBPayHookSpecification[] memory specificationsReturned;
         uint256 weightReturned;
 
+        // Package data for ruleset call.
+        JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
+            reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
+            redemptionRate: JBConstants.MAX_REDEMPTION_RATE,
+            baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            pausePay: false,
+            pauseCreditTransfers: false,
+            allowOwnerMinting: true,
+            allowSetCustomToken: true,
+            allowTerminalMigration: true,
+            allowSetTerminals: true,
+            ownerMustSendPayouts: false,
+            allowSetController: true,
+            allowAddAccountingContext: true,
+            allowAddPriceFeed: true,
+            holdFees: false,
+            useTotalSurplusForRedemptions: true,
+            useDataHookForPay: false,
+            useDataHookForRedeem: false,
+            dataHook: address(0),
+            metadata: 0
+        });
+
+        uint256 packed = _rulesMetadata.packRulesetMetadata();
+
+        JBRuleset memory _ruleset = JBRuleset({
+            cycleNumber: 1,
+            id: 1,
+            basedOnId: 0,
+            start: uint48(block.timestamp),
+            duration: 10 days,
+            weight: 1e18,
+            decayPercent: 0,
+            approvalHook: IJBRulesetApprovalHook(address(0)),
+            metadata: packed
+        });
+
+        // Mock call to controller grabbing the current ruleset
+        mockExpect(
+            address(controller),
+            abi.encodeCall(IJBController.currentRulesetOf, (projectId)),
+            abi.encode(_ruleset, _rulesMetadata)
+        );
+
         // Test: call `beforePayRecordedWith`.
         vm.prank(terminalStore);
         (weightReturned, specificationsReturned) = hook.beforePayRecordedWith(beforePayRecordedContext);

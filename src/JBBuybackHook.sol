@@ -239,7 +239,12 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // If a minimum amount of tokens to swap for wasn't specified by the player/client, calculate a minimum based on
         // the TWAP.
         if (minimumSwapAmountOut == 0) {
-            minimumSwapAmountOut = _getQuote(context.projectId, projectToken, amountToSwapWith, terminalToken);
+            minimumSwapAmountOut = _getQuote({
+                projectId: context.projectId,
+                projectToken: projectToken,
+                amountIn: amountToSwapWith,
+                terminalToken: terminalToken
+            });
         }
 
         // If the minimum amount of tokens from the swap exceeds the amount that paying the project directly would
