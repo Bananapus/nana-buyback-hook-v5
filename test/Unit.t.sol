@@ -29,6 +29,14 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
     ForTest_JBBuybackHook hook;
 
     event Swap(uint256 indexed projectId, uint256 amountIn, IUniswapV3Pool pool, uint256 amountOut, address caller);
+    event StartVestingBuyback(
+        uint256 indexed projectId,
+        address indexed beneficiary,
+        uint256 amount,
+        uint256 startsAt,
+        uint256 endsAt,
+        address caller
+    );
     event Mint(uint256 indexed projectId, uint256 amount, uint256 tokenCount, address caller);
     event TwapWindowChanged(uint256 indexed projectId, uint256 oldSecondsAgo, uint256 newSecondsAgo, address caller);
     event TwapSlippageToleranceChanged(
@@ -742,20 +750,19 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             abi.encodeCall(controller.burnTokensOf, (address(hook), afterPayRecordedContext.projectId, twapQuote, ""))
         );
 
+        uint256 amountToVest = 123;
+
         // Mock and expect the call to mint tokens to the beneficiary.
         vm.mockCall(
             address(controller),
             abi.encodeCall(
-                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)
+                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(hook), "", true)
             ),
-            abi.encode(true)
+            abi.encode(amountToVest)
         );
-        vm.expectCall(
-            address(controller),
-            abi.encodeCall(
-                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)
-            )
-        );
+
+        vm.mockCall(address(controller), abi.encodeCall(controller.TOKENS, ()), abi.encode(tokens));
+        vm.mockCall(address(tokens), abi.encodeCall(tokens.tokenOf, (projectId)), abi.encode(projectToken));
 
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
@@ -808,6 +815,17 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             afterPayRecordedContext.amount.value,
             pool,
             twapQuote,
+            address(multiTerminal)
+        );
+
+        // Expect the vesting buyback event.
+        vm.expectEmit(true, true, true, true);
+        emit StartVestingBuyback(
+            afterPayRecordedContext.projectId,
+            address(dude),
+            amountToVest,
+            block.timestamp,
+            block.timestamp + 180 days,
             address(multiTerminal)
         );
 
@@ -893,20 +911,18 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             abi.encodeCall(controller.burnTokensOf, (address(hook), afterPayRecordedContext.projectId, twapQuote, ""))
         );
 
+        uint256 amountToVest = 123;
         // Mock and expect the call to mint tokens to the beneficiary.
         vm.mockCall(
             address(controller),
             abi.encodeCall(
-                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)
+                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(hook), "", true)
             ),
-            abi.encode(true)
+            abi.encode(amountToVest)
         );
-        vm.expectCall(
-            address(controller),
-            abi.encodeCall(
-                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)
-            )
-        );
+
+        vm.mockCall(address(controller), abi.encodeCall(controller.TOKENS, ()), abi.encode(tokens));
+        vm.mockCall(address(tokens), abi.encodeCall(tokens.tokenOf, (projectId)), abi.encode(projectToken));
 
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
@@ -962,6 +978,16 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             address(multiTerminal)
         );
 
+        // Expect the vesting buyback event.
+        vm.expectEmit(true, true, true, true);
+        emit StartVestingBuyback(
+            afterPayRecordedContext.projectId,
+            address(dude),
+            amountToVest,
+            block.timestamp,
+            block.timestamp + 180 days,
+            address(multiTerminal)
+        );
         vm.prank(address(multiTerminal));
 
         // Test: call `afterPayRecordedWith`.
@@ -1061,19 +1087,21 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             abi.encodeCall(controller.burnTokensOf, (address(hook), afterPayRecordedContext.projectId, twapQuote, ""))
         );
 
+        uint256 amountToVest = 123;
         // Mock and expect the call to mint tokens to the beneficiary.
         vm.mockCall(
             address(controller),
             abi.encodeCall(
-                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)
+                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(hook), "", true)
             ),
-            abi.encode(true)
+            abi.encode(amountToVest)
         );
-        vm.expectCall(
-            address(controller),
-            abi.encodeCall(
-                controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(dude), "", true)
-            )
+
+        vm.mockCall(address(controller), abi.encodeCall(controller.TOKENS, ()), abi.encode(tokens));
+        vm.mockCall(
+            address(tokens),
+            abi.encodeCall(tokens.tokenOf, (afterPayRecordedContext.projectId)),
+            abi.encode(projectToken)
         );
 
         // Mock and expect the call to check the balance of the hook. There should be no tokens left over.
@@ -1140,6 +1168,17 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             afterPayRecordedContext.amount.value,
             randomPool,
             twapQuote,
+            address(multiTerminal)
+        );
+
+        // Expect the vesting buyback event.
+        vm.expectEmit(true, true, true, true);
+        emit StartVestingBuyback(
+            afterPayRecordedContext.projectId,
+            address(dude),
+            amountToVest,
+            block.timestamp,
+            block.timestamp + 180 days,
             address(multiTerminal)
         );
 
