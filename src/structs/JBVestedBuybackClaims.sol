@@ -8,7 +8,7 @@ import {IJBToken} from "@bananapus/core/src/interfaces/IJBToken.sol";
 /// @custom:member startIndex The index of the first buyback to claim.
 /// @custom:member count The number of buybacks to claim.
 struct JBVestedBuybackClaims {
-    IJBToken token;
+    address token;
     address beneficiary;
     uint256 startIndex;
     uint256 count;

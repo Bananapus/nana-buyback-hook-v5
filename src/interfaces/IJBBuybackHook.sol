@@ -33,7 +33,7 @@ interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallba
         uint256 indexed projectId, uint256 oldTolerance, uint256 newTolerance, address caller
     );
     event ClaimVestedBuybacks(
-        IJBToken indexed token,
+        address indexed token,
         address indexed beneficiary,
         uint256 indexed index,
         uint256 amountVested,
@@ -61,7 +61,7 @@ interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallba
 
     function claimVestedBuybacksFor(JBVestedBuybackClaims[] calldata claims) external;
     function claimVestedBuybacksFor(
-        IJBToken token,
+        address token,
         address beneficiary,
         uint256 startIndex,
         uint256 count

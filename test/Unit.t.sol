@@ -283,7 +283,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
                 abi.encode(
                     address(projectToken) < address(weth),
                     beforePayRecordedContext.amount.value - amountIn,
-                    swapOutCount
+                    swapOutCount,
+                    address(projectToken)
                 ),
                 "Wrong metadata returned in hook specification"
             );
@@ -404,7 +405,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             // the correct metadata,
             assertEq(
                 specificationsReturned[0].metadata,
-                abi.encode(address(projectToken) < address(weth), 0, twapAmountOut),
+                abi.encode(address(projectToken) < address(weth), 0, twapAmountOut, address(projectToken)),
                 "Wrong metadata returned in hook specification"
             );
             // and a weight of 0 to prevent additional minting from the terminal.
@@ -692,7 +693,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         afterPayRecordedContext.hookMetadata = abi.encode(
             address(projectToken) < address(weth),
             0,
-            tokenCount // The token count is used.
+            tokenCount, // The token count is used.
+            address(projectToken)
         );
 
         // Mock and expect the swap call.
@@ -760,9 +762,6 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             ),
             abi.encode(amountToVest)
         );
-
-        vm.mockCall(address(controller), abi.encodeCall(controller.TOKENS, ()), abi.encode(tokens));
-        vm.mockCall(address(tokens), abi.encodeCall(tokens.tokenOf, (projectId)), abi.encode(projectToken));
 
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
@@ -853,7 +852,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         afterPayRecordedContext.hookMetadata = abi.encode(
             address(projectToken) < address(weth),
             0,
-            twapQuote // The TWAP quote, which exceeds the token count, is used.
+            twapQuote, // The TWAP quote, which exceeds the token count, is used.
+            address(projectToken)
         );
 
         // Mock and expect the swap call.
@@ -920,9 +920,6 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             ),
             abi.encode(amountToVest)
         );
-
-        vm.mockCall(address(controller), abi.encodeCall(controller.TOKENS, ()), abi.encode(tokens));
-        vm.mockCall(address(tokens), abi.encodeCall(tokens.tokenOf, (projectId)), abi.encode(projectToken));
 
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
@@ -1015,7 +1012,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         afterPayRecordedContext.weight = twapQuote;
 
         // The metadata coming from `beforePayRecordedWith(...)`.
-        afterPayRecordedContext.hookMetadata = abi.encode(address(projectToken) < address(weth), 0, tokenCount);
+        afterPayRecordedContext.hookMetadata =
+            abi.encode(address(projectToken) < address(weth), 0, tokenCount, address(projectToken));
 
         // Mock and expect the swap call.
         vm.mockCall(
@@ -1095,13 +1093,6 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
                 controller.mintTokensOf, (afterPayRecordedContext.projectId, twapQuote, address(hook), "", true)
             ),
             abi.encode(amountToVest)
-        );
-
-        vm.mockCall(address(controller), abi.encodeCall(controller.TOKENS, ()), abi.encode(tokens));
-        vm.mockCall(
-            address(tokens),
-            abi.encodeCall(tokens.tokenOf, (afterPayRecordedContext.projectId)),
-            abi.encode(projectToken)
         );
 
         // Mock and expect the call to check the balance of the hook. There should be no tokens left over.
@@ -1197,7 +1188,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         afterPayRecordedContext.weight = 1 ether; // weight - unused
 
         // The metadata coming from `beforePayRecordedWith(...)`.
-        afterPayRecordedContext.hookMetadata = abi.encode(address(projectToken) < address(weth), 0, tokenCount);
+        afterPayRecordedContext.hookMetadata =
+            abi.encode(address(projectToken) < address(weth), 0, tokenCount, address(projectToken));
 
         // Mock the swap call reverting.
         vm.mockCallRevert(

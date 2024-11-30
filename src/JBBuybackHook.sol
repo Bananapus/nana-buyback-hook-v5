@@ -140,7 +140,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @notice The buybacks that are vesting to each beneficiary.
     /// @custom:param token The token which the buybacks apply to.
     /// @custom:param beneficiary The address which the buybacks belong to.
-    mapping(IJBToken token => mapping(address beneficiary => JBVestingBuyback[])) internal _vestingBuybacksFor;
+    mapping(address token => mapping(address beneficiary => JBVestingBuyback[])) internal _vestingBuybacksFor;
 
     //*********************************************************************//
     // ---------------------------- constructor -------------------------- //
@@ -267,7 +267,10 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
                 hook: IJBPayHook(this),
                 amount: amountToSwapWith,
                 metadata: abi.encode(
-                    projectTokenIs0, totalPaid == amountToSwapWith ? 0 : totalPaid - amountToSwapWith, minimumSwapAmountOut
+                    projectTokenIs0,
+                    totalPaid == amountToSwapWith ? 0 : totalPaid - amountToSwapWith,
+                    minimumSwapAmountOut,
+                    projectToken
                 )
             });
 
@@ -397,8 +400,8 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         }
 
         // Parse the metadata forwarded from the data hook.
-        (bool projectTokenIs0, uint256 amountToMintWith, uint256 minimumSwapAmountOut) =
-            abi.decode(context.hookMetadata, (bool, uint256, uint256));
+        (bool projectTokenIs0, uint256 amountToMintWith, uint256 minimumSwapAmountOut, address token) =
+            abi.decode(context.hookMetadata, (bool, uint256, uint256, address));
 
         // If the token paid in isn't the native token, pull the amount to swap from the terminal.
         if (context.forwardedAmount.token != JBConstants.NATIVE_TOKEN) {
@@ -487,18 +490,14 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             useReservedPercent: true
         });
 
-        // Get a reference to the project's token.
-        IJBToken token = CONTROLLER.TOKENS().tokenOf(context.projectId);
-
         // Add the calculated amount of tokens to be vested for the beneficiary, including any leftover amount.
         // This takes the reserved rate into account.
         // slither-disable-next-line unused-return
         _vestingBuybacksFor[token][context.beneficiary].push(
             JBVestingBuyback({
                 amount: uint160(amountToVest),
-                startsAt: uint48(block.timestamp),
-                endsAt: uint48(block.timestamp + VESTING_PERIOD),
-                lastClaimedAt: uint48(block.timestamp)
+                lastClaimedAt: uint48(block.timestamp),
+                endsAt: uint48(block.timestamp + VESTING_PERIOD)
             })
         );
 
@@ -738,7 +737,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @param count The number of buybacks to claim.
     /// @return amount The total number of tokens claimed.
     function claimVestedBuybacksFor(
-        IJBToken token,
+        address token,
         address beneficiary,
         uint256 startIndex,
         uint256 count
