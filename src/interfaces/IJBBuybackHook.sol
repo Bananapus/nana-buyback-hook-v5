@@ -23,6 +23,7 @@ interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallba
     event StartVestingBuyback(
         uint256 indexed projectId,
         address indexed beneficiary,
+        uint256 indexed index,
         uint256 amount,
         uint256 startsAt,
         uint256 endsAt,
@@ -63,8 +64,7 @@ interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallba
     function claimVestedBuybacksFor(
         address token,
         address beneficiary,
-        uint256 startIndex,
-        uint256 count
+        uint256[] calldata indices
     )
         external
         returns (uint256 amount);
