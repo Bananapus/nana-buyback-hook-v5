@@ -32,6 +32,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
     event StartVestingBuyback(
         uint256 indexed projectId,
         address indexed beneficiary,
+        uint256 indexed index,
         uint256 amount,
         uint256 startsAt,
         uint256 endsAt,
@@ -822,6 +823,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         emit StartVestingBuyback(
             afterPayRecordedContext.projectId,
             address(dude),
+            0,
             amountToVest,
             block.timestamp,
             block.timestamp + 180 days,
@@ -980,6 +982,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         emit StartVestingBuyback(
             afterPayRecordedContext.projectId,
             address(dude),
+            0,
             amountToVest,
             block.timestamp,
             block.timestamp + 180 days,
@@ -1167,6 +1170,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         emit StartVestingBuyback(
             afterPayRecordedContext.projectId,
             address(dude),
+            0,
             amountToVest,
             block.timestamp,
             block.timestamp + 180 days,
