@@ -208,7 +208,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
             reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
-            cashOutTaxRate: JBConstants.MAX_CASH_OUT_TAX_RATE,
+            cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
             pauseCreditTransfers: false,
@@ -306,7 +306,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
             reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
-            cashOutTaxRate: JBConstants.MAX_CASH_OUT_TAX_RATE,
+            cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
             pauseCreditTransfers: false,
@@ -429,7 +429,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
             reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
-            cashOutTaxRate: JBConstants.MAX_CASH_OUT_TAX_RATE,
+            cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
             pauseCreditTransfers: false,
@@ -524,7 +524,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
             reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
-            cashOutTaxRate: JBConstants.MAX_CASH_OUT_TAX_RATE,
+            cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
             pauseCreditTransfers: false,
@@ -597,7 +597,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
             reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
-            cashOutTaxRate: JBConstants.MAX_CASH_OUT_TAX_RATE,
+            cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
             pauseCreditTransfers: false,
@@ -670,7 +670,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
             reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
-            cashOutTaxRate: JBConstants.MAX_CASH_OUT_TAX_RATE,
+            cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
             pauseCreditTransfers: false,
@@ -860,7 +860,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
             reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
-            cashOutTaxRate: JBConstants.MAX_CASH_OUT_TAX_RATE,
+            cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
             pauseCreditTransfers: false,
@@ -1011,7 +1011,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
             reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
-            cashOutTaxRate: JBConstants.MAX_CASH_OUT_TAX_RATE,
+            cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
             pauseCreditTransfers: false,
@@ -1185,7 +1185,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
             reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
-            cashOutTaxRate: JBConstants.MAX_CASH_OUT_TAX_RATE,
+            cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
             pauseCreditTransfers: false,

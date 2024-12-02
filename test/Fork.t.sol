@@ -71,7 +71,7 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
     function initMetadata() public {
         _metadata = JBRulesetMetadata({
             reservedPercent: JBConstants.MAX_RESERVED_PERCENT / 2, //50%
-            cashOutTaxRate: JBConstants.MAX_CASH_OUT_TAX_RATE, //50%
+            cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(address(JBConstants.NATIVE_TOKEN))),
             pausePay: false,
             pauseCreditTransfers: false,
