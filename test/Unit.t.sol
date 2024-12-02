@@ -6,7 +6,7 @@ import /* {*} from */ "@bananapus/core/test/helpers/TestBaseWorkflow.sol";
 
 import "@bananapus/core/src/interfaces/IJBController.sol";
 import "@bananapus/core/src/interfaces/IJBDirectory.sol";
-import "@bananapus/core/src/interfaces/IJBRedeemHook.sol";
+import "@bananapus/core/src/interfaces/IJBCashOutHook.sol";
 import "@bananapus/core/src/libraries/JBConstants.sol";
 import "@bananapus/permission-ids/src/JBPermissionIds.sol";
 import {JBRulesetMetadataResolver} from "@bananapus/core/src/libraries/JBRulesetMetadataResolver.sol";
@@ -105,7 +105,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
         }),
         weight: 1,
-        projectTokenCount: 69,
+        newlyIssuedTokenCount: 69,
         beneficiary: dude,
         hookMetadata: "",
         payerMetadata: ""
@@ -208,7 +208,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
             reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
-            redemptionRate: JBConstants.MAX_REDEMPTION_RATE,
+            cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
             pauseCreditTransfers: false,
@@ -221,9 +221,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             allowAddAccountingContext: true,
             allowAddPriceFeed: true,
             holdFees: false,
-            useTotalSurplusForRedemptions: true,
+            useTotalSurplusForCashOuts: true,
             useDataHookForPay: false,
-            useDataHookForRedeem: false,
+            useDataHookForCashOut: false,
             dataHook: address(0),
             metadata: 0
         });
@@ -237,7 +237,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             start: uint48(block.timestamp),
             duration: 10 days,
             weight: 1e18,
-            decayPercent: 0,
+            weightCutPercent: 0,
             approvalHook: IJBRulesetApprovalHook(address(0)),
             metadata: packed
         });
@@ -306,7 +306,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
             reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
-            redemptionRate: JBConstants.MAX_REDEMPTION_RATE,
+            cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
             pauseCreditTransfers: false,
@@ -319,9 +319,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             allowAddAccountingContext: true,
             allowAddPriceFeed: true,
             holdFees: false,
-            useTotalSurplusForRedemptions: true,
+            useTotalSurplusForCashOuts: true,
             useDataHookForPay: false,
-            useDataHookForRedeem: false,
+            useDataHookForCashOut: false,
             dataHook: address(0),
             metadata: 0
         });
@@ -335,7 +335,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             start: uint48(block.timestamp),
             duration: 10 days,
             weight: 1e18,
-            decayPercent: 0,
+            weightCutPercent: 0,
             approvalHook: IJBRulesetApprovalHook(address(0)),
             metadata: packed
         });
@@ -429,7 +429,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
             reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
-            redemptionRate: JBConstants.MAX_REDEMPTION_RATE,
+            cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
             pauseCreditTransfers: false,
@@ -442,9 +442,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             allowAddAccountingContext: true,
             allowAddPriceFeed: true,
             holdFees: false,
-            useTotalSurplusForRedemptions: true,
+            useTotalSurplusForCashOuts: true,
             useDataHookForPay: false,
-            useDataHookForRedeem: false,
+            useDataHookForCashOut: false,
             dataHook: address(0),
             metadata: 0
         });
@@ -458,7 +458,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             start: uint48(block.timestamp),
             duration: 10 days,
             weight: 1e18,
-            decayPercent: 0,
+            weightCutPercent: 0,
             approvalHook: IJBRulesetApprovalHook(address(0)),
             metadata: packed
         });
@@ -524,7 +524,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
             reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
-            redemptionRate: JBConstants.MAX_REDEMPTION_RATE,
+            cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
             pauseCreditTransfers: false,
@@ -537,9 +537,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             allowAddAccountingContext: true,
             allowAddPriceFeed: true,
             holdFees: false,
-            useTotalSurplusForRedemptions: true,
+            useTotalSurplusForCashOuts: true,
             useDataHookForPay: false,
-            useDataHookForRedeem: false,
+            useDataHookForCashOut: false,
             dataHook: address(0),
             metadata: 0
         });
@@ -553,7 +553,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             start: uint48(block.timestamp),
             duration: 10 days,
             weight: 1e18,
-            decayPercent: 0,
+            weightCutPercent: 0,
             approvalHook: IJBRulesetApprovalHook(address(0)),
             metadata: packed
         });
@@ -597,7 +597,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
             reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
-            redemptionRate: JBConstants.MAX_REDEMPTION_RATE,
+            cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
             pauseCreditTransfers: false,
@@ -610,9 +610,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             allowAddAccountingContext: true,
             allowAddPriceFeed: true,
             holdFees: false,
-            useTotalSurplusForRedemptions: true,
+            useTotalSurplusForCashOuts: true,
             useDataHookForPay: false,
-            useDataHookForRedeem: false,
+            useDataHookForCashOut: false,
             dataHook: address(0),
             metadata: 0
         });
@@ -626,7 +626,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             start: uint48(block.timestamp),
             duration: 10 days,
             weight: 1e18,
-            decayPercent: 0,
+            weightCutPercent: 0,
             approvalHook: IJBRulesetApprovalHook(address(0)),
             metadata: packed
         });
@@ -670,7 +670,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
             reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
-            redemptionRate: JBConstants.MAX_REDEMPTION_RATE,
+            cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
             pauseCreditTransfers: false,
@@ -683,9 +683,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             allowAddAccountingContext: true,
             allowAddPriceFeed: true,
             holdFees: false,
-            useTotalSurplusForRedemptions: true,
+            useTotalSurplusForCashOuts: true,
             useDataHookForPay: false,
-            useDataHookForRedeem: false,
+            useDataHookForCashOut: false,
             dataHook: address(0),
             metadata: 0
         });
@@ -699,7 +699,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             start: uint48(block.timestamp),
             duration: 10 days,
             weight: 1e18,
-            decayPercent: 0,
+            weightCutPercent: 0,
             approvalHook: IJBRulesetApprovalHook(address(0)),
             metadata: packed
         });
@@ -860,7 +860,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
             reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
-            redemptionRate: JBConstants.MAX_REDEMPTION_RATE,
+            cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
             pauseCreditTransfers: false,
@@ -873,9 +873,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             allowAddAccountingContext: true,
             allowAddPriceFeed: true,
             holdFees: false,
-            useTotalSurplusForRedemptions: true,
+            useTotalSurplusForCashOuts: true,
             useDataHookForPay: false,
-            useDataHookForRedeem: false,
+            useDataHookForCashOut: false,
             dataHook: address(0),
             metadata: 0
         });
@@ -889,7 +889,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             start: uint48(block.timestamp),
             duration: 10 days,
             weight: 1e18,
-            decayPercent: 0,
+            weightCutPercent: 0,
             approvalHook: IJBRulesetApprovalHook(address(0)),
             metadata: packed
         });
@@ -1011,7 +1011,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
             reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
-            redemptionRate: JBConstants.MAX_REDEMPTION_RATE,
+            cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
             pauseCreditTransfers: false,
@@ -1024,9 +1024,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             allowAddAccountingContext: true,
             allowAddPriceFeed: true,
             holdFees: false,
-            useTotalSurplusForRedemptions: true,
+            useTotalSurplusForCashOuts: true,
             useDataHookForPay: false,
-            useDataHookForRedeem: false,
+            useDataHookForCashOut: false,
             dataHook: address(0),
             metadata: 0
         });
@@ -1040,7 +1040,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             start: uint48(block.timestamp),
             duration: 10 days,
             weight: 1e18,
-            decayPercent: 0,
+            weightCutPercent: 0,
             approvalHook: IJBRulesetApprovalHook(address(0)),
             metadata: packed
         });
@@ -1185,7 +1185,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Package data for ruleset call.
         JBRulesetMetadata memory _rulesMetadata = JBRulesetMetadata({
             reservedPercent: JBConstants.MAX_RESERVED_PERCENT,
-            redemptionRate: JBConstants.MAX_REDEMPTION_RATE,
+            cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
             pauseCreditTransfers: false,
@@ -1198,9 +1198,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             allowAddAccountingContext: true,
             allowAddPriceFeed: true,
             holdFees: false,
-            useTotalSurplusForRedemptions: true,
+            useTotalSurplusForCashOuts: true,
             useDataHookForPay: false,
-            useDataHookForRedeem: false,
+            useDataHookForCashOut: false,
             dataHook: address(0),
             metadata: 0
         });
@@ -1214,7 +1214,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             start: uint48(block.timestamp),
             duration: 10 days,
             weight: 1e18,
-            decayPercent: 0,
+            weightCutPercent: 0,
             approvalHook: IJBRulesetApprovalHook(address(0)),
             metadata: packed
         });
@@ -2168,40 +2168,40 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         hook.setTwapSlippageToleranceOf(projectId, newTolerance);
     }
 
-    /// @notice Test whether redemption functionality is left unchanged by the hook.
-    function test_beforeRedeemRecordedWith_unchangedRedeem(
-        uint256 redemptionRateIn,
-        uint256 redeemCountIn,
+    /// @notice Test whether cash out functionality is left unchanged by the hook.
+    function test_beforeCashOutRecordedWith_unchangedCashOut(
+        uint256 cashOutTaxRateIn,
+        uint256 cashOutCountIn,
         uint256 totalSupplyIn
     )
         public
     {
-        // Set up basic redemption context.
-        JBBeforeRedeemRecordedContext memory beforeRedeemRecordedContext = JBBeforeRedeemRecordedContext({
+        // Set up basic cash out context.
+        JBBeforeCashOutRecordedContext memory beforeCashOutRecordedContext = JBBeforeCashOutRecordedContext({
             terminal: makeAddr("terminal"),
             holder: makeAddr("hooldooor"),
             projectId: 69,
             rulesetId: 420,
-            redeemCount: redeemCountIn,
+            cashOutCount: cashOutCountIn,
             totalSupply: totalSupplyIn,
             surplus: JBTokenAmount(address(1), 6, 2, 3),
             useTotalSurplus: true,
-            redemptionRate: redemptionRateIn,
+            cashOutTaxRate: cashOutTaxRateIn,
             metadata: ""
         });
 
         (
-            uint256 redemptionRateOut,
-            uint256 redeemCountOut,
+            uint256 cashOutTaxRateOut,
+            uint256 cashOutCountOut,
             uint256 totalSupplyOut,
-            JBRedeemHookSpecification[] memory redeemSpecifications
-        ) = hook.beforeRedeemRecordedWith(beforeRedeemRecordedContext);
+            JBCashOutHookSpecification[] memory cashOutSpecifications
+        ) = hook.beforeCashOutRecordedWith(beforeCashOutRecordedContext);
 
-        // Make sure the redemption amount is unchanged and that no specifications were returned.
-        assertEq(redemptionRateOut, redemptionRateIn);
-        assertEq(redeemCountOut, redeemCountIn);
+        // Make sure the cash out amount is unchanged and that no specifications were returned.
+        assertEq(cashOutTaxRateOut, cashOutTaxRateIn);
+        assertEq(cashOutCountOut, cashOutCountIn);
         assertEq(totalSupplyOut, totalSupplyIn);
-        assertEq(redeemSpecifications.length, 0);
+        assertEq(cashOutSpecifications.length, 0);
     }
 
     function test_supportsInterface(bytes4 random) public view {
