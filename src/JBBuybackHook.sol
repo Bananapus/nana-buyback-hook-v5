@@ -405,7 +405,9 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             abi.decode(context.hookMetadata, (bool, uint256, uint256, address));
 
         // If the token paid in isn't the native token, pull the amount to swap from the terminal.
+        uint256 balanceBefore = 0;
         if (context.forwardedAmount.token != JBConstants.NATIVE_TOKEN) {
+            balanceBefore = IERC20(context.forwardedAmount.token).balanceOf(address(this));
             IERC20(context.forwardedAmount.token).safeTransferFrom(
                 msg.sender, address(this), context.forwardedAmount.value
             );
@@ -423,7 +425,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // Get a reference to any terminal tokens which were paid in and are still held by this contract.
         uint256 leftoverAmountInThisContract = context.forwardedAmount.token == JBConstants.NATIVE_TOKEN
             ? address(this).balance
-            : IERC20(context.forwardedAmount.token).balanceOf(address(this));
+            : IERC20(context.forwardedAmount.token).balanceOf(address(this)) - balanceBefore;
 
         // Get a reference to the ruleset.
         // slither-disable-next-line unused-return
@@ -494,9 +496,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // Keep a reference to the array of vesting buybacks for the beneficiary.
         JBVestingBuyback[] storage vestingBuybacks = _vestingBuybacksFor[token][context.beneficiary];
 
-        // Keep a reference to the index of the buyback being added.
-        uint256 index = vestingBuybacks.length;
-
         // Compute the end time of the vesting period.
         uint256 endsAt = block.timestamp + VESTING_PERIOD;
 
@@ -514,7 +513,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         emit StartVestingBuyback({
             projectId: context.projectId,
             beneficiary: context.beneficiary,
-            index: index,
+            index: vestingBuybacks.length - 1,
             amount: amountToVest,
             startsAt: block.timestamp,
             endsAt: endsAt,
