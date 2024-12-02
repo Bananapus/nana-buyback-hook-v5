@@ -16,9 +16,9 @@ import {JBMetadataResolver} from "@bananapus/core/src/libraries/JBMetadataResolv
 import {JBRulesetMetadataResolver} from "@bananapus/core/src/libraries/JBRulesetMetadataResolver.sol";
 import {JBAfterPayRecordedContext} from "@bananapus/core/src/structs/JBAfterPayRecordedContext.sol";
 import {JBBeforePayRecordedContext} from "@bananapus/core/src/structs/JBBeforePayRecordedContext.sol";
-import {JBBeforeRedeemRecordedContext} from "@bananapus/core/src/structs/JBBeforeRedeemRecordedContext.sol";
+import {JBBeforeCashOutRecordedContext} from "@bananapus/core/src/structs/JBBeforeCashOutRecordedContext.sol";
+import {JBCashOutHookSpecification} from "@bananapus/core/src/structs/JBCashOutHookSpecification.sol";
 import {JBPayHookSpecification} from "@bananapus/core/src/structs/JBPayHookSpecification.sol";
-import {JBRedeemHookSpecification} from "@bananapus/core/src/structs/JBRedeemHookSpecification.sol";
 import {JBRuleset} from "@bananapus/core/src/structs/JBRuleset.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -272,15 +272,15 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     }
 
     /// @notice To fulfill the `IJBRulesetDataHook` interface.
-    /// @dev Pass redeem context back to the terminal without changes.
-    /// @param context The redeem context passed in by the terminal.
-    function beforeRedeemRecordedWith(JBBeforeRedeemRecordedContext calldata context)
+    /// @dev Pass cash out context back to the terminal without changes.
+    /// @param context The cash out context passed in by the terminal.
+    function beforeCashOutRecordedWith(JBBeforeCashOutRecordedContext calldata context)
         external
         pure
         override
-        returns (uint256, uint256, uint256, JBRedeemHookSpecification[] memory hookSpecifications)
+        returns (uint256, uint256, uint256, JBCashOutHookSpecification[] memory hookSpecifications)
     {
-        return (context.redemptionRate, context.redeemCount, context.totalSupply, hookSpecifications);
+        return (context.cashOutTaxRate, context.cashOutCount, context.totalSupply, hookSpecifications);
     }
 
     /// @notice Required by the `IJBRulesetDataHook` interfaces. Return false to not leak any permissions.

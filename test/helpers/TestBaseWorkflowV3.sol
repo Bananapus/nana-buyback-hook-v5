@@ -19,7 +19,7 @@ import "@bananapus/core/src/JBTokens.sol";
 import "@bananapus/core/src/JBERC20.sol";
 
 import "@bananapus/core/src/structs/JBAfterPayRecordedContext.sol";
-import "@bananapus/core/src/structs/JBAfterRedeemRecordedContext.sol";
+import "@bananapus/core/src/structs/JBAfterCashOutRecordedContext.sol";
 import "@bananapus/core/src/structs/JBFee.sol";
 import "@bananapus/core/src/structs/JBFundAccessLimitGroup.sol";
 import "@bananapus/core/src/structs/JBRuleset.sol";
@@ -27,7 +27,7 @@ import "@bananapus/core/src/structs/JBRulesetMetadata.sol";
 import "@bananapus/core/src/structs/JBSplitGroup.sol";
 import "@bananapus/core/src/structs/JBPermissionsData.sol";
 import "@bananapus/core/src/structs/JBBeforePayRecordedContext.sol";
-import "@bananapus/core/src/structs/JBBeforeRedeemRecordedContext.sol";
+import "@bananapus/core/src/structs/JBBeforeCashOutRecordedContext.sol";
 import "@bananapus/core/src/structs/JBSplit.sol";
 import "@bananapus/core/src/interfaces/IJBTerminal.sol";
 import "@bananapus/core/src/interfaces/IJBToken.sol";
@@ -158,7 +158,14 @@ contract TestBaseWorkflowV3 is Test {
 
         // JBMultiTerminal
         jbMultiTerminal = new JBMultiTerminal(
-            jbFeelessAddresses, jbPermissions, jbProjects, jbSplits, jbTerminalStore, IPermit2(address(0)), address(0)
+            jbFeelessAddresses,
+            jbPermissions,
+            jbProjects,
+            jbSplits,
+            jbTerminalStore,
+            jbTokens,
+            IPermit2(address(0)),
+            address(0)
         );
         vm.label(address(jbMultiTerminal), "JBMultiTerminal");
 
@@ -174,7 +181,7 @@ contract TestBaseWorkflowV3 is Test {
         // Ruleset metadata: use the hook for payments.
         metadata = JBRulesetMetadata({
             reservedPercent: reservedPercent,
-            redemptionRate: 5000,
+            cashOutTaxRate: 5000,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
             pauseCreditTransfers: false,
@@ -187,9 +194,9 @@ contract TestBaseWorkflowV3 is Test {
             ownerMustSendPayouts: false,
             allowSetController: false,
             holdFees: false,
-            useTotalSurplusForRedemptions: true,
+            useTotalSurplusForCashOuts: true,
             useDataHookForPay: true,
-            useDataHookForRedeem: false,
+            useDataHookForCashOut: false,
             dataHook: address(hook),
             metadata: 0
         });
@@ -213,7 +220,7 @@ contract TestBaseWorkflowV3 is Test {
         rulesetConfigurations[0].mustStartAtOrAfter = 0;
         rulesetConfigurations[0].duration = 6 days;
         rulesetConfigurations[0].weight = weight;
-        rulesetConfigurations[0].decayPercent = 0;
+        rulesetConfigurations[0].weightCutPercent = 0;
         rulesetConfigurations[0].approvalHook = IJBRulesetApprovalHook(address(0));
 
         rulesetConfigurations[0].metadata = metadata;
