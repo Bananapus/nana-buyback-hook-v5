@@ -2200,9 +2200,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
 
         mockExpect(token, abi.encodeCall(IERC20.transfer, (address(beneficiary), expectedClaim)), abi.encode(true));
 
-        // vm.expectRevert();
         vm.prank(caller);
-        hook.claimVestedBuybacksFor(token, beneficiary, indices);
+        assertEq(hook.claimVestedBuybacksFor(token, beneficiary, indices), expectedClaim);
     }
 
     /// @notice This test checks that no matter how many times you claim, there is no rounding error that causes the
