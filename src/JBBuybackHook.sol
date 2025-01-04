@@ -313,7 +313,8 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
     function supportsInterface(bytes4 interfaceId) public pure override returns (bool) {
         return interfaceId == type(IJBRulesetDataHook).interfaceId || interfaceId == type(IJBPayHook).interfaceId
-            || interfaceId == type(IJBBuybackHook).interfaceId || interfaceId == type(IERC165).interfaceId;
+            || interfaceId == type(IJBBuybackHook).interfaceId || interfaceId == type(IJBPermissioned).interfaceId
+            || interfaceId == type(IERC165).interfaceId;
     }
 
     //*********************************************************************//
