@@ -58,6 +58,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     error JBBuybackHook_SpecifiedSlippageExceeded(uint256 amount, uint256 minimum);
     error JBBuybackHook_Unauthorized(address caller);
     error JBBuybackHook_ZeroProjectToken();
+    error JBBuybackHook_ZeroTerminalToken();
 
     //*********************************************************************//
     // --------------------- public constant properties ------------------ //
@@ -536,6 +537,9 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         if (twapWindow < MIN_TWAP_WINDOW || twapWindow > MAX_TWAP_WINDOW) {
             revert JBBuybackHook_InvalidTwapWindow(twapWindow, MIN_TWAP_WINDOW, MAX_TWAP_WINDOW);
         }
+
+        // Make sure the terminal token is not zero.
+        if (terminalToken == address(0)) revert JBBuybackHook_ZeroTerminalToken();
 
         // Keep a reference to the project's token.
         address projectToken = address(CONTROLLER.TOKENS().tokenOf(projectId));
