@@ -56,6 +56,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     error JBBuybackHook_InvalidTwapWindow(uint256 value, uint256 min, uint256 max);
     error JBBuybackHook_PoolAlreadySet(IUniswapV3Pool pool);
     error JBBuybackHook_SpecifiedSlippageExceeded(uint256 amount, uint256 minimum);
+    error JBBuybackHook_TerminalTokenIsProjectToken(address terminalToken, address projectToken);
     error JBBuybackHook_Unauthorized(address caller);
     error JBBuybackHook_ZeroProjectToken();
     error JBBuybackHook_ZeroTerminalToken();
@@ -546,6 +547,11 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
         // Make sure the project has issued a token.
         if (projectToken == address(0)) revert JBBuybackHook_ZeroProjectToken();
+
+        // Make sure the terminal token is not the project token.
+        if (terminalToken == projectToken) {
+            revert JBBuybackHook_TerminalTokenIsProjectToken(terminalToken, projectToken);
+        }
 
         // If the specified terminal token is the native token, use wETH instead.
         if (terminalToken == JBConstants.NATIVE_TOKEN) terminalToken = address(WETH);
