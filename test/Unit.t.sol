@@ -2213,6 +2213,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         assertTrue(ERC165Checker.supportsInterface(address(hook), type(IJBRulesetDataHook).interfaceId));
         assertTrue(ERC165Checker.supportsInterface(address(hook), type(IJBPayHook).interfaceId));
         assertTrue(ERC165Checker.supportsInterface(address(hook), type(IJBBuybackHook).interfaceId));
+        assertTrue(ERC165Checker.supportsInterface(address(hook), type(IJBPermissioned).interfaceId));
         assertTrue(ERC165Checker.supportsERC165(address(hook)));
 
         assertFalse(ERC165Checker.supportsInterface(address(hook), random));
