@@ -304,7 +304,7 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
             holder: multisig(),
             projectId: 1,
             count: mulDiv18(_weight, _amountIn) / 2, // Half is reserved
-            shouldClaimTokens: true,
+            tokensWereClaimed: true,
             caller: address(jbController())
         });
 
