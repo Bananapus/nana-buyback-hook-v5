@@ -1,6 +1,6 @@
 {
   "name": "@bananapus/buyback-hook",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -15,13 +15,13 @@
     "coverage": "forge coverage --report lcov --report summary",
     "deploy:mainnets": "source ./.env && npx sphinx propose ./script/Deploy.s.sol --networks mainnets",
     "deploy:testnets": "source ./.env && npx sphinx propose ./script/Deploy.s.sol --networks testnets",
-    "artifacts": "source ./.env && npx sphinx artifacts --org-id 'my-org-id' --project-name 'nana-buyback-hook-testnet'"
+    "artifacts": "source ./.env && npx sphinx artifacts --org-id 'ea165b21-7cdc-4d7b-be59-ecdd4c26bee4' --project-name 'nana-buyback-hook-testnet'"
   },
   "dependencies": {
     "@bananapus/core": "^0.0.39",
     "@bananapus/permission-ids": "^0.0.17",
     "@exhausted-pigeon/uniswap-v3-forge-quoter": "^1.0.2",
-    "@openzeppelin/contracts": "^5.1.0",
+    "@openzeppelin/contracts": "^5.2.0",
     "@uniswap/v3-core": "github:Uniswap/v3-core#0.8",
     "@uniswap/v3-periphery": "github:Uniswap/v3-periphery#0.8"
   },
