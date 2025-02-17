@@ -22,7 +22,7 @@ contract DeployScript is Script, Sphinx {
 
     function configureSphinx() public override {
         // TODO: Update to contain revnet devs.
-        sphinxConfig.projectName = "nana-buyback-hook-testnet";
+        sphinxConfig.projectName = "nana-buyback-hook";
         sphinxConfig.mainnets = ["ethereum", "optimism", "base", "arbitrum"];
         sphinxConfig.testnets = ["ethereum_sepolia", "optimism_sepolia", "base_sepolia", "arbitrum_sepolia"];
     }
@@ -43,7 +43,7 @@ contract DeployScript is Script, Sphinx {
             weth = 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9;
             factory = 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
             // Optimism Mainnet
-        } else if (block.chainid == 420) {
+        } else if (block.chainid == 10) {
             weth = 0x4200000000000000000000000000000000000006;
             factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
             // Base Mainnet
