@@ -349,17 +349,14 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         });
     }
 
-    // Add at top near imports if needed:
-    // using for none
-    /// @dev Returns (minOut) derived from TWAP tick and *harmonic-mean liquidity*.
-    ///      This is an impact-aware quote: it estimates the average execution you’d get
-    ///      for `amountIn` given depth, then shaves a small volatility buffer.
-    /// @param pool           The pool (validated by caller).
-    /// @param twapWindow     Seconds for TWAP.
-    /// @param amountIn       Exact input of the terminal token.
-    /// @param terminalToken  Input token address (wETH if native).
-    /// @param projectToken   Output token address.
-    /// @param volBufferBpsPer100Ticks  Extra shave per 100 ticks of deviation between currentTick and meanTick.
+    /// @dev Returns (minOut) derived from TWAP tick and *harmonic-mean liquidity*. This is an impact-aware quote: it
+    /// estimates the average execution you’d get for `amountIn` given depth, then shaves a small volatility buffer.
+    /// @param pool  The pool (validated by caller).
+    /// @param twapWindow Seconds for TWAP.
+    /// @param amountIn The amount being swapped.
+    /// @param terminalToken Input token address (wETH if native).
+    /// @param projectToken Output token address.
+    /// @param volBufferBpsPer100Ticks Extra shave per 100 ticks of deviation between currentTick and meanTick.
     function _impactAwareTwapQuote(
         IUniswapV3Pool pool,
         uint32 twapWindow,
