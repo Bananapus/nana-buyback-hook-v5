@@ -144,14 +144,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             prices: prices
         });
 
-        hook.ForTest_initPool(pool, projectId, twapWindow, twapTolerance, address(projectToken), address(weth));
+        hook.ForTest_initPool(pool, projectId, twapWindow, address(projectToken), address(weth));
         hook.ForTest_initPool(
-            randomPool,
-            randomId,
-            twapWindow,
-            twapTolerance,
-            address(otherRandomProjectToken),
-            address(randomTerminalToken)
+            randomPool, randomId, twapWindow, address(otherRandomProjectToken), address(randomTerminalToken)
         );
     }
 
@@ -1655,7 +1650,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         });
 
         // Initialize the pool with wETH (if you pass in the `NATIVE_TOKEN` address, the pool is initialized with wETH).
-        hook.ForTest_initPool(pool, projectId, twapWindow, twapTolerance, address(projectToken), address(terminalToken));
+        hook.ForTest_initPool(pool, projectId, twapWindow, address(projectToken), address(terminalToken));
 
         // If the terminal token is `token0`, then the change in the terminal token amount is `delta0` (the negative
         // value).
@@ -1707,7 +1702,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             prices: prices
         });
 
-        hook.ForTest_initPool(pool, projectId, twapWindow, twapTolerance, address(projectToken), address(terminalToken));
+        hook.ForTest_initPool(pool, projectId, twapWindow, address(projectToken), address(terminalToken));
 
         // Mock and expect `terminalToken` calls.
         vm.mockCall(
@@ -1792,13 +1787,10 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
 
         // Test: call `setPoolFor`.
         vm.prank(owner);
-        address newPool = address(
-            hook.setPoolFor(projectId, feeOverride, uint32(twapWindowOverride), twapToleranceOverride, terminalToken)
-        );
+        address newPool = address(hook.setPoolFor(projectId, feeOverride, uint32(twapWindowOverride), terminalToken));
 
         // Check: were the correct params stored in the hook?
         assertEq(hook.twapWindowOf(projectId), twapWindowOverride);
-        assertEq(hook.twapSlippageToleranceOf(projectId), twapToleranceOverride);
         assertEq(
             address(hook.poolOf(projectId, terminalToken == JBConstants.NATIVE_TOKEN ? address(weth) : terminalToken)),
             _pool
@@ -1839,7 +1831,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Test: call `setPoolFor`.
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(JBBuybackHook.JBBuybackHook_PoolAlreadySet.selector, pool));
-        hook.setPoolFor(projectId, _fee, uint32(_twapWindow), _twapTolerance, _terminalToken);
+        hook.setPoolFor(projectId, _fee, uint32(_twapWindow), _terminalToken);
     }
 
     /// @notice `setPoolFor` should revert if the caller is not authorized to set the pool.
@@ -1872,7 +1864,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
 
         // Test: call `setPoolFor` from an unauthorized address (`dude`).
         vm.prank(dude);
-        hook.setPoolFor(projectId, 100, uint32(10), 10, address(0));
+        hook.setPoolFor(projectId, 100, uint32(10), address(0));
     }
 
     /// @notice Ensure that only TWAP slippage tolerances and TWAP windows between the hook's minimum/maximum bounds are
@@ -1884,9 +1876,6 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Get references to the hook's bounds for the TWAP window and slippage tolerance.
         uint256 MIN_TWAP_WINDOW = hook.MIN_TWAP_WINDOW();
         uint256 MAX_TWAP_WINDOW = hook.MAX_TWAP_WINDOW();
-
-        uint256 MIN_TWAP_SLIPPAGE_TOLERANCE = hook.MIN_TWAP_SLIPPAGE_TOLERANCE();
-        uint256 MAX_TWAP_SLIPPAGE_TOLERANCE = hook.MAX_TWAP_SLIPPAGE_TOLERANCE();
 
         // Mock the call to get the project's token.
         vm.mockCall(address(tokens), abi.encodeCall(tokens.tokenOf, (projectId)), abi.encode(_projectToken));
@@ -1901,7 +1890,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             )
         );
         vm.prank(owner);
-        hook.setPoolFor(projectId, _fee, uint32(MIN_TWAP_WINDOW - 1), MIN_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken);
+        hook.setPoolFor(projectId, _fee, uint32(MIN_TWAP_WINDOW - 1), _terminalToken);
 
         // Check: is the TWAP window too large?
         vm.expectRevert(
@@ -1913,31 +1902,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             )
         );
         vm.prank(owner);
-        hook.setPoolFor(projectId, _fee, uint32(MAX_TWAP_WINDOW + 1), MIN_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken);
-
-        // Check: is the TWAP slippage tolerance too small?
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                JBBuybackHook.JBBuybackHook_InvalidTwapSlippageTolerance.selector,
-                MIN_TWAP_SLIPPAGE_TOLERANCE - 1,
-                MIN_TWAP_SLIPPAGE_TOLERANCE,
-                MAX_TWAP_SLIPPAGE_TOLERANCE
-            )
-        );
-        vm.prank(owner);
-        hook.setPoolFor(projectId, _fee, uint32(MIN_TWAP_WINDOW + 1), MIN_TWAP_SLIPPAGE_TOLERANCE - 1, _terminalToken);
-
-        // Check: is the TWAP slippage tolerance too large?
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                JBBuybackHook.JBBuybackHook_InvalidTwapSlippageTolerance.selector,
-                MAX_TWAP_SLIPPAGE_TOLERANCE + 1,
-                MIN_TWAP_SLIPPAGE_TOLERANCE,
-                MAX_TWAP_SLIPPAGE_TOLERANCE
-            )
-        );
-        vm.prank(owner);
-        hook.setPoolFor(projectId, _fee, uint32(MIN_TWAP_WINDOW + 1), MAX_TWAP_SLIPPAGE_TOLERANCE + 1, _terminalToken);
+        hook.setPoolFor(projectId, _fee, uint32(MAX_TWAP_WINDOW + 1), _terminalToken);
     }
 
     /// @notice Test whether `setPoolFor` reverts if the project hasn't launched a token yet.
@@ -1973,7 +1938,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         vm.prank(owner);
 
         // Test: call `setPoolFor`.
-        hook.setPoolFor(projectId, _fee, uint32(_twapWindow), _twapTolerance, _terminalToken);
+        hook.setPoolFor(projectId, _fee, uint32(_twapWindow), _terminalToken);
     }
 
     /// @notice Test whether `setTwapWindowOf` works correctly.
@@ -2068,106 +2033,6 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         hook.setTwapWindowOf(projectId, uint32(newValue));
     }
 
-    /// @notice Test setting the TWAP slippage tolerance.
-    function test_setTwapSlippageToleranceOf(uint256 newTolerance) public {
-        // Get references to the hook's bounds for the TWAP slippage tolerance.
-        uint256 MIN_TWAP_SLIPPAGE_TOLERANCE = hook.MIN_TWAP_SLIPPAGE_TOLERANCE();
-        uint256 MAX_TWAP_SLIPPAGE_TOLERANCE = hook.MAX_TWAP_SLIPPAGE_TOLERANCE();
-
-        // Keep the TWAP slippage tolerance within the hook's bounds.
-        newTolerance = bound(newTolerance, MIN_TWAP_SLIPPAGE_TOLERANCE, MAX_TWAP_SLIPPAGE_TOLERANCE);
-
-        // Check: was the correct event emitted?
-        vm.expectEmit(true, true, true, true);
-        emit TwapSlippageToleranceChanged(projectId, hook.twapSlippageToleranceOf(projectId), newTolerance, owner);
-
-        // Test: set the new TWAP slippage tolerance.
-        vm.prank(owner);
-        hook.setTwapSlippageToleranceOf(projectId, newTolerance);
-
-        // Check: was the TWAP slippage tolerance set correctly?
-        assertEq(hook.twapSlippageToleranceOf(projectId), newTolerance);
-    }
-
-    /// @notice Test whether `setTwapSlippageToleranceOf` reverts if the caller is not authorized to set the TWAP
-    /// slippage tolerance.
-    function test_setTwapSlippageToleranceOf_revertWrongCaller(address notOwner) public {
-        // Assume that the caller is not the owner.
-        vm.assume(owner != notOwner);
-
-        // Mock and expect calls to check the permissions of the caller.
-        vm.mockCall(
-            address(permissions),
-            abi.encodeCall(
-                permissions.hasPermission, (notOwner, owner, projectId, JBPermissionIds.SET_BUYBACK_TWAP, true, true)
-            ),
-            abi.encode(false)
-        );
-        vm.expectCall(
-            address(permissions),
-            abi.encodeCall(
-                permissions.hasPermission, (notOwner, owner, projectId, JBPermissionIds.SET_BUYBACK_TWAP, true, true)
-            )
-        );
-
-        // Expect revert on account of the caller not being authorized to set the TWAP slippage tolerance.
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                JBPermissioned.JBPermissioned_Unauthorized.selector,
-                owner,
-                notOwner,
-                projectId,
-                JBPermissionIds.SET_BUYBACK_TWAP
-            )
-        );
-
-        // Test: call `setTwapSlippageToleranceOf` from an unauthorized address (`notOwner`).
-        vm.prank(notOwner);
-        hook.setTwapSlippageToleranceOf(projectId, 1);
-    }
-
-    /// @notice Test whether `setTwapSlippageToleranceOf` reverts if the new TWAP slippage tolerance is too big or too
-    /// small.
-    function test_setTwapSlippageToleranceOf_revertIfInvalidNewValue(uint256 newToleranceSeed) public {
-        // Get references to the hook's bounds for the TWAP slippage tolerance.
-        uint256 MIN_TWAP_SLIPPAGE_TOLERANCE = hook.MIN_TWAP_SLIPPAGE_TOLERANCE();
-        uint256 MAX_TWAP_SLIPPAGE_TOLERANCE = hook.MAX_TWAP_SLIPPAGE_TOLERANCE();
-
-        // Make sure the new value is too small.
-        uint256 newTolerance = bound(newToleranceSeed, 0, MIN_TWAP_SLIPPAGE_TOLERANCE - 1);
-
-        // Expect revert on account of the new TWAP slippage tolerance being too small.
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                JBBuybackHook.JBBuybackHook_InvalidTwapSlippageTolerance.selector,
-                newTolerance,
-                MIN_TWAP_SLIPPAGE_TOLERANCE,
-                MAX_TWAP_SLIPPAGE_TOLERANCE
-            )
-        );
-
-        // Test: try to set the TWAP slippage tolerance to the too-small value.
-        vm.prank(owner);
-        hook.setTwapSlippageToleranceOf(projectId, newTolerance);
-
-        // Make sure the new value is too big.
-        newTolerance = bound(newToleranceSeed, MAX_TWAP_SLIPPAGE_TOLERANCE + 1, type(uint256).max);
-
-        // Expect revert on account of the new TWAP slippage tolerance being too big.
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                JBBuybackHook.JBBuybackHook_InvalidTwapSlippageTolerance.selector,
-                newTolerance,
-                MIN_TWAP_SLIPPAGE_TOLERANCE,
-                MAX_TWAP_SLIPPAGE_TOLERANCE
-            )
-        );
-
-        // Test: try to set the TWAP slippage tolerance to the too-big value.
-        vm.prank(owner);
-        hook.setTwapSlippageToleranceOf(projectId, newTolerance);
-    }
-
     /// @notice Test whether cash out functionality is left unchanged by the hook.
     function test_beforeCashOutRecordedWith_unchangedCashOut(
         uint256 cashOutTaxRateIn,
@@ -2249,13 +2114,12 @@ contract ForTest_JBBuybackHook is JBBuybackHook {
         IUniswapV3Pool pool,
         uint256 projectId,
         uint32 secondsAgo,
-        uint256 twapDelta,
         address projectToken,
         address terminalToken
     )
         external
     {
-        _twapParamsOf[projectId] = twapDelta << 128 | secondsAgo;
+        twapWindowOf[projectId] = secondsAgo;
         projectTokenOf[projectId] = projectToken;
         poolOf[projectId][terminalToken] = pool;
     }

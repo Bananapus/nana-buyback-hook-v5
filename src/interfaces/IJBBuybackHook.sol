@@ -37,18 +37,15 @@ interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallba
 
     function poolOf(uint256 projectId, address terminalToken) external view returns (IUniswapV3Pool pool);
     function projectTokenOf(uint256 projectId) external view returns (address projectTokenOf);
-    function twapSlippageToleranceOf(uint256 projectId) external view returns (uint256 slippageTolerance);
-    function twapWindowOf(uint256 projectId) external view returns (uint32 window);
+    function twapWindowOf(uint256 projectId) external view returns (uint256 window);
 
     function setPoolFor(
         uint256 projectId,
         uint24 fee,
         uint32 twapWindow,
-        uint256 twapSlippageTolerance,
         address terminalToken
     )
         external
         returns (IUniswapV3Pool newPool);
-    function setTwapSlippageToleranceOf(uint256 projectId, uint256 newSlippageTolerance) external;
-    function setTwapWindowOf(uint256 projectId, uint32 newWindow) external;
+    function setTwapWindowOf(uint256 projectId, uint256 newWindow) external;
 }

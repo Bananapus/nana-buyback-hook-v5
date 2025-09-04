@@ -359,7 +359,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @param volBufferBpsPer100Ticks Extra shave per 100 ticks of deviation between currentTick and meanTick.
     function _impactAwareTwapQuote(
         IUniswapV3Pool pool,
-        uint32 twapWindow,
+        uint256 twapWindow,
         uint256 amountIn,
         address terminalToken,
         address projectToken,
@@ -370,17 +370,20 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         returns (uint256 minOut)
     {
         // 1) Pull observations
-        (int24 meanTick, uint128 L_harmonic) = OracleLibrary.consult(address(pool), twapWindow);
+        (int24 meanTick, uint128 L_harmonic) = OracleLibrary.consult(address(pool), uint32(twapWindow));
         if (L_harmonic == 0) return 0; // no usable depth in window
 
         // 2) Get starting price from mean tick
         uint160 sqrtP = TickMath.getSqrtRatioAtTick(meanTick);
 
-        // 3) Determine direction based on token0/token1 ordering
-        (address token0, address token1) =
-            (projectToken < terminalToken) ? (projectToken, terminalToken) : (terminalToken, projectToken);
+        bool zeroForOne;
+        {
+            // 3) Determine direction based on token0/token1 ordering
+            (address token0,) =
+                (projectToken < terminalToken) ? (projectToken, terminalToken) : (terminalToken, projectToken);
 
-        bool zeroForOne = (terminalToken == token0); // token0->token1
+            zeroForOne = (terminalToken == token0); // token0->token1
+        }
         uint256 out;
 
         // 4) Impact math using harmonic-mean liquidity as conservative depth proxy
@@ -648,7 +651,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         poolOf[projectId][terminalToken] = newPool;
 
         // Pack and store the TWAP window and the TWAP slippage tolerance in `twapParamsOf`.
-        _twapWindowOf[projectId] = twapWindow;
+        twapWindowOf[projectId] = twapWindow;
         projectTokenOf[projectId] = address(projectToken);
 
         emit TwapWindowChanged({projectId: projectId, oldWindow: 0, newWindow: twapWindow, caller: msg.sender});
@@ -675,10 +678,10 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         }
 
         // Keep a reference to the stored TWAP params.
-        uint256 oldWindow = _twapWindowOf[projectId];
+        uint256 oldWindow = twapWindowOf[projectId];
 
         // Store the new packed value of the TWAP params (with the updated window).
-        _twapWindowOf[projectId] = newWindow;
+        twapWindowOf[projectId] = newWindow;
 
         emit TwapWindowChanged({projectId: projectId, oldWindow: oldWindow, newWindow: newWindow, caller: msg.sender});
     }
