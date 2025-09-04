@@ -52,7 +52,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
     error JBBuybackHook_CallerNotPool(address caller);
     error JBBuybackHook_InsufficientPayAmount(uint256 swapAmount, uint256 totalPaid);
-    error JBBuybackHook_InvalidTwapSlippageTolerance(uint256 value, uint256 min, uint256 max);
     error JBBuybackHook_InvalidTwapWindow(uint256 value, uint256 min, uint256 max);
     error JBBuybackHook_PoolAlreadySet(IUniswapV3Pool pool);
     error JBBuybackHook_SpecifiedSlippageExceeded(uint256 amount, uint256 minimum);
@@ -123,15 +122,11 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @custom:param projectId The ID of the project the token belongs to.
     mapping(uint256 projectId => address) public override projectTokenOf;
 
-    //*********************************************************************//
-    // --------------------- internal stored properties ------------------ //
-    //*********************************************************************//
-
     /// @notice The TWAP parameters used for the given project when the payer does not specify a quote.
     /// See the README for further information.
     /// @dev This includes the TWAP slippage tolerance and TWAP window, packed into a `uint256`.
     /// @custom:param projectId The ID of the project to get the twap parameters for.
-    mapping(uint256 projectId => uint256) internal _twapParamsOf;
+    mapping(uint256 projectId => uint256) public override twapWindowOf;
 
     //*********************************************************************//
     // ---------------------------- constructor -------------------------- //
@@ -290,25 +285,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         return false;
     }
 
-    /// @notice Get the TWAP slippage tolerance for a given project ID.
-    /// @dev The "TWAP slippage tolerance" is the maximum negative spread between the TWAP and the expected return from
-    /// a swap.
-    /// If the expected return unfavourably exceeds the TWAP slippage tolerance, the swap will revert.
-    /// @param  projectId The ID of the project which the TWAP slippage tolerance applies to.
-    /// @return tolerance The maximum slippage allowed relative to the TWAP, as a percent out of
-    /// `TWAP_SLIPPAGE_DENOMINATOR`.
-    function twapSlippageToleranceOf(uint256 projectId) external view returns (uint256) {
-        return _twapParamsOf[projectId] >> 128;
-    }
-
-    /// @notice Get the TWAP window for a given project ID.
-    /// @dev The "TWAP window" is the period over which the TWAP is computed.
-    /// @param  projectId The ID of the project which the TWAP window applies to.
-    /// @return secondsAgo The TWAP window in seconds.
-    function twapWindowOf(uint256 projectId) external view override returns (uint32) {
-        return uint32(_twapParamsOf[projectId]);
-    }
-
     //*********************************************************************//
     // -------------------------- public views --------------------------- //
     //*********************************************************************//
@@ -356,37 +332,127 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         }
 
         // Unpack the TWAP params and get a reference to the period and slippage.
-        uint256 twapParams = _twapParamsOf[projectId];
-        uint32 twapWindow = uint32(twapParams);
-        uint256 twapSlippageTolerance = twapParams >> 128;
+        uint256 twapWindow = twapWindowOf[projectId];
 
         // If the oldest observation is younger than the TWAP window, use the oldest observation.
-        uint32 oldestObservation = OracleLibrary.getOldestObservationSecondsAgo(address(pool));
+        uint256 oldestObservation = OracleLibrary.getOldestObservationSecondsAgo(address(pool));
         if (oldestObservation < twapWindow) twapWindow = oldestObservation;
 
-        // Keep a reference to the TWAP tick.
-        int24 arithmeticMeanTick;
+        // Use impact-aware quote instead of pure TWAP ± tolerance
+        return _impactAwareTwapQuote({
+            pool: pool,
+            twapWindow: twapWindow,
+            amountIn: amountIn,
+            terminalToken: terminalToken,
+            projectToken: projectToken,
+            volBufferBpsPer100Ticks: 5 // ~5 bps shaved per 100 ticks deviation; tune as desired
+        });
+    }
 
-        // slither-disable-next-line unused-return
-        // Get the current tick from the pool's slot0 if the oldest observation is 0.
-        if (oldestObservation == 0) {
-            // slither-disable-next-line unused-return
-            (, arithmeticMeanTick,,,,,) = pool.slot0();
+    // Add at top near imports if needed:
+    // using for none
+    /// @dev Returns (minOut) derived from TWAP tick and *harmonic-mean liquidity*.
+    ///      This is an impact-aware quote: it estimates the average execution you’d get
+    ///      for `amountIn` given depth, then shaves a small volatility buffer.
+    /// @param pool           The pool (validated by caller).
+    /// @param twapWindow     Seconds for TWAP.
+    /// @param amountIn       Exact input of the terminal token.
+    /// @param terminalToken  Input token address (wETH if native).
+    /// @param projectToken   Output token address.
+    /// @param volBufferBpsPer100Ticks  Extra shave per 100 ticks of deviation between currentTick and meanTick.
+    function _impactAwareTwapQuote(
+        IUniswapV3Pool pool,
+        uint32 twapWindow,
+        uint256 amountIn,
+        address terminalToken,
+        address projectToken,
+        uint256 volBufferBpsPer100Ticks
+    )
+        internal
+        view
+        returns (uint256 minOut)
+    {
+        // 1) Pull observations
+        (int24 meanTick, uint128 L_harmonic) = OracleLibrary.consult(address(pool), twapWindow);
+        if (L_harmonic == 0) return 0; // no usable depth in window
+
+        // 2) Get starting price from mean tick
+        uint160 sqrtP = TickMath.getSqrtRatioAtTick(meanTick);
+
+        // 3) Determine direction based on token0/token1 ordering
+        (address token0, address token1) =
+            (projectToken < terminalToken) ? (projectToken, terminalToken) : (terminalToken, projectToken);
+
+        bool zeroForOne = (terminalToken == token0); // token0->token1
+        uint256 out;
+
+        // 4) Impact math using harmonic-mean liquidity as conservative depth proxy
+        // NOTE: Uniswap v3 amounts are in token units; sqrtP is Q64.96.
+        // We do math in 512-bit when needed; here we rely on solidity's 256 and careful ordering.
+        // Formulas (per-range exact):
+        //  - zeroForOne (token0 in): sqrtP_b = sqrtP_a - amount0/L; amount1_out = L * (1/√Pb − 1/√Pa)
+        //  - oneForZero (token1 in): √P_b = 1 / (1/√P_a − amount1/L); amount0_out = L * (√P_b − √P_a)
+        //
+        // Scale L to uint256
+        uint256 L = uint256(L_harmonic);
+
+        if (zeroForOne) {
+            // token0 in → token1 out
+            // The correct formula involves adding to the inverse of sqrtP.
+            // 1/√P_b = 1/√P_a + amountIn/L
+            uint256 invPaQ96 = (uint256(1) << 96) / uint256(sqrtP);
+            uint256 dInvQ96 = (amountIn << 96) / L;
+
+            uint256 invPbQ96 = invPaQ96 + dInvQ96;
+
+            // After finding 1/√P_b, we find √P_b by inversion.
+            // Check for overflow before inverting.
+            uint160 sqrtPb;
+            if (invPbQ96 >= (uint256(1) << 160)) {
+                // Corresponds to a very small sqrtP
+                sqrtPb = TickMath.MIN_SQRT_RATIO + 1;
+            } else {
+                sqrtPb = uint160(((uint256(1) << 96) * (uint256(1) << 96)) / invPbQ96 >> 96);
+            }
+
+            // amount1_out = L * (1/√P_a − 1/√P_b). Since 1/√P_b > 1/√P_a, this is negative.
+            // The correct formula for amount out is L * |1/√P_b - 1/√P_a|
+            // Which is L * dInvQ96.
+            out = (L * dInvQ96) >> 96;
         } else {
-            // slither-disable-next-line unused-return
-            (arithmeticMeanTick,) = OracleLibrary.consult(address(pool), twapWindow);
+            // token1 in → token0 out (your common case if projectToken is token0)
+            // sqrtP_b = 1 / (1/√P_a − amount1/L)  => guard when denominator ≤ 0
+            // Compute inv = 1/√P_a in Q96
+            uint256 invPaQ96 = (uint256(1) << 96) / uint256(sqrtP);
+            // inv' = invPaQ96 - amountIn/L  (work in 1e0, but inv is Q96; align by multiplying amountIn)
+            // We treat (amountIn / L) as 1e0; to stay consistent, convert it into Q96: (amountIn << 96)/L
+            uint256 dInvQ96 = (amountIn << 96) / L;
+            if (invPaQ96 <= dInvQ96) {
+                // would push price to infinity; cap at MAX_SQRT_RATIO-1 (no output from beyond that)
+                // With this cap, approximate out = L * (√Pcap − √Pa)
+                uint160 sqrtPcap = TickMath.MAX_SQRT_RATIO - 1;
+                out = (L * (uint256(sqrtPcap) - uint256(sqrtP))) / 1; // divide by 1 for clarity
+            } else {
+                uint256 invPbQ96 = invPaQ96 - dInvQ96;
+                // √P_b = Q96 / invPbQ96
+                uint160 sqrtPb = uint160(((uint256(1) << 96) * (uint256(1) << 96)) / invPbQ96 >> 96);
+                // amount0_out = L * (√P_b − √P_a)
+                out = (L * (uint256(sqrtPb) - uint256(sqrtP))) / 1;
+            }
         }
 
-        // Get a quote based on this TWAP tick.
-        amountOut = OracleLibrary.getQuoteAtTick({
-            tick: arithmeticMeanTick,
-            baseAmount: uint128(amountIn),
-            baseToken: terminalToken,
-            quoteToken: address(projectToken)
-        });
+        // 5) Convert the “impact out” into token units (already is), then shave a volatility buffer
+        // Compute a cheap vol proxy: |currentTick - meanTick|
+        (, int24 currentTick,,,,,) = pool.slot0();
+        uint256 tickDev =
+            currentTick > meanTick ? uint256(int256(currentTick - meanTick)) : uint256(int256(meanTick - currentTick));
 
-        // Return the lowest acceptable return based on the TWAP and its parameters.
-        amountOut -= (amountOut * twapSlippageTolerance) / TWAP_SLIPPAGE_DENOMINATOR;
+        // bps to shave = volBufferBpsPer100Ticks * (tickDev / 100)
+        uint256 shaveBps = (volBufferBpsPer100Ticks * tickDev) / 100;
+        if (shaveBps > 3000) shaveBps = 3000; // hard cap 30% safety
+
+        // 6) Final minimum
+        minOut = out - ((out * shaveBps) / 10_000);
     }
 
     //*********************************************************************//
@@ -507,14 +573,12 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @param fee The fee used in the pool being set, as a fixed-point number of basis points with 2 decimals. A 0.01%
     /// fee is `100`, a 0.05% fee is `500`, a 0.3% fee is `3000`, and a 1% fee is `10000`.
     /// @param twapWindow The period of time over which the TWAP is computed.
-    /// @param twapSlippageTolerance The maximum spread allowed between the amount received and the TWAP.
     /// @param terminalToken The address of the terminal token that payments to the project are made in.
     /// @return newPool The pool that was set for the project and terminal token.
     function setPoolFor(
         uint256 projectId,
         uint24 fee,
         uint32 twapWindow,
-        uint256 twapSlippageTolerance,
         address terminalToken
     )
         external
@@ -526,14 +590,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             projectId: projectId,
             permissionId: JBPermissionIds.SET_BUYBACK_POOL
         });
-
-        // Make sure the provided TWAP slippage tolerance is within reasonable bounds.
-        if (twapSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || twapSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE)
-        {
-            revert JBBuybackHook_InvalidTwapSlippageTolerance(
-                twapSlippageTolerance, MIN_TWAP_SLIPPAGE_TOLERANCE, MAX_TWAP_SLIPPAGE_TOLERANCE
-            );
-        }
 
         // Make sure the provided TWAP window is within reasonable bounds.
         if (twapWindow < MIN_TWAP_WINDOW || twapWindow > MAX_TWAP_WINDOW) {
@@ -595,55 +651,11 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         poolOf[projectId][terminalToken] = newPool;
 
         // Pack and store the TWAP window and the TWAP slippage tolerance in `twapParamsOf`.
-        _twapParamsOf[projectId] = twapSlippageTolerance << 128 | twapWindow;
+        _twapWindowOf[projectId] = twapWindow;
         projectTokenOf[projectId] = address(projectToken);
 
         emit TwapWindowChanged({projectId: projectId, oldWindow: 0, newWindow: twapWindow, caller: msg.sender});
-        emit TwapSlippageToleranceChanged({
-            projectId: projectId,
-            oldTolerance: 0,
-            newTolerance: twapSlippageTolerance,
-            caller: msg.sender
-        });
         emit PoolAdded({projectId: projectId, terminalToken: terminalToken, pool: address(newPool), caller: msg.sender});
-    }
-
-    /// @notice Set the TWAP slippage tolerance for a project.
-    /// The TWAP slippage tolerance is the maximum spread allowed between the amount received and the TWAP.
-    /// @dev This can be called by the project's owner or an address with `JBPermissionIds.SET_BUYBACK_TWAP`
-    /// permission from the owner.
-    /// @param projectId The ID of the project to set the TWAP slippage tolerance of.
-    /// @param newSlippageTolerance The new TWAP slippage tolerance, out of `TWAP_SLIPPAGE_DENOMINATOR`.
-    function setTwapSlippageToleranceOf(uint256 projectId, uint256 newSlippageTolerance) external {
-        // Enforce permissions.
-        _requirePermissionFrom({
-            account: PROJECTS.ownerOf(projectId),
-            projectId: projectId,
-            permissionId: JBPermissionIds.SET_BUYBACK_TWAP
-        });
-
-        // Make sure the provided TWAP slippage tolerance is within reasonable bounds.
-        if (newSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || newSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE) {
-            revert JBBuybackHook_InvalidTwapSlippageTolerance(
-                newSlippageTolerance, MIN_TWAP_SLIPPAGE_TOLERANCE, MAX_TWAP_SLIPPAGE_TOLERANCE
-            );
-        }
-
-        // Keep a reference to the currently stored TWAP params.
-        uint256 twapParams = _twapParamsOf[projectId];
-
-        // Keep a reference to the old TWAP slippage tolerance.
-        uint256 oldSlippageTolerance = twapParams >> 128;
-
-        // Store the new packed value of the TWAP params (with the updated tolerance).
-        _twapParamsOf[projectId] = newSlippageTolerance << 128 | ((twapParams << 128) >> 128);
-
-        emit TwapSlippageToleranceChanged({
-            projectId: projectId,
-            oldTolerance: oldSlippageTolerance,
-            newTolerance: newSlippageTolerance,
-            caller: msg.sender
-        });
     }
 
     /// @notice Change the TWAP window for a project.
@@ -652,7 +664,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// permission from the owner.
     /// @param projectId The ID of the project to set the TWAP window of.
     /// @param newWindow The new TWAP window.
-    function setTwapWindowOf(uint256 projectId, uint32 newWindow) external {
+    function setTwapWindowOf(uint256 projectId, uint256 newWindow) external {
         // Enforce permissions.
         _requirePermissionFrom({
             account: PROJECTS.ownerOf(projectId),
@@ -666,13 +678,10 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         }
 
         // Keep a reference to the stored TWAP params.
-        uint256 twapParams = _twapParamsOf[projectId];
-
-        // Keep a reference to the old window value.
-        uint256 oldWindow = uint128(twapParams);
+        uint256 oldWindow = _twapWindowOf[projectId];
 
         // Store the new packed value of the TWAP params (with the updated window).
-        _twapParamsOf[projectId] = uint256(newWindow) | ((twapParams >> 128) << 128);
+        _twapWindowOf[projectId] = newWindow;
 
         emit TwapWindowChanged({projectId: projectId, oldWindow: oldWindow, newWindow: newWindow, caller: msg.sender});
     }
