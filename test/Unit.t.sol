@@ -294,7 +294,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
 
         // Mock the pool being unlocked.
         vm.mockCall(address(pool), abi.encodeCall(pool.slot0, ()), abi.encode(0, 0, 0, 1, 0, 0, true));
+        vm.mockCall(address(pool), abi.encodeCall(pool.liquidity, ()), abi.encode(1 ether));
         vm.expectCall(address(pool), abi.encodeCall(pool.slot0, ()));
+        vm.expectCall(address(pool), abi.encodeCall(pool.liquidity, ()));
 
         // Return the oldest observationTimestamp as the current block, making oldest observation 0.
         mockExpect(address(pool), abi.encodeCall(pool.observations, (0)), abi.encode(block.timestamp, 0, 0, true));
