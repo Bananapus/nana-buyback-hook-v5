@@ -358,7 +358,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // Unpack the TWAP params and get a reference to the period and slippage.
         uint256 twapParams = _twapParamsOf[projectId];
         uint32 twapWindow = uint32(twapParams);
-        uint256 twapSlippageTolerance = twapParams >> 128;
 
         // If the oldest observation is younger than the TWAP window, use the oldest observation.
         uint32 oldestObservation = OracleLibrary.getOldestObservationSecondsAgo(address(pool));
@@ -367,25 +366,25 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // Keep a reference to the TWAP tick.
         int24 arithmeticMeanTick;
 
-        // Keep a reference to the liquidity.
+        // Keep a reference to the liquidity and slippage tolerance.
         uint128 liquidity;
-        uint256 slippageBps;
 
-        // slither-disable-next-line unused-return
-        // Get the current tick from the pool's slot0 if the oldest observation is 0.
+        // Resolve mean tick and liquidity source
         if (oldestObservation == 0) {
-            // slither-disable-next-line unused-return
+            // fallback: use spot tick and current in-range liquidity
             (, arithmeticMeanTick,,,,,) = pool.slot0();
-
-            // some default. can we get liquidity from slot0?
-            slippageBps = 1000;
+            liquidity = pool.liquidity();
         } else {
-            // slither-disable-next-line unused-return
             (arithmeticMeanTick, liquidity) = OracleLibrary.consult(address(pool), twapWindow);
-            // If the order size is greater than the liquidity, return 0 and force issuance.
-            if (amountIn > uint256(liquidity)) return 0;
-            slippageBps = (amountIn * 10_000) / uint256(liquidity);
         }
+
+        uint256 slippageTolerance = _getSlippageTolerace({
+            amountIn: amountIn,
+            liquidity: liquidity,
+            projectToken: projectToken,
+            terminalToken: terminalToken,
+            arithmeticMeanTick: arithmeticMeanTick
+        });
 
         // Get a quote based on this TWAP tick.
         amountOut = OracleLibrary.getQuoteAtTick({
@@ -396,7 +395,44 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         });
 
         // eturn the lowest acceptable return based on the TWAP and its parameters.
-        amountOut -= (amountOut * slippageBps) / 10_000;
+        amountOut -= (amountOut * slippageTolerance) / 10_000;
+    }
+
+    /// @notice Get the slippage tolerance for a given amount in and liquidity.
+    /// @param amountIn The amount in to get the slippage tolerance for.
+    /// @param liquidity The liquidity to get the slippage tolerance for.
+    /// @param projectToken The project token to get the slippage tolerance for.
+    /// @param terminalToken The terminal token to get the slippage tolerance for.
+    /// @param arithmeticMeanTick The arithmetic mean tick to get the slippage tolerance for.
+    /// @return slippageTolerance The slippage tolerance for the given amount in and liquidity.
+    function _getSlippageTolerace(
+        uint256 amountIn,
+        uint128 liquidity,
+        address projectToken,
+        address terminalToken,
+        int24 arithmeticMeanTick
+    )
+        internal
+        pure
+        returns (uint256)
+    {
+        // Make sure there is liquidity.
+        if (liquidity == 0) return 0;
+
+        // Direction: is terminalToken token0?
+        (address token0,) = projectToken < terminalToken ? (projectToken, terminalToken) : (terminalToken, projectToken);
+        bool zeroForOne = (terminalToken == token0);
+
+        // sqrtP in Q96 from the TWAP tick
+        uint160 sqrtP = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
+
+        // Derive slippage in bps from amountIn vs liquidity, correctly normalized to percent price move.
+        // slippageTolerance ≈ 2 * (amountIn / liquidity) / sqrtP     (zeroForOne)
+        // slippageTolerance ≈ 2 * (amountIn / liquidity) * sqrtP     (oneForZero)
+        // Implemented in Q96 to avoid precision loss.
+        return zeroForOne
+            ? (amountIn * 20_000 << 96) / (uint256(liquidity) * uint256(sqrtP))
+            : (amountIn * 20_000 * uint256(sqrtP)) / (uint256(liquidity) << 96);
     }
 
     //*********************************************************************//
