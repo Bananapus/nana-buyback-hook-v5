@@ -424,28 +424,21 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
         // sqrtP in Q96 from the TWAP tick
         uint160 sqrtP = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
+
+        // If the sqrtP is 0, there's no valid price so we'll return the maximum slippage tolerance.
         if (sqrtP == 0) return TWAP_SLIPPAGE_DENOMINATOR;
 
-        // Base impact before √P normalization: base ≈ 2 * 10_000 * amountIn / L  (bps)
+        // Approximate % of range liquidity consumed by the swap (in bps)
         uint256 base = mulDiv(amountIn, 20_000, uint256(liquidity));
 
-        /**
-         * If `base` exceeds 10,000 bps (100%), it means the swap would consume **all** available
-         * liquidity in the current range (or more).
-         *
-         * In this case, the price would move to the very edge of the Uniswap v3 tick range,
-         * and our linear approximation of slippage breaks down completely.
-         *
-         * We immediately return the `TWAP_SLIPPAGE_DENOMINATOR` as a signal to **force fallback
-         * behavior** (like minting instead of swapping) instead of attempting to compute
-         * an exact tolerance, since the pool cannot safely execute a swap of this size.
-         */
+        /// If base ≥ 10,000 bps (100%), the trade would consume
+        /// nearly all liquidity in the current range → our linear
+        /// slippage estimate is invalid. Return max to signal fallback.
         if (base >= 10_000) return TWAP_SLIPPAGE_DENOMINATOR;
 
-        // Derive slippage in bps from amountIn vs liquidity, correctly normalized to percent price move.
-        // slippageTolerance ≈ 2 * (amountIn / liquidity) / sqrtP     (zeroForOne)
-        // slippageTolerance ≈ 2 * (amountIn / liquidity) * sqrtP     (oneForZero)
-        // Implemented in Q96 to avoid precision loss.
+        // Compute final slippage tolerance (bps), normalized by √P
+        // zeroForOne → scale down by √P
+        // oneForZero → scale up by √P
         return
             zeroForOne ? mulDiv(base, uint256(1) << 96, uint256(sqrtP)) : mulDiv(base, uint256(sqrtP), uint256(1) << 96);
     }
