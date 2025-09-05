@@ -376,6 +376,8 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         if (oldestObservation == 0) {
             // slither-disable-next-line unused-return
             (, arithmeticMeanTick,,,,,) = pool.slot0();
+
+            // some default. can we get liquidity from slot0?
             slippageBps = 1000;
         } else {
             // slither-disable-next-line unused-return
@@ -383,10 +385,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             // If the order size is greater than the liquidity, return 0 and force issuance.
             if (amountIn > uint256(liquidity)) return 0;
             slippageBps = (amountIn * 10_000) / uint256(liquidity);
-
-            // Clamp to your configured min and max
-            if (slippageBps < MIN_TWAP_SLIPPAGE_TOLERANCE) slippageBps = MIN_TWAP_SLIPPAGE_TOLERANCE;
-            if (slippageBps > MAX_TWAP_SLIPPAGE_TOLERANCE) slippageBps = MAX_TWAP_SLIPPAGE_TOLERANCE;
         }
 
         // Get a quote based on this TWAP tick.
