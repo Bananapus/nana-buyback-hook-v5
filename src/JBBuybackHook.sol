@@ -380,7 +380,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
         if (liquidity == 0) return 0;
 
-        uint256 slippageTolerance = _getSlippageTolerace({
+        uint256 slippageTolerance = _getSlippageTolerance({
             amountIn: amountIn,
             liquidity: liquidity,
             projectToken: projectToken,
@@ -396,7 +396,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             quoteToken: address(projectToken)
         });
 
-        // eturn the lowest acceptable return based on the TWAP and its parameters.
+        // return the lowest acceptable return based on the TWAP and its parameters.
         amountOut -= (amountOut * slippageTolerance) / 10_000;
     }
 
@@ -407,7 +407,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @param terminalToken The terminal token to get the slippage tolerance for.
     /// @param arithmeticMeanTick The arithmetic mean tick to get the slippage tolerance for.
     /// @return slippageTolerance The slippage tolerance for the given amount in and liquidity.
-    function _getSlippageTolerace(
+    function _getSlippageTolerance(
         uint256 amountIn,
         uint128 liquidity,
         address projectToken,
@@ -430,8 +430,8 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // slippageTolerance ≈ 2 * (amountIn / liquidity) * sqrtP     (oneForZero)
         // Implemented in Q96 to avoid precision loss.
         return zeroForOne
-            ? (amountIn * 20_000 << 96) / (uint256(liquidity) * uint256(sqrtP))
-            : (amountIn * 20_000 * uint256(sqrtP)) / (uint256(liquidity) << 96);
+            ? mulDiv(amountIn, 20_000 << 96, uint256(liquidity) * uint256(sqrtP))
+            : mulDiv(amountIn * 20_000, uint256(sqrtP), uint256(liquidity) << 96);
     }
 
     //*********************************************************************//
