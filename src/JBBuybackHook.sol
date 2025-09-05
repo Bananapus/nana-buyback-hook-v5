@@ -367,14 +367,26 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // Keep a reference to the TWAP tick.
         int24 arithmeticMeanTick;
 
+        // Keep a reference to the liquidity.
+        uint128 liquidity;
+        uint256 slippageBps;
+
         // slither-disable-next-line unused-return
         // Get the current tick from the pool's slot0 if the oldest observation is 0.
         if (oldestObservation == 0) {
             // slither-disable-next-line unused-return
             (, arithmeticMeanTick,,,,,) = pool.slot0();
+            slippageBps = 1000;
         } else {
             // slither-disable-next-line unused-return
-            (arithmeticMeanTick,) = OracleLibrary.consult(address(pool), twapWindow);
+            (arithmeticMeanTick, liquidity) = OracleLibrary.consult(address(pool), twapWindow);
+            // If the order size is greater than the liquidity, return 0 and force issuance.
+            if (amountIn > uint256(liquidity)) return 0;
+            slippageBps = (amountIn * 10_000) / uint256(liquidity);
+
+            // Clamp to your configured min and max
+            if (slippageBps < MIN_TWAP_SLIPPAGE_TOLERANCE) slippageBps = MIN_TWAP_SLIPPAGE_TOLERANCE;
+            if (slippageBps > MAX_TWAP_SLIPPAGE_TOLERANCE) slippageBps = MAX_TWAP_SLIPPAGE_TOLERANCE;
         }
 
         // Get a quote based on this TWAP tick.
@@ -385,8 +397,8 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             quoteToken: address(projectToken)
         });
 
-        // Return the lowest acceptable return based on the TWAP and its parameters.
-        amountOut -= (amountOut * twapSlippageTolerance) / TWAP_SLIPPAGE_DENOMINATOR;
+        // eturn the lowest acceptable return based on the TWAP and its parameters.
+        amountOut -= (amountOut * slippageBps) / 10_000;
     }
 
     //*********************************************************************//
