@@ -399,6 +399,12 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         if (sqrtP == 0) return TWAP_SLIPPAGE_DENOMINATOR;
 
         // Approximate % of range liquidity consumed by the swap (in bps)
+        // Base impact estimate before √P normalization.
+        // Formula: base ≈ 2 * 10_000 * (amountIn / liquidity)
+        // `amountIn / liquidity` → fraction of liquidity consumed by this trade
+        // `2` → price (P) moves ~2x the fractional move in √P
+        // `10_000` → convert to basis points (bps)
+        // So `20_000` = 2 * 10_000 gives us the result directly in bps.
         uint256 base = mulDiv(amountIn, 20_000, uint256(liquidity));
 
         /// If base ≥ 10,000 bps (100%), the trade would consume
