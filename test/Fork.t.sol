@@ -209,7 +209,7 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         vm.stopPrank();
 
         vm.prank(jbProjects().ownerOf(1));
-        delegate.setPoolFor(1, fee, 2 minutes, twapDelta, address(weth));
+        delegate.setPoolFor(1, fee, 2 minutes, address(weth));
 
         primePool();
 
