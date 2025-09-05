@@ -378,6 +378,8 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             (arithmeticMeanTick, liquidity) = OracleLibrary.consult(address(pool), twapWindow);
         }
 
+        if (liquidity == 0) return 0;
+
         uint256 slippageTolerance = _getSlippageTolerace({
             amountIn: amountIn,
             liquidity: liquidity,
@@ -416,9 +418,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         pure
         returns (uint256)
     {
-        // Make sure there is liquidity.
-        if (liquidity == 0) return 0;
-
         // Direction: is terminalToken token0?
         (address token0,) = projectToken < terminalToken ? (projectToken, terminalToken) : (terminalToken, projectToken);
         bool zeroForOne = (terminalToken == token0);
