@@ -78,7 +78,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
     /// @notice The minimum slippage tolerance allowed.
     /// @dev This serves to avoid extremely low slippage tolerances that could result in failed swaps.
-    uint256 public constant override MIN_TWAP_SLIPPAGE_TOLERANCE = 1050;
+    uint256 public constant override MIN_TWAP_SLIPPAGE_TOLERANCE = 350; //1050;
 
     //*********************************************************************//
     // -------------------- public immutable properties ------------------ //
@@ -419,6 +419,8 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         /// nearly all liquidity in the current range → our linear
         /// slippage estimate is invalid. Return max to signal fallback.
         if (slippageTolerance > TWAP_SLIPPAGE_DENOMINATOR) return TWAP_SLIPPAGE_DENOMINATOR;
+        // If base is 0, the swap amount is tiny compared to the liquidity, so we'll return a higher slippage tolerance.
+        else if (slippageTolerance == 0) return MIN_TWAP_SLIPPAGE_TOLERANCE * 3;
         /// If base < MIN_TWAP_SLIPPAGE_TOLERANCE, return the min.
         else if (slippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE) return MIN_TWAP_SLIPPAGE_TOLERANCE;
         else return slippageTolerance;

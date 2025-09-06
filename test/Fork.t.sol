@@ -38,7 +38,7 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
 
     // Constants
     uint256 constant TWAP_SLIPPAGE_DENOMINATOR = 10_000;
-    uint256 constant MIN_TWAP_SLIPPAGE_TOLERANCE = 1050;
+    uint256 constant MIN_TWAP_SLIPPAGE_TOLERANCE = 350;
 
     IUniswapV3Factory constant factory = IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984);
     IJBToken jbx;
@@ -256,14 +256,19 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
     function _getTwapQuote(uint256 _amountIn, uint32 _twapWindow) internal view returns (uint256 _amountOut) {
         // Get the twap tick
         (int24 arithmeticMeanTick, uint128 liquidity) = OracleLibrary.consult(address(pool), uint32(_twapWindow));
+        console.log("amountIn", _amountIn);
+        console.log("liquidity", liquidity);
         (address token0,) = address(jbx) < address(weth) ? (address(jbx), address(weth)) : (address(weth), address(jbx));
         bool zeroForOne = (address(weth) == token0);
         uint160 sqrtP = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
         if (sqrtP == 0) return TWAP_SLIPPAGE_DENOMINATOR;
         uint256 base = mulDiv(_amountIn, 20_000, uint256(liquidity));
+        console.log("base", base);
         uint256 slippageTolerance =
             zeroForOne ? mulDiv(base, uint256(sqrtP), uint256(1) << 96) : mulDiv(base, uint256(1) << 96, uint256(sqrtP));
+        console.log("slippageTolerance", slippageTolerance);
         if (slippageTolerance > TWAP_SLIPPAGE_DENOMINATOR) slippageTolerance = TWAP_SLIPPAGE_DENOMINATOR;
+        else if (slippageTolerance == 0) slippageTolerance = MIN_TWAP_SLIPPAGE_TOLERANCE * 3;
         else if (slippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE) slippageTolerance = MIN_TWAP_SLIPPAGE_TOLERANCE;
 
         if (slippageTolerance >= TWAP_SLIPPAGE_DENOMINATOR) return 0;
@@ -275,9 +280,11 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
             baseToken: address(weth),
             quoteToken: address(address(jbx))
         });
+        console.log("amountOut", _amountOut);
 
         // return the lowest acceptable return based on the TWAP and its parameters.
         _amountOut -= (_amountOut * slippageTolerance) / TWAP_SLIPPAGE_DENOMINATOR;
+        console.log("amountOut after slippage tolerance", _amountOut);
     }
 
     /**
@@ -560,9 +567,11 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
 
         // The twap which is going to be used
         uint256 _twap = _getTwapQuote(_amountIn, cardinality);
+        console.log("twap", _twap);
 
         // The actual quote, here for test only
         uint256 _quote = getAmountOut(pool, _amountIn, address(weth));
+        console.log("quote", _quote);
 
         // for checking balance difference after payment
         uint256 _balanceBeforePayment = jbx.balanceOf(multisig());
