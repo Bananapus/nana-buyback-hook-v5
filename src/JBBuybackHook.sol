@@ -76,6 +76,10 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @notice The denominator used when calculating TWAP slippage percent values.
     uint256 public constant override TWAP_SLIPPAGE_DENOMINATOR = 10_000;
 
+    /// @notice The minimum slippage tolerance allowed.
+    /// @dev This serves to avoid extremely low slippage tolerances that could result in failed swaps.
+    uint256 public constant override MIN_TWAP_SLIPPAGE_TOLERANCE = 1050;
+
     //*********************************************************************//
     // -------------------- public immutable properties ------------------ //
     //*********************************************************************//
@@ -320,7 +324,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             return 0;
         }
 
-        // Unpack the TWAP params and get a reference to the period and slippage.
+        // Unpack the TWAP params and get a reference to the period.
         uint256 twapWindow = twapWindowOf[projectId];
 
         // If the oldest observation is younger than the TWAP window, use the oldest observation.
@@ -356,7 +360,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         });
 
         // If the slippage tolerance is the maximum, return an empty quote.
-        if (slippageTolerance == TWAP_SLIPPAGE_DENOMINATOR) return 0;
+        if (slippageTolerance >= TWAP_SLIPPAGE_DENOMINATOR) return 0;
 
         // Get a quote based on this TWAP tick.
         amountOut = OracleLibrary.getQuoteAtTick({
@@ -405,18 +409,19 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // `2` → price (P) moves ~2x the fractional move in √P
         // `10_000` → convert to basis points (bps)
         // So `20_000` = 2 * 10_000 gives us the result directly in bps.
-        uint256 base = mulDiv(amountIn, 20_000, uint256(liquidity));
+        uint256 base = mulDiv(amountIn, 2 * TWAP_SLIPPAGE_DENOMINATOR, uint256(liquidity));
+
+        // Compute final slippage tolerance (bps), normalized by √P
+        uint256 slippageTolerance =
+            zeroForOne ? mulDiv(base, uint256(sqrtP), uint256(1) << 96) : mulDiv(base, uint256(1) << 96, uint256(sqrtP));
 
         /// If base ≥ 10,000 bps (100%), the trade would consume
         /// nearly all liquidity in the current range → our linear
         /// slippage estimate is invalid. Return max to signal fallback.
-        if (base >= 10_000) return TWAP_SLIPPAGE_DENOMINATOR;
-
-        // Compute final slippage tolerance (bps), normalized by √P
-        // zeroForOne → scale down by √P
-        // oneForZero → scale up by √P
-        return
-            zeroForOne ? mulDiv(base, uint256(1) << 96, uint256(sqrtP)) : mulDiv(base, uint256(sqrtP), uint256(1) << 96);
+        if (slippageTolerance > TWAP_SLIPPAGE_DENOMINATOR) return TWAP_SLIPPAGE_DENOMINATOR;
+        /// If base < MIN_TWAP_SLIPPAGE_TOLERANCE, return the min.
+        else if (slippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE) return MIN_TWAP_SLIPPAGE_TOLERANCE;
+        else return slippageTolerance;
     }
 
     //*********************************************************************//
