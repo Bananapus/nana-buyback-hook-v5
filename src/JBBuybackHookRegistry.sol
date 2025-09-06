@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IJBRulesetDataHook} from "@bananapus/core/src/interfaces/IJBRulesetDataHook.sol";
 import {JBMetadataResolver} from "@bananapus/core/src/libraries/JBMetadataResolver.sol";
 import {JBBeforePayRecordedContext} from "@bananapus/core/src/structs/JBBeforePayRecordedContext.sol";
@@ -12,7 +13,7 @@ import {JBPermissionIds} from "@bananapus/permission-ids/src/JBPermissionIds.sol
 
 import {IJBBuybackHookRegistry} from "./interfaces/IJBBuybackHookRegistry.sol";
 
-contract JBBuybackHookRegistry is IJBBuybackHookRegistry, IERC165 {
+contract JBBuybackHookRegistry is IJBBuybackHookRegistry, IERC165, Ownable {
     //*********************************************************************//
     // --------------------------- custom errors ------------------------- //
     //*********************************************************************//
@@ -46,7 +47,14 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, IERC165 {
 
     /// @param permissions The permissions contract.
     /// @param startingHook The starting hook to use.
-    constructor(IJBPermissions permissions, IJBRulesetDataHook startingHook) JBPermissioned(permissions) {
+    constructor(
+        IJBPermissions permissions,
+        IJBRulesetDataHook startingHook,
+        address owner
+    )
+        JBPermissioned(permissions)
+        Ownable(owner)
+    {
         defaultHook = startingHook;
     }
 
