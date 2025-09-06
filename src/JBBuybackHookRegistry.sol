@@ -9,7 +9,7 @@ import {JBBeforeCashOutRecordedContext} from "@bananapus/core-v5/src/structs/JBB
 import {JBCashOutHookSpecification} from "@bananapus/core-v5/src/structs/JBCashOutHookSpecification.sol";
 import {JBPayHookSpecification} from "@bananapus/core-v5/src/structs/JBPayHookSpecification.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {JBPermissionIds} from "@bananapus/permission-ids/src/JBPermissionIds.sol";
+import {JBPermissionIds} from "@bananapus/permission-ids-v5/src/JBPermissionIds.sol";
 
 import {IJBBuybackHookRegistry} from "./interfaces/IJBBuybackHookRegistry.sol";
 

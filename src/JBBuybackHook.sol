@@ -27,7 +27,7 @@ import {mulDiv} from "@prb/math/src/Common.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {OracleLibrary} from "@uniswap/v3-periphery/contracts/libraries/OracleLibrary.sol";
-import {JBPermissionIds} from "@bananapus/permission-ids/src/JBPermissionIds.sol";
+import {JBPermissionIds} from "@bananapus/permission-ids-v5/src/JBPermissionIds.sol";
 
 import {IJBBuybackHook} from "./interfaces/IJBBuybackHook.sol";
 import {IWETH9} from "./interfaces/external/IWETH9.sol";
