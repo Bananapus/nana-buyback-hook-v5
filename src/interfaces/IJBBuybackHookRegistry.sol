@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {IJBPayHook} from "@bananapus/core/src/interfaces/IJBPayHook.sol";
-import {IJBRulesetDataHook} from "@bananapus/core/src/interfaces/IJBRulesetDataHook.sol";
+import {IJBPayHook} from "@bananapus/core-v5/src/interfaces/IJBPayHook.sol";
+import {IJBRulesetDataHook} from "@bananapus/core-v5/src/interfaces/IJBRulesetDataHook.sol";
 
 interface IJBBuybackHookRegistry is IJBPayHook, IJBRulesetDataHook {
     event AllowHook(IJBRulesetDataHook hook);
