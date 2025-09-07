@@ -100,11 +100,11 @@ contract TestBaseWorkflowV3 is Test {
         vm.etch(address(weth), "0x69");
 
         // JBPermissions
-        jbPermissions = new JBPermissions();
+        jbPermissions = new JBPermissions(address(0));
         vm.label(address(jbPermissions), "JBPermissions");
 
         // JBProjects
-        jbProjects = new JBProjects(multisig, address(0));
+        jbProjects = new JBProjects(multisig, address(0), address(0));
         vm.label(address(jbProjects), "JBProjects");
 
         // JBDirectory
@@ -112,7 +112,7 @@ contract TestBaseWorkflowV3 is Test {
         vm.label(address(jbDirectory), "JBDirectory");
 
         // JBPrices
-        jbPrices = new JBPrices(jbDirectory, jbPermissions, jbProjects, multisig);
+        jbPrices = new JBPrices(jbDirectory, jbPermissions, jbProjects, multisig, address(0));
         vm.label(address(jbPrices), "JBPrices");
 
         // JBRulesets
@@ -145,6 +145,7 @@ contract TestBaseWorkflowV3 is Test {
             jbRulesets,
             jbSplits,
             jbTokens,
+            address(0),
             address(0)
         );
         vm.label(address(jbController), "JBController");

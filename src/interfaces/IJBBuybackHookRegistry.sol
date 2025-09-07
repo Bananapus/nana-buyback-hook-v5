@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {IJBPayHook} from "@bananapus/core-v5/src/interfaces/IJBPayHook.sol";
+import {IJBProjects} from "@bananapus/core-v5/src/interfaces/IJBProjects.sol";
 import {IJBRulesetDataHook} from "@bananapus/core-v5/src/interfaces/IJBRulesetDataHook.sol";
 
-interface IJBBuybackHookRegistry is IJBPayHook, IJBRulesetDataHook {
-    event AllowHook(IJBRulesetDataHook hook);
-    event DisallowHook(IJBRulesetDataHook hook);
-    event SetDefaultHook(IJBRulesetDataHook hook);
-    event SetHook(uint256 indexed projectId, IJBRulesetDataHook hook);
+interface IJBBuybackHookRegistry is IJBRulesetDataHook {
+    event JBBuybackHookRegistry_AllowHook(IJBRulesetDataHook hook);
+    event JBBuybackHookRegistry_DisallowHook(IJBRulesetDataHook hook);
+    event JBBuybackHookRegistry_LockHook(uint256 projectId);
+    event JBBuybackHookRegistry_SetDefaultHook(IJBRulesetDataHook hook);
+    event JBBuybackHookRegistry_SetHook(uint256 indexed projectId, IJBRulesetDataHook hook);
+
+    function PROJECTS() external view returns (IJBProjects);
 
     function defaultHook() external view returns (IJBRulesetDataHook);
     function hasLockedHook(uint256 projectId) external view returns (bool);
@@ -17,7 +20,7 @@ interface IJBBuybackHookRegistry is IJBPayHook, IJBRulesetDataHook {
 
     function allowHook(IJBRulesetDataHook hook) external;
     function disallowHook(IJBRulesetDataHook hook) external;
-    function lockHook(uint256 projectId) external;
+    function lockHookFor(uint256 projectId) external;
     function setDefaultHook(IJBRulesetDataHook hook) external;
-    function setHook(uint256 projectId, IJBRulesetDataHook hook) external;
+    function setHookFor(uint256 projectId, IJBRulesetDataHook hook) external;
 }

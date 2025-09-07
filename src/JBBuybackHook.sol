@@ -286,7 +286,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     }
 
     /// @notice Required by the `IJBRulesetDataHook` interfaces. Return false to not leak any permissions.
-    function hasMintPermissionFor(uint256, address) external pure override returns (bool) {
+    function hasMintPermissionFor(uint256, JBRuleset memory, address) external pure override returns (bool) {
         return false;
     }
 
