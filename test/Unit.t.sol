@@ -2,16 +2,16 @@
 pragma solidity ^0.8.16;
 
 import "src/interfaces/external/IWETH9.sol";
-import /* {*} from */ "@bananapus/core/test/helpers/TestBaseWorkflow.sol";
+import /* {*} from */ "@bananapus/core-v5/test/helpers/TestBaseWorkflow.sol";
 
-import "@bananapus/core/src/interfaces/IJBController.sol";
-import "@bananapus/core/src/interfaces/IJBDirectory.sol";
-import "@bananapus/core/src/interfaces/IJBCashOutHook.sol";
-import "@bananapus/core/src/libraries/JBConstants.sol";
-import "@bananapus/permission-ids/src/JBPermissionIds.sol";
-import {JBRulesetMetadataResolver} from "@bananapus/core/src/libraries/JBRulesetMetadataResolver.sol";
+import "@bananapus/core-v5/src/interfaces/IJBController.sol";
+import "@bananapus/core-v5/src/interfaces/IJBDirectory.sol";
+import "@bananapus/core-v5/src/interfaces/IJBCashOutHook.sol";
+import "@bananapus/core-v5/src/libraries/JBConstants.sol";
+import "@bananapus/permission-ids-v5/src/JBPermissionIds.sol";
+import {JBRulesetMetadataResolver} from "@bananapus/core-v5/src/libraries/JBRulesetMetadataResolver.sol";
 
-import /* {*} from */ "@bananapus/core/test/helpers/TestBaseWorkflow.sol";
+import /* {*} from */ "@bananapus/core-v5/test/helpers/TestBaseWorkflow.sol";
 
 import "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";

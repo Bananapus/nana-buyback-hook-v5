@@ -2,18 +2,22 @@
 pragma solidity 0.8.23;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {IJBRulesetDataHook} from "@bananapus/core/src/interfaces/IJBRulesetDataHook.sol";
-import {JBMetadataResolver} from "@bananapus/core/src/libraries/JBMetadataResolver.sol";
-import {JBBeforePayRecordedContext} from "@bananapus/core/src/structs/JBBeforePayRecordedContext.sol";
-import {JBBeforeCashOutRecordedContext} from "@bananapus/core/src/structs/JBBeforeCashOutRecordedContext.sol";
-import {JBCashOutHookSpecification} from "@bananapus/core/src/structs/JBCashOutHookSpecification.sol";
-import {JBPayHookSpecification} from "@bananapus/core/src/structs/JBPayHookSpecification.sol";
+import {JBPermissioned} from "@bananapus/core-v5/src/abstract/JBPermissioned.sol";
+import {IJBPermissions} from "@bananapus/core-v5/src/interfaces/IJBPermissions.sol";
+import {IJBProjects} from "@bananapus/core-v5/src/interfaces/IJBProjects.sol";
+import {IJBRulesetDataHook} from "@bananapus/core-v5/src/interfaces/IJBRulesetDataHook.sol";
+import {JBMetadataResolver} from "@bananapus/core-v5/src/libraries/JBMetadataResolver.sol";
+import {JBBeforePayRecordedContext} from "@bananapus/core-v5/src/structs/JBBeforePayRecordedContext.sol";
+import {JBBeforeCashOutRecordedContext} from "@bananapus/core-v5/src/structs/JBBeforeCashOutRecordedContext.sol";
+import {JBCashOutHookSpecification} from "@bananapus/core-v5/src/structs/JBCashOutHookSpecification.sol";
+import {JBPayHookSpecification} from "@bananapus/core-v5/src/structs/JBPayHookSpecification.sol";
+import {JBRuleset} from "@bananapus/core-v5/src/structs/JBRuleset.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {JBPermissionIds} from "@bananapus/permission-ids/src/JBPermissionIds.sol";
+import {JBPermissionIds} from "@bananapus/permission-ids-v5/src/JBPermissionIds.sol";
 
 import {IJBBuybackHookRegistry} from "./interfaces/IJBBuybackHookRegistry.sol";
 
-contract JBBuybackHookRegistry is IJBBuybackHookRegistry, IERC165, Ownable {
+contract JBBuybackHookRegistry is IJBBuybackHookRegistry, JBPermissioned, Ownable {
     //*********************************************************************//
     // --------------------------- custom errors ------------------------- //
     //*********************************************************************//
@@ -21,6 +25,13 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, IERC165, Ownable {
     error JBBuybackHookRegistry_HookLocked(uint256 projectId);
     error JBBuybackHookRegistry_HookNotAllowed(IJBRulesetDataHook hook);
     error JBBuybackHookRegistry_HookNotSet(uint256 projectId);
+
+    //*********************************************************************//
+    // -------------------- public immutable properties ------------------ //
+    //*********************************************************************//
+
+    /// @notice The project registry.
+    IJBProjects public immutable override PROJECTS;
 
     //*********************************************************************//
     // --------------------- public stored properties -------------------- //
@@ -46,15 +57,19 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, IERC165, Ownable {
     //*********************************************************************//
 
     /// @param permissions The permissions contract.
+    /// @param projects The project registry.
     /// @param startingHook The starting hook to use.
+    /// @param owner The owner of the contract.
     constructor(
         IJBPermissions permissions,
+        IJBProjects projects,
         IJBRulesetDataHook startingHook,
         address owner
     )
         JBPermissioned(permissions)
         Ownable(owner)
     {
+        PROJECTS = projects;
         defaultHook = startingHook;
     }
 
@@ -73,7 +88,7 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, IERC165, Ownable {
         IJBRulesetDataHook hook = hookOf[context.projectId];
 
         // If the hook is not set, use the default hook.
-        if (hook == IJBRulesetDataHook(0)) hook = defaultHook;
+        if (hook == IJBRulesetDataHook(address(0))) hook = defaultHook;
 
         // Forward the call to the hook.
         return hook.beforePayRecordedWith(context);
@@ -92,12 +107,24 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, IERC165, Ownable {
     }
 
     /// @notice Make sure the hook has mint permission.
-    function hasMintPermissionFor(uint256, address addr) external pure override returns (bool) {
+    /// @param projectId The ID of the project to check the mint permission for.
+    /// @param addr The address to check the mint permission for.
+    /// @return Whether the address has mint permission.
+    function hasMintPermissionFor(
+        uint256 projectId,
+        JBRuleset memory,
+        address addr
+    )
+        external
+        view
+        override
+        returns (bool)
+    {
         // Get the hook for the project.
-        IJBRulesetDataHook hook = hookOf[context.projectId];
+        IJBRulesetDataHook hook = hookOf[projectId];
 
         // If the hook is not set, use the default hook.
-        if (hook == IJBRulesetDataHook(0)) hook = defaultHook;
+        if (hook == IJBRulesetDataHook(address(0))) hook = defaultHook;
 
         // Make sure the hook has mint permission.
         return addr == address(hook);
@@ -151,7 +178,7 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, IERC165, Ownable {
         hasLockedHook[projectId] = true;
 
         // If the hook is not set, lock in the default hook.
-        if (hookOf[projectId] == IJBRulesetDataHook(0)) hookOf[projectId] = defaultHook;
+        if (hookOf[projectId] == IJBRulesetDataHook(address(0))) hookOf[projectId] = defaultHook;
 
         emit JBBuybackHookRegistry_LockHook(projectId);
     }
