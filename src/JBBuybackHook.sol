@@ -430,7 +430,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // If base is 0, the swap amount is tiny compared to the liquidity, so we'll return a higher slippage tolerance
         // that the returned amount will be highly influenced by the different between the spot and twap prices.
         else if (slippageTolerance == 0) return UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE;
-        //
+        // If the slippage tolerance is less than the low slippage tolerance, add the buffer.
         else if (slippageTolerance < LOW_TWAP_SLIPPAGE_TOLERANCE) return slippageTolerance + SLIPPAGE_TOLERANCE_BUFFER;
         else return slippageTolerance;
     }
