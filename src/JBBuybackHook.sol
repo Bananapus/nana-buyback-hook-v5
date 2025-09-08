@@ -402,7 +402,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     {
         // Direction: is terminalToken token0?
         (address token0,) = projectToken < terminalToken ? (projectToken, terminalToken) : (terminalToken, projectToken);
-        bool zeroForOne = (terminalToken == token0);
+        bool zeroForOne = terminalToken == token0;
 
         // sqrtP in Q96 from the TWAP tick
         uint160 sqrtP = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
