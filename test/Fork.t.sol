@@ -38,7 +38,8 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
 
     // Constants
     uint256 constant TWAP_SLIPPAGE_DENOMINATOR = 10_000;
-    uint256 constant MIN_TWAP_SLIPPAGE_TOLERANCE = 350;
+    uint256 constant UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE = 1050;
+    uint256 constant LOW_TWAP_SLIPPAGE_TOLERANCE = 300;
 
     IUniswapV3Factory constant factory = IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984);
     IJBToken jbx;
@@ -268,8 +269,8 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
             zeroForOne ? mulDiv(base, uint256(sqrtP), uint256(1) << 96) : mulDiv(base, uint256(1) << 96, uint256(sqrtP));
         console.log("slippageTolerance", slippageTolerance);
         if (slippageTolerance > TWAP_SLIPPAGE_DENOMINATOR) slippageTolerance = TWAP_SLIPPAGE_DENOMINATOR;
-        else if (slippageTolerance == 0) slippageTolerance = MIN_TWAP_SLIPPAGE_TOLERANCE * 3;
-        else if (slippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE) slippageTolerance = MIN_TWAP_SLIPPAGE_TOLERANCE;
+        else if (slippageTolerance == 0) slippageTolerance = UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE;
+        else if (slippageTolerance < LOW_TWAP_SLIPPAGE_TOLERANCE) slippageTolerance += 100;
 
         if (slippageTolerance >= TWAP_SLIPPAGE_DENOMINATOR) return 0;
 

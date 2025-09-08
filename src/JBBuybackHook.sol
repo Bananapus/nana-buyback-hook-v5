@@ -76,9 +76,17 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @notice The denominator used when calculating TWAP slippage percent values.
     uint256 public constant override TWAP_SLIPPAGE_DENOMINATOR = 10_000;
 
-    /// @notice The minimum slippage tolerance allowed.
+    /// @notice A low slippage tolerance that needs a buffer.
+    /// @dev This serves to avoid low slippage tolerances that could result in failed swaps.
+    uint256 public constant override LOW_TWAP_SLIPPAGE_TOLERANCE = 300;
+
+    /// @notice The uncertain slippage tolerance allowed.
     /// @dev This serves to avoid extremely low slippage tolerances that could result in failed swaps.
-    uint256 public constant override MIN_TWAP_SLIPPAGE_TOLERANCE = 350; //1050;
+    uint256 public constant override UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE = 1050;
+
+    /// @notice A buffer to add to the low slippage tolerance.
+    /// @dev This serves to avoid low slippage tolerances that could result in failed swaps.
+    uint256 public constant override SLIPPAGE_TOLERANCE_BUFFER = 100;
 
     //*********************************************************************//
     // -------------------- public immutable properties ------------------ //
@@ -419,10 +427,11 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         /// nearly all liquidity in the current range → our linear
         /// slippage estimate is invalid. Return max to signal fallback.
         if (slippageTolerance > TWAP_SLIPPAGE_DENOMINATOR) return TWAP_SLIPPAGE_DENOMINATOR;
-        // If base is 0, the swap amount is tiny compared to the liquidity, so we'll return a higher slippage tolerance.
-        else if (slippageTolerance == 0) return MIN_TWAP_SLIPPAGE_TOLERANCE * 3;
-        /// If base < MIN_TWAP_SLIPPAGE_TOLERANCE, return the min.
-        else if (slippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE) return MIN_TWAP_SLIPPAGE_TOLERANCE;
+        // If base is 0, the swap amount is tiny compared to the liquidity, so we'll return a higher slippage tolerance
+        // that the returned amount will be highly influenced by the different between the spot and twap prices.
+        else if (slippageTolerance == 0) return UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE;
+        //
+        else if (slippageTolerance < LOW_TWAP_SLIPPAGE_TOLERANCE) return slippageTolerance + SLIPPAGE_TOLERANCE_BUFFER;
         else return slippageTolerance;
     }
 
