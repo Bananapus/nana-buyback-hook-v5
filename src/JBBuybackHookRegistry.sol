@@ -135,7 +135,7 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, JBPermissioned, Ownabl
     //*********************************************************************//
 
     function supportsInterface(bytes4 interfaceId) public pure override returns (bool) {
-        return interFaceceId == type(IJBBuybackHookRegistry).interfaceId
+        return interfaceId == type(IJBBuybackHookRegistry).interfaceId
             || interfaceId == type(IJBRulesetDataHook).interfaceId || interfaceId == type(IERC165).interfaceId;
     }
 

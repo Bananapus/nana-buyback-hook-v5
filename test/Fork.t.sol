@@ -161,7 +161,9 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
 
         delegate = new JBBuybackHook({
             directory: jbDirectory(),
-            controller: jbController(),
+            permissions: jbPermissions(),
+            tokens: jbTokens(),
+            projects: jbProjects(),
             prices: jbPrices(),
             weth: weth,
             factory: address(factory)

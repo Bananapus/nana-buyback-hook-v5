@@ -175,7 +175,9 @@ contract TestBaseWorkflowV3 is Test {
             weth: weth,
             factory: uniswapFactory,
             directory: IJBDirectory(address(jbDirectory)),
-            controller: jbController,
+            permissions: jbPermissions,
+            projects: jbProjects,
+            tokens: jbTokens,
             prices: jbPrices
         });
 

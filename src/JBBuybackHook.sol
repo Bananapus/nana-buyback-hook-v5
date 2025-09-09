@@ -7,10 +7,12 @@ import {IJBDirectory} from "@bananapus/core-v5/src/interfaces/IJBDirectory.sol";
 import {IJBMultiTerminal} from "@bananapus/core-v5/src/interfaces/IJBMultiTerminal.sol";
 import {IJBPayHook} from "@bananapus/core-v5/src/interfaces/IJBPayHook.sol";
 import {IJBPermissioned} from "@bananapus/core-v5/src/interfaces/IJBPermissioned.sol";
+import {IJBPermissions} from "@bananapus/core-v5/src/interfaces/IJBPermissions.sol";
 import {IJBPrices} from "@bananapus/core-v5/src/interfaces/IJBPrices.sol";
 import {IJBProjects} from "@bananapus/core-v5/src/interfaces/IJBProjects.sol";
 import {IJBRulesetDataHook} from "@bananapus/core-v5/src/interfaces/IJBRulesetDataHook.sol";
 import {IJBTerminal} from "@bananapus/core-v5/src/interfaces/IJBTerminal.sol";
+import {IJBTokens} from "@bananapus/core-v5/src/interfaces/IJBTokens.sol";
 import {JBConstants} from "@bananapus/core-v5/src/libraries/JBConstants.sol";
 import {JBMetadataResolver} from "@bananapus/core-v5/src/libraries/JBMetadataResolver.sol";
 import {JBRulesetMetadataResolver} from "@bananapus/core-v5/src/libraries/JBRulesetMetadataResolver.sol";
@@ -91,9 +93,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     // -------------------- public immutable properties ------------------ //
     //*********************************************************************//
 
-    /// @notice The controller used to mint and burn tokens.
-    IJBController public immutable override CONTROLLER;
-
     /// @notice The directory of terminals and controllers.
     IJBDirectory public immutable override DIRECTORY;
 
@@ -102,6 +101,9 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
     /// @notice The project registry.
     IJBProjects public immutable override PROJECTS;
+
+    /// @notice The token registry.
+    IJBTokens public immutable override TOKENS;
 
     /// @notice The address of the Uniswap v3 factory. Used to calculate pool addresses.
     address public immutable override UNISWAP_V3_FACTORY;
@@ -138,22 +140,26 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     //*********************************************************************//
 
     /// @param directory The directory of terminals and controllers.
-    /// @param controller The controller used to mint and burn tokens.
+    /// @param permissions The permissions contract.
     /// @param prices The contract that exposes price feeds.
+    /// @param projects The project registry.
+    /// @param tokens The token registry.
     /// @param weth The WETH contract.
     /// @param factory The address of the Uniswap v3 factory. Used to calculate pool addresses.
     constructor(
         IJBDirectory directory,
-        IJBController controller,
+        IJBPermissions permissions,
         IJBPrices prices,
+        IJBProjects projects,
+        IJBTokens tokens,
         IWETH9 weth,
         address factory
     )
-        JBPermissioned(IJBPermissioned(address(controller)).PERMISSIONS())
+        JBPermissioned(permissions)
     {
         DIRECTORY = directory;
-        CONTROLLER = controller;
-        PROJECTS = controller.PROJECTS();
+        TOKENS = tokens;
+        PROJECTS = projects;
         PRICES = prices;
         // slither-disable-next-line missing-zero-check
         UNISWAP_V3_FACTORY = factory;
@@ -211,9 +217,12 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // If the payer/client did not specify an amount to use towards the swap, use the `totalPaid`.
         if (amountToSwapWith == 0) amountToSwapWith = totalPaid;
 
+        // Get a reference to the controller.
+        IJBController controller = IJBController(address(DIRECTORY.controllerOf(context.projectId)));
+
         // Get a reference to the ruleset.
         // slither-disable-next-line unused-return
-        (JBRuleset memory ruleset,) = CONTROLLER.currentRulesetOf(context.projectId);
+        (JBRuleset memory ruleset,) = controller.currentRulesetOf(context.projectId);
 
         // If the hook should base its weight on a currency other than the terminal's currency, determine the
         // factor. The weight is always a fixed point mumber with 18 decimals. To ensure this, the ratio should use the
@@ -417,9 +426,12 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             );
         }
 
+        // Get a reference to the controller.
+        IJBController controller = IJBController(address(DIRECTORY.controllerOf(context.projectId)));
+
         // Get a reference to the number of project tokens that was swapped for.
         // slither-disable-next-line reentrancy-events
-        uint256 exactSwapAmountOut = _swap(context, projectTokenIs0);
+        uint256 exactSwapAmountOut = _swap({context: context, projectTokenIs0: projectTokenIs0, controller: controller});
 
         // Ensure swap satisfies payer/client minimum amount or calculated TWAP if payer/client did not specify.
         if (exactSwapAmountOut < minimumSwapAmountOut) {
@@ -433,7 +445,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
         // Get a reference to the ruleset.
         // slither-disable-next-line unused-return
-        (JBRuleset memory ruleset,) = CONTROLLER.currentRulesetOf(context.projectId);
+        (JBRuleset memory ruleset,) = controller.currentRulesetOf(context.projectId);
 
         // If the hook should base its weight on a currency other than the terminal's currency, determine the
         // factor. The weight is always a fixed point mumber with 18 decimals. To ensure this, the ratio should use
@@ -489,7 +501,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // Mint the calculated amount of tokens for the beneficiary, including any leftover amount.
         // This takes the reserved rate into account.
         // slither-disable-next-line unused-return
-        CONTROLLER.mintTokensOf({
+        controller.mintTokensOf({
             projectId: context.projectId,
             tokenCount: exactSwapAmountOut + partialMintTokenCount,
             beneficiary: address(context.beneficiary),
@@ -544,7 +556,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         if (terminalToken == address(0)) revert JBBuybackHook_ZeroTerminalToken();
 
         // Keep a reference to the project's token.
-        address projectToken = address(CONTROLLER.TOKENS().tokenOf(projectId));
+        address projectToken = address(TOKENS.tokenOf(projectId));
 
         // Make sure the project has issued a token.
         if (projectToken == address(0)) revert JBBuybackHook_ZeroProjectToken();
@@ -710,10 +722,12 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @notice Swap the terminal token to receive project tokens.
     /// @param context The `afterPayRecordedContext` passed in by the terminal.
     /// @param projectTokenIs0 A flag indicating whether the pool references the project token as the first in the pair.
+    /// @param controller The controller used to mint and burn tokens.
     /// @return amountReceived The amount of project tokens received from the swap.
     function _swap(
         JBAfterPayRecordedContext calldata context,
-        bool projectTokenIs0
+        bool projectTokenIs0,
+        IJBController controller
     )
         internal
         returns (uint256 amountReceived)
@@ -757,7 +771,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
         // Burn the whole amount received.
         if (amountReceived != 0) {
-            CONTROLLER.burnTokensOf({
+            controller.burnTokensOf({
                 holder: address(this),
                 projectId: context.projectId,
                 tokenCount: amountReceived,

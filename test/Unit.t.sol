@@ -140,7 +140,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             weth: weth,
             factory: uniswapFactory,
             directory: directory,
-            controller: controller,
+            permissions: permissions,
+            projects: projects,
+            tokens: tokens,
             prices: prices
         });
 
@@ -1650,7 +1652,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             weth: terminalToken,
             factory: uniswapFactory,
             directory: directory,
-            controller: controller,
+            permissions: permissions,
+            projects: projects,
+            tokens: tokens,
             prices: prices
         });
 
@@ -1703,7 +1707,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             weth: terminalToken,
             factory: uniswapFactory,
             directory: directory,
-            controller: controller,
+            permissions: permissions,
+            projects: projects,
+            tokens: tokens,
             prices: prices
         });
 
@@ -2226,10 +2232,12 @@ contract ForTest_JBBuybackHook is JBBuybackHook {
         IWETH9 weth,
         address factory,
         IJBDirectory directory,
-        IJBController controller,
-        IJBPrices prices
+        IJBPermissions permissions,
+        IJBProjects projects,
+        IJBPrices prices,
+        IJBTokens tokens
     )
-        JBBuybackHook(directory, controller, prices, weth, factory)
+        JBBuybackHook(directory, permissions, prices, projects, tokens, weth, factory)
     {}
 
     function ForTest_getQuote(
