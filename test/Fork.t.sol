@@ -268,11 +268,15 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         uint256 slippageTolerance =
             zeroForOne ? mulDiv(base, uint256(sqrtP), uint256(1) << 96) : mulDiv(base, uint256(1) << 96, uint256(sqrtP));
         console.log("slippageTolerance", slippageTolerance);
-        if (slippageTolerance > TWAP_SLIPPAGE_DENOMINATOR) slippageTolerance = TWAP_SLIPPAGE_DENOMINATOR;
+        if (slippageTolerance > 20_000) slippageTolerance = 10_000;
+        else if (slippageTolerance > 3000) slippageTolerance = slippageTolerance / 2;
+        else if (slippageTolerance > 2000) slippageTolerance = slippageTolerance * 3 / 2;
+        else if (slippageTolerance > 1000) slippageTolerance = slippageTolerance * 3 / 4;
+        else if (slippageTolerance > 300) slippageTolerance = slippageTolerance;
+        else if (slippageTolerance > 0) slippageTolerance = slippageTolerance + 100;
         else if (slippageTolerance == 0) slippageTolerance = UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE;
-        else if (slippageTolerance < LOW_TWAP_SLIPPAGE_TOLERANCE) slippageTolerance += 100;
 
-        if (slippageTolerance >= TWAP_SLIPPAGE_DENOMINATOR) return 0;
+        console.log("slippageTolerance adjusted", slippageTolerance);
 
         // Get a quote based on this TWAP tick.
         _amountOut = OracleLibrary.getQuoteAtTick({
@@ -294,7 +298,7 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
      * @dev    Should mint for both multisig() and reserve
      */
     function test_mintIfWeightGreatherThanPrice(uint256 _weight, uint256 _amountIn) public {
-        _amountIn = bound(_amountIn, 100, 100 ether);
+        _amountIn = bound(_amountIn, 100, 1000 ether);
 
         uint256 _amountOutQuoted = getAmountOut(pool, _amountIn, address(weth));
 
@@ -365,8 +369,11 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         _amountIn = bound(_amountIn, 100, 10 ether);
 
         primePool();
-        _getTwapQuote(_amountIn, cardinality);
+        uint256 _amountOutTwap = _getTwapQuote(_amountIn, cardinality);
+        console.log("amountOutTwap", _amountOutTwap);
         uint256 _amountOutQuoted = getAmountOut(pool, _amountIn, address(weth));
+
+        console.log("amountOutQuoted", _amountOutQuoted);
 
         // Reconfigure with a weight smaller than the price implied by the quote
         _weight = 1;
@@ -702,8 +709,8 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
     }
 
     function test_mintWithExtraFunds(uint256 _amountIn, uint256 _amountInExtra) public {
-        _amountIn = bound(_amountIn, 100, 10 ether);
-        _amountInExtra = bound(_amountInExtra, 100, 10 ether);
+        _amountIn = bound(_amountIn, 100, 1000 ether);
+        _amountInExtra = bound(_amountInExtra, 100, 1000 ether);
 
         // Refresh the quote
         amountOutQuoted = getAmountOut(pool, _amountIn, address(weth));

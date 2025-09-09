@@ -411,12 +411,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         if (sqrtP == 0) return TWAP_SLIPPAGE_DENOMINATOR;
 
         // Approximate % of range liquidity consumed by the swap (in bps)
-        // Base impact estimate before √P normalization.
-        // Formula: base ≈ 2 * 10_000 * (amountIn / liquidity)
-        // `amountIn / liquidity` → fraction of liquidity consumed by this trade
-        // `2` → price (P) moves ~2x the fractional move in √P
-        // `10_000` → convert to basis points (bps)
-        // So `20_000` = 2 * 10_000 gives us the result directly in bps.
+        // Multiply by 2 to to amplify the results and prevent results on the low end from rounding to zero.
         uint256 base = mulDiv(amountIn, 2 * TWAP_SLIPPAGE_DENOMINATOR, uint256(liquidity));
 
         // Compute final slippage tolerance (bps), normalized by √P
@@ -426,13 +421,14 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         /// If base ≥ 10,000 bps (100%), the trade would consume
         /// nearly all liquidity in the current range → our linear
         /// slippage estimate is invalid. Return max to signal fallback.
-        if (slippageTolerance > TWAP_SLIPPAGE_DENOMINATOR) return TWAP_SLIPPAGE_DENOMINATOR;
-        // If base is 0, the swap amount is tiny compared to the liquidity, so we'll return a higher slippage tolerance
-        // that the returned amount will be highly influenced by the different between the spot and twap prices.
-        else if (slippageTolerance == 0) return UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE;
-        // If the slippage tolerance is less than the low slippage tolerance, add the buffer.
-        else if (slippageTolerance < LOW_TWAP_SLIPPAGE_TOLERANCE) return slippageTolerance + SLIPPAGE_TOLERANCE_BUFFER;
-        else return slippageTolerance;
+        if (slippageTolerance > 2 * TWAP_SLIPPAGE_DENOMINATOR) return TWAP_SLIPPAGE_DENOMINATOR;
+        // Adjust the slippage tolerance to be reasonable given the ranges.
+        else if (slippageTolerance > 3000) return slippageTolerance / 2;
+        else if (slippageTolerance > 2000) return slippageTolerance * 2 / 3;
+        else if (slippageTolerance > 1000) return slippageTolerance * 3 / 4;
+        else if (slippageTolerance > 300) return slippageTolerance;
+        else if (slippageTolerance > 0) return slippageTolerance + 100;
+        else return UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE;
     }
 
     //*********************************************************************//
@@ -695,6 +691,19 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     //*********************************************************************//
     // ---------------------- internal functions ------------------------- //
     //*********************************************************************//
+
+    /// @notice Calculate the square root of a number using the Babylonian method
+    /// @param x The number to calculate the square root of
+    /// @return y The square root of x
+    function _sqrt(uint256 x) internal pure returns (uint256 y) {
+        if (x == 0) return 0;
+        uint256 z = (x + 1) / 2;
+        y = x;
+        while (z < y) {
+            y = z;
+            z = (x / z + z) / 2;
+        }
+    }
 
     /// @notice Swap the terminal token to receive project tokens.
     /// @param context The `afterPayRecordedContext` passed in by the terminal.
