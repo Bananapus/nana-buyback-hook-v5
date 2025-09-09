@@ -418,11 +418,10 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         uint256 slippageTolerance =
             zeroForOne ? mulDiv(base, uint256(sqrtP), uint256(1) << 96) : mulDiv(base, uint256(1) << 96, uint256(sqrtP));
 
-        /// If base ≥ 10,000 bps (100%), the trade would consume
-        /// nearly all liquidity in the current range → our linear
-        /// slippage estimate is invalid. Return max to signal fallback.
-        if (slippageTolerance > 2 * TWAP_SLIPPAGE_DENOMINATOR) return TWAP_SLIPPAGE_DENOMINATOR;
         // Adjust the slippage tolerance to be reasonable given the ranges.
+        if (slippageTolerance > 3 * TWAP_SLIPPAGE_DENOMINATOR) return TWAP_SLIPPAGE_DENOMINATOR * 88 / 100;
+        else if (slippageTolerance > 2 * TWAP_SLIPPAGE_DENOMINATOR) return TWAP_SLIPPAGE_DENOMINATOR * 68 / 100;
+        else if (slippageTolerance > 12_000) return slippageTolerance / 3;
         else if (slippageTolerance > 3000) return slippageTolerance / 2;
         else if (slippageTolerance > 2000) return slippageTolerance * 2 / 3;
         else if (slippageTolerance > 1000) return slippageTolerance * 3 / 4;

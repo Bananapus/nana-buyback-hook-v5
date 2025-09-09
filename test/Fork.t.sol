@@ -278,7 +278,9 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         uint256 slippageTolerance =
             zeroForOne ? mulDiv(base, uint256(sqrtP), uint256(1) << 96) : mulDiv(base, uint256(1) << 96, uint256(sqrtP));
         console.log("slippageTolerance", slippageTolerance);
-        if (slippageTolerance > 20_000) slippageTolerance = 10_000;
+        if (slippageTolerance > 30_000) slippageTolerance = 8800;
+        else if (slippageTolerance > 20_000) slippageTolerance = 6800;
+        else if (slippageTolerance > 12_000) slippageTolerance = slippageTolerance / 3;
         else if (slippageTolerance > 3000) slippageTolerance = slippageTolerance / 2;
         else if (slippageTolerance > 2000) slippageTolerance = slippageTolerance * 3 / 2;
         else if (slippageTolerance > 1000) slippageTolerance = slippageTolerance * 3 / 4;
@@ -376,7 +378,7 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
      * @dev    Should swap for both multisig() and reserve (by burning/minting)
      */
     function test_swapIfQuoteBetter(uint256 _weight, uint256 _amountIn, uint256 _reservedPercent) public {
-        _amountIn = bound(_amountIn, 100, 100 ether);
+        _amountIn = bound(_amountIn, 100, 1000 ether);
 
         primePool();
         uint256 _amountOutTwap = _getTwapQuote(_amountIn, cardinality);
@@ -386,7 +388,7 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         console.log("amountOutQuoted", _amountOutQuoted);
 
         // Reconfigure with a weight smaller than the price implied by the quote
-        _weight = 1;
+        _weight = 0;
 
         _reservedPercent = bound(_reservedPercent, 0, 10_000);
 
@@ -515,12 +517,12 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
      * @dev    Should swap for both multisig() and reserve (by burning/minting)
      */
     function test_swapRandomAmountIn(uint256 _amountIn) public {
-        _amountIn = bound(_amountIn, 100, 100 ether);
+        _amountIn = bound(_amountIn, 100, 1000 ether);
 
         uint256 _quote = getAmountOut(pool, _amountIn, address(weth));
 
-        // Reconfigure with a weight of 1
-        _reconfigure(1, address(delegate), 1, 0);
+        // Reconfigure with a weight of 0
+        _reconfigure(1, address(delegate), 0, 0);
 
         uint256 _reservedBalanceBefore = jbController().pendingReservedTokenBalanceOf(1);
 
