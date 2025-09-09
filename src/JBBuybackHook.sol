@@ -527,6 +527,11 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             permissionId: JBPermissionIds.SET_BUYBACK_POOL
         });
 
+        // Make sure this pool hasn't already been set in this hook.
+        if (poolOf[projectId][terminalToken] != IUniswapV3Pool(address(0))) {
+            revert JBBuybackHook_PoolAlreadySet(poolOf[projectId][terminalToken]);
+        }
+
         // Make sure the provided TWAP slippage tolerance is within reasonable bounds.
         if (twapSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || twapSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE)
         {
@@ -585,11 +590,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
                 )
             )
         );
-
-        // Make sure this pool hasn't already been set in this hook.
-        if (poolOf[projectId][terminalToken] != IUniswapV3Pool(address(0))) {
-            revert JBBuybackHook_PoolAlreadySet(poolOf[projectId][terminalToken]);
-        }
 
         // Store the pool.
         poolOf[projectId][terminalToken] = newPool;
