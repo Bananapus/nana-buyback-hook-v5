@@ -268,7 +268,10 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
                 hook: IJBPayHook(this),
                 amount: amountToSwapWith,
                 metadata: abi.encode(
-                    projectTokenIs0, totalPaid == amountToSwapWith ? 0 : totalPaid - amountToSwapWith, minimumSwapAmountOut
+                    projectTokenIs0,
+                    totalPaid == amountToSwapWith ? 0 : totalPaid - amountToSwapWith,
+                    minimumSwapAmountOut,
+                    controller
                 )
             });
 
@@ -458,8 +461,8 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         }
 
         // Parse the metadata forwarded from the data hook.
-        (bool projectTokenIs0, uint256 amountToMintWith, uint256 minimumSwapAmountOut) =
-            abi.decode(context.hookMetadata, (bool, uint256, uint256));
+        (bool projectTokenIs0, uint256 amountToMintWith, uint256 minimumSwapAmountOut, IJBController controller) =
+            abi.decode(context.hookMetadata, (bool, uint256, uint256, address));
 
         // If the token paid in isn't the native token, pull the amount to swap from the terminal.
         if (context.forwardedAmount.token != JBConstants.NATIVE_TOKEN) {
@@ -467,9 +470,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
                 msg.sender, address(this), context.forwardedAmount.value
             );
         }
-
-        // Get a reference to the controller.
-        IJBController controller = IJBController(address(DIRECTORY.controllerOf(context.projectId)));
 
         // Get a reference to the number of project tokens that was swapped for.
         // slither-disable-next-line reentrancy-events
