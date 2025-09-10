@@ -178,7 +178,8 @@ contract TestBaseWorkflowV3 is Test {
             permissions: jbPermissions,
             projects: jbProjects,
             tokens: jbTokens,
-            prices: jbPrices
+            prices: jbPrices,
+            trustedForwarder: address(0)
         });
 
         // Ruleset metadata: use the hook for payments.

@@ -169,7 +169,8 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
             projects: jbProjects(),
             prices: jbPrices(),
             weth: weth,
-            factory: address(factory)
+            factory: address(factory),
+            trustedForwarder: address(0)
         });
 
         initMetadata();

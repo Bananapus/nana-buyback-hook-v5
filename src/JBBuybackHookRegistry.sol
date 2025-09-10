@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {JBPermissioned} from "@bananapus/core-v5/src/abstract/JBPermissioned.sol";
 import {IJBPermissions} from "@bananapus/core-v5/src/interfaces/IJBPermissions.sol";
 import {IJBProjects} from "@bananapus/core-v5/src/interfaces/IJBProjects.sol";
@@ -12,12 +11,15 @@ import {JBBeforeCashOutRecordedContext} from "@bananapus/core-v5/src/structs/JBB
 import {JBCashOutHookSpecification} from "@bananapus/core-v5/src/structs/JBCashOutHookSpecification.sol";
 import {JBPayHookSpecification} from "@bananapus/core-v5/src/structs/JBPayHookSpecification.sol";
 import {JBRuleset} from "@bananapus/core-v5/src/structs/JBRuleset.sol";
-import {IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {JBPermissionIds} from "@bananapus/permission-ids-v5/src/JBPermissionIds.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import {ERC2771Context} from "@openzeppelin/contracts/metatx/ERC2771Context.sol";
+import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 
 import {IJBBuybackHookRegistry} from "./interfaces/IJBBuybackHookRegistry.sol";
 
-contract JBBuybackHookRegistry is IJBBuybackHookRegistry, JBPermissioned, Ownable {
+contract JBBuybackHookRegistry is IJBBuybackHookRegistry, ERC2771Context, JBPermissioned, Ownable {
     //*********************************************************************//
     // --------------------------- custom errors ------------------------- //
     //*********************************************************************//
@@ -60,13 +62,16 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, JBPermissioned, Ownabl
     /// @param projects The project registry.
     /// @param startingHook The starting hook to use.
     /// @param owner The owner of the contract.
+    /// @param trustedForwarder A trusted forwarder of transactions to this contract.
     constructor(
         IJBPermissions permissions,
         IJBProjects projects,
         IJBRulesetDataHook startingHook,
-        address owner
+        address owner,
+        address trustedForwarder
     )
         JBPermissioned(permissions)
+        ERC2771Context(trustedForwarder)
         Ownable(owner)
     {
         PROJECTS = projects;
@@ -138,6 +143,27 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, JBPermissioned, Ownabl
     function supportsInterface(bytes4 interfaceId) public pure override returns (bool) {
         return interfaceId == type(IJBBuybackHookRegistry).interfaceId
             || interfaceId == type(IJBRulesetDataHook).interfaceId || interfaceId == type(IERC165).interfaceId;
+    }
+
+    //*********************************************************************//
+    // -------------------------- internal views ------------------------- //
+    //*********************************************************************//
+
+    /// @dev `ERC-2771` specifies the context as being a single address (20 bytes).
+    function _contextSuffixLength() internal view override(ERC2771Context, Context) returns (uint256) {
+        return super._contextSuffixLength();
+    }
+
+    /// @notice The calldata. Preferred to use over `msg.data`.
+    /// @return calldata The `msg.data` of this call.
+    function _msgData() internal view override(ERC2771Context, Context) returns (bytes calldata) {
+        return ERC2771Context._msgData();
+    }
+
+    /// @notice The message's sender. Preferred to use over `msg.sender`.
+    /// @return sender The address which sent this call.
+    function _msgSender() internal view override(ERC2771Context, Context) returns (address sender) {
+        return ERC2771Context._msgSender();
     }
 
     //*********************************************************************//
