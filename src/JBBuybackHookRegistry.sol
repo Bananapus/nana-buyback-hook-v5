@@ -91,6 +91,7 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, JBPermissioned, Ownabl
         if (hook == IJBRulesetDataHook(address(0))) hook = defaultHook;
 
         // Forward the call to the hook.
+        // slither-disable-next-line unused-return
         return hook.beforePayRecordedWith(context);
     }
 
