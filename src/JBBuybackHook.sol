@@ -646,7 +646,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         }
 
         // Keep a reference to the old window value.
-        uint256 oldWindow = uint128(twapWindowOf[projectId]);
+        uint256 oldWindow = twapWindowOf[projectId];
 
         // Store the new packed value of the TWAP params (with the updated window).
         twapWindowOf[projectId] = newWindow;
