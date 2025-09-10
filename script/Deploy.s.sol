@@ -19,6 +19,7 @@ contract DeployScript is Script, Sphinx {
     /// @notice tracks the addresses that are required for the chain we are deploying to.
     address weth;
     address factory;
+    address trustedForwarder;
 
     function configureSphinx() public override {
         // TODO: Update to contain revnet devs.
@@ -33,6 +34,8 @@ contract DeployScript is Script, Sphinx {
         core = CoreDeploymentLib.getDeployment(
             vm.envOr("NANA_CORE_DEPLOYMENT_PATH", string("node_modules/@bananapus/core-v5/deployments/"))
         );
+
+        trustedForwarder = core.permissions.trustedForwarder();
 
         // Ethereum Mainnet
         if (block.chainid == 1) {
@@ -90,7 +93,7 @@ contract DeployScript is Script, Sphinx {
                     core.tokens,
                     IWETH9(weth),
                     factory,
-                    address(0)
+                    trustedForwarder
                 )
             )
         ) {
@@ -102,7 +105,7 @@ contract DeployScript is Script, Sphinx {
                 core.tokens,
                 IWETH9(weth),
                 factory,
-                address(0)
+                trustedForwarder
             );
         }
     }
