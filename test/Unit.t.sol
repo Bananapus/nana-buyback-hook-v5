@@ -140,7 +140,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             weth: weth,
             factory: uniswapFactory,
             directory: directory,
-            controller: controller,
+            permissions: permissions,
+            projects: projects,
+            tokens: tokens,
             prices: prices
         });
 
@@ -237,6 +239,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             metadata: packed
         });
 
+        mockExpect(address(directory), abi.encodeCall(directory.controllerOf, (projectId)), abi.encode(controller));
+
         // Mock call to controller grabbing the current ruleset
         mockExpect(
             address(controller),
@@ -270,7 +274,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
                 abi.encode(
                     address(projectToken) < address(weth),
                     beforePayRecordedContext.amount.value - amountIn,
-                    swapOutCount
+                    swapOutCount,
+                    controller
                 ),
                 "Wrong metadata returned in hook specification"
             );
@@ -337,6 +342,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             metadata: packed
         });
 
+        mockExpect(address(directory), abi.encodeCall(directory.controllerOf, (projectId)), abi.encode(controller));
+
         // Mock call to controller grabbing the current ruleset
         mockExpect(
             address(controller),
@@ -370,7 +377,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             // the correct metadata,
             assertEq(
                 specificationsReturned[0].metadata,
-                abi.encode(address(projectToken) < address(weth), 0, twapAmountOut),
+                abi.encode(address(projectToken) < address(weth), 0, twapAmountOut, controller),
                 "Wrong metadata returned in hook specification"
             );
             // and a weight of 0 to prevent additional minting from the terminal.
@@ -460,6 +467,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             metadata: packed
         });
 
+        mockExpect(address(directory), abi.encodeCall(directory.controllerOf, (projectId)), abi.encode(controller));
+
         // Mock call to controller grabbing the current ruleset
         mockExpect(
             address(controller),
@@ -493,7 +502,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             // the correct metadata,
             assertEq(
                 specificationsReturned[0].metadata,
-                abi.encode(address(projectToken) < address(weth), 0, twapAmountOut),
+                abi.encode(address(projectToken) < address(weth), 0, twapAmountOut, controller),
                 "Wrong metadata returned in hook specification"
             );
             // and a weight of 0 to prevent additional minting from the terminal.
@@ -513,6 +522,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         // Mock the pool being locked.
         vm.mockCall(address(pool), abi.encodeCall(pool.slot0, ()), abi.encode(0, 0, 0, 0, 0, 0, false));
         vm.expectCall(address(pool), abi.encodeCall(pool.slot0, ()));
+
+        mockExpect(address(directory), abi.encodeCall(directory.controllerOf, (projectId)), abi.encode(controller));
 
         // Return values to catch:
         JBPayHookSpecification[] memory specificationsReturned;
@@ -628,6 +639,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             metadata: packed
         });
 
+        mockExpect(address(directory), abi.encodeCall(directory.controllerOf, (projectId)), abi.encode(controller));
+
         // Mock call to controller grabbing the current ruleset
         mockExpect(
             address(controller),
@@ -708,6 +721,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             abi.encode(_ruleset, _rulesMetadata)
         );
 
+        mockExpect(address(directory), abi.encodeCall(directory.controllerOf, (projectId)), abi.encode(controller));
+
         // Test: call `beforePayRecordedWith` - notice we don't mock the pool, as the address should remain empty
         vm.prank(terminalStore);
         (weightReturned, specificationsReturned) = hook.beforePayRecordedWith(beforePayRecordedContext);
@@ -781,7 +796,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         afterPayRecordedContext.hookMetadata = abi.encode(
             address(projectToken) < address(weth),
             0,
-            tokenCount // The token count is used.
+            tokenCount,
+            controller // The token count is used.
         );
 
         // Mock and expect the swap call.
@@ -932,7 +948,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         afterPayRecordedContext.hookMetadata = abi.encode(
             address(projectToken) < address(weth),
             0,
-            twapQuote // The TWAP quote, which exceeds the token count, is used.
+            twapQuote,
+            controller // The TWAP quote, which exceeds the token count, is used.
         );
 
         // Mock and expect the swap call.
@@ -1086,7 +1103,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         afterPayRecordedContext.weight = twapQuote;
 
         // The metadata coming from `beforePayRecordedWith(...)`.
-        afterPayRecordedContext.hookMetadata = abi.encode(address(projectToken) < address(weth), 0, tokenCount);
+        afterPayRecordedContext.hookMetadata =
+            abi.encode(address(projectToken) < address(weth), 0, tokenCount, controller);
 
         // Mock and expect the swap call.
         vm.mockCall(
@@ -1255,7 +1273,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         afterPayRecordedContext.weight = 1 ether; // weight - unused
 
         // The metadata coming from `beforePayRecordedWith(...)`.
-        afterPayRecordedContext.hookMetadata = abi.encode(address(projectToken) < address(weth), 0, tokenCount);
+        afterPayRecordedContext.hookMetadata =
+            abi.encode(address(projectToken) < address(weth), 0, tokenCount, controller);
 
         // Mock the swap call reverting.
         vm.mockCallRevert(
@@ -1338,7 +1357,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         afterPayRecordedContext.hookMetadata = abi.encode(
             address(otherRandomProjectToken) < address(randomTerminalToken),
             extraMint, // extra amount to mint with
-            tokenCount
+            tokenCount,
+            controller
         );
 
         // Mock and expect the call to transferFrom to pull token from the terminal to the hook
@@ -1504,7 +1524,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         afterPayRecordedContext.weight = weight;
 
         // The metadata coming from `beforePayRecordedWith(...)`.
-        afterPayRecordedContext.hookMetadata = abi.encode(address(projectToken) < address(weth), extraMint, tokenCount);
+        afterPayRecordedContext.hookMetadata =
+            abi.encode(address(projectToken) < address(weth), extraMint, tokenCount, controller);
 
         // Mock the swap call reverting.
         vm.mockCallRevert(
@@ -1647,7 +1668,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             weth: terminalToken,
             factory: uniswapFactory,
             directory: directory,
-            controller: controller,
+            permissions: permissions,
+            projects: projects,
+            tokens: tokens,
             prices: prices
         });
 
@@ -1700,7 +1723,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             weth: terminalToken,
             factory: uniswapFactory,
             directory: directory,
-            controller: controller,
+            permissions: permissions,
+            projects: projects,
+            tokens: tokens,
             prices: prices
         });
 
@@ -1861,6 +1886,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
     function test_setPoolFor_revertIfWrongParams(address _terminalToken, address _projectToken, uint24 _fee) public {
         vm.assume(_terminalToken != address(0) && _projectToken != address(0) && _fee != 0);
         vm.assume(_terminalToken != _projectToken);
+        vm.assume(_terminalToken != address(weth));
 
         // Get references to the hook's bounds for the TWAP window and slippage tolerance.
         uint256 MIN_TWAP_WINDOW = hook.MIN_TWAP_WINDOW();
@@ -1906,6 +1932,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
     {
         vm.assume(_terminalToken != address(0) && _projectToken != address(0) && _fee != 0);
         vm.assume(_terminalToken != _projectToken);
+        vm.assume(_terminalToken != address(weth));
 
         // Get references to the hook's bounds for the TWAP window and slippage tolerance.
         uint256 MIN_TWAP_WINDOW = hook.MIN_TWAP_WINDOW();
@@ -2076,10 +2103,12 @@ contract ForTest_JBBuybackHook is JBBuybackHook {
         IWETH9 weth,
         address factory,
         IJBDirectory directory,
-        IJBController controller,
-        IJBPrices prices
+        IJBPermissions permissions,
+        IJBProjects projects,
+        IJBPrices prices,
+        IJBTokens tokens
     )
-        JBBuybackHook(directory, controller, prices, weth, factory)
+        JBBuybackHook(directory, permissions, prices, projects, tokens, weth, factory)
     {}
 
     function ForTest_getQuote(
