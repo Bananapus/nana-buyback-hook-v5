@@ -52,7 +52,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
     error JBBuybackHook_CallerNotPool(address caller);
     error JBBuybackHook_InsufficientPayAmount(uint256 swapAmount, uint256 totalPaid);
-    error JBBuybackHook_InvalidTwapSlippageTolerance(uint256 value, uint256 min, uint256 max);
     error JBBuybackHook_InvalidTwapWindow(uint256 value, uint256 min, uint256 max);
     error JBBuybackHook_PoolAlreadySet(IUniswapV3Pool pool);
     error JBBuybackHook_SpecifiedSlippageExceeded(uint256 amount, uint256 minimum);
@@ -65,16 +64,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     // --------------------- public constant properties ------------------ //
     //*********************************************************************//
 
-    /// @notice Projects cannot specify a TWAP slippage tolerance larger than this constant (out of `MAX_SLIPPAGE`).
-    /// @dev This prevents TWAP slippage tolerances so high that they would result in highly unfavorable trade
-    /// conditions for the payer unless a quote was specified in the payment metadata.
-    uint256 public constant override MAX_TWAP_SLIPPAGE_TOLERANCE = 9000;
-
-    /// @notice Projects cannot specify a TWAP slippage tolerance smaller than this constant (out of `MAX_SLIPPAGE`).
-    /// @dev This prevents TWAP slippage tolerances so low that the swap always reverts to default behavior unless a
-    /// quote is specified in the payment metadata.
-    uint256 public constant override MIN_TWAP_SLIPPAGE_TOLERANCE = 100;
-
     /// @notice Projects cannot specify a TWAP window longer than this constant.
     /// @dev This serves to avoid excessively long TWAP windows that could lead to outdated pricing information and
     /// higher gas costs due to increased computational requirements.
@@ -86,6 +75,10 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
     /// @notice The denominator used when calculating TWAP slippage percent values.
     uint256 public constant override TWAP_SLIPPAGE_DENOMINATOR = 10_000;
+
+    /// @notice The uncertain slippage tolerance allowed.
+    /// @dev This serves to avoid extremely low slippage tolerances that could result in failed swaps.
+    uint256 public constant override UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE = 1050;
 
     //*********************************************************************//
     // -------------------- public immutable properties ------------------ //
@@ -123,15 +116,10 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @custom:param projectId The ID of the project the token belongs to.
     mapping(uint256 projectId => address) public override projectTokenOf;
 
-    //*********************************************************************//
-    // --------------------- internal stored properties ------------------ //
-    //*********************************************************************//
-
-    /// @notice The TWAP parameters used for the given project when the payer does not specify a quote.
-    /// See the README for further information.
-    /// @dev This includes the TWAP slippage tolerance and TWAP window, packed into a `uint256`.
-    /// @custom:param projectId The ID of the project to get the twap parameters for.
-    mapping(uint256 projectId => uint256) internal _twapParamsOf;
+    /// @notice The TWAP window for the given project. The TWAP window is the period of time over which the TWAP is
+    /// computed.
+    /// @custom:param projectId The ID of the project to get the twap window for.
+    mapping(uint256 projectId => uint256) public override twapWindowOf;
 
     //*********************************************************************//
     // ---------------------------- constructor -------------------------- //
@@ -290,25 +278,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         return false;
     }
 
-    /// @notice Get the TWAP slippage tolerance for a given project ID.
-    /// @dev The "TWAP slippage tolerance" is the maximum negative spread between the TWAP and the expected return from
-    /// a swap.
-    /// If the expected return unfavourably exceeds the TWAP slippage tolerance, the swap will revert.
-    /// @param  projectId The ID of the project which the TWAP slippage tolerance applies to.
-    /// @return tolerance The maximum slippage allowed relative to the TWAP, as a percent out of
-    /// `TWAP_SLIPPAGE_DENOMINATOR`.
-    function twapSlippageToleranceOf(uint256 projectId) external view returns (uint256) {
-        return _twapParamsOf[projectId] >> 128;
-    }
-
-    /// @notice Get the TWAP window for a given project ID.
-    /// @dev The "TWAP window" is the period over which the TWAP is computed.
-    /// @param  projectId The ID of the project which the TWAP window applies to.
-    /// @return secondsAgo The TWAP window in seconds.
-    function twapWindowOf(uint256 projectId) external view override returns (uint32) {
-        return uint32(_twapParamsOf[projectId]);
-    }
-
     //*********************************************************************//
     // -------------------------- public views --------------------------- //
     //*********************************************************************//
@@ -355,10 +324,8 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             return 0;
         }
 
-        // Unpack the TWAP params and get a reference to the period and slippage.
-        uint256 twapParams = _twapParamsOf[projectId];
-        uint32 twapWindow = uint32(twapParams);
-        uint256 twapSlippageTolerance = twapParams >> 128;
+        // Unpack the TWAP params and get a reference to the period.
+        uint256 twapWindow = twapWindowOf[projectId];
 
         // If the oldest observation is younger than the TWAP window, use the oldest observation.
         uint32 oldestObservation = OracleLibrary.getOldestObservationSecondsAgo(address(pool));
@@ -367,15 +334,33 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // Keep a reference to the TWAP tick.
         int24 arithmeticMeanTick;
 
-        // slither-disable-next-line unused-return
-        // Get the current tick from the pool's slot0 if the oldest observation is 0.
+        // Keep a reference to the liquidity.
+        uint128 liquidity;
+
+        // Resolve mean tick and liquidity source
         if (oldestObservation == 0) {
+            // fallback: use spot tick and current in-range liquidity
             // slither-disable-next-line unused-return
             (, arithmeticMeanTick,,,,,) = pool.slot0();
+            liquidity = pool.liquidity();
         } else {
-            // slither-disable-next-line unused-return
-            (arithmeticMeanTick,) = OracleLibrary.consult(address(pool), twapWindow);
+            (arithmeticMeanTick, liquidity) = OracleLibrary.consult(address(pool), uint32(twapWindow));
         }
+
+        // If there's no liquidity, return an empty quote.
+        if (liquidity == 0) return 0;
+
+        // Calculate the slippage tolerance.
+        uint256 slippageTolerance = _getSlippageTolerance({
+            amountIn: amountIn,
+            liquidity: liquidity,
+            projectToken: projectToken,
+            terminalToken: terminalToken,
+            arithmeticMeanTick: arithmeticMeanTick
+        });
+
+        // If the slippage tolerance is the maximum, return an empty quote.
+        if (slippageTolerance == TWAP_SLIPPAGE_DENOMINATOR) return 0;
 
         // Get a quote based on this TWAP tick.
         amountOut = OracleLibrary.getQuoteAtTick({
@@ -385,8 +370,57 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             quoteToken: address(projectToken)
         });
 
-        // Return the lowest acceptable return based on the TWAP and its parameters.
-        amountOut -= (amountOut * twapSlippageTolerance) / TWAP_SLIPPAGE_DENOMINATOR;
+        // return the lowest acceptable return based on the TWAP and its parameters.
+        amountOut -= (amountOut * slippageTolerance) / TWAP_SLIPPAGE_DENOMINATOR;
+    }
+
+    /// @notice Get the slippage tolerance for a given amount in and liquidity.
+    /// @param amountIn The amount in to get the slippage tolerance for.
+    /// @param liquidity The liquidity to get the slippage tolerance for.
+    /// @param projectToken The project token to get the slippage tolerance for.
+    /// @param terminalToken The terminal token to get the slippage tolerance for.
+    /// @param arithmeticMeanTick The arithmetic mean tick to get the slippage tolerance for.
+    /// @return slippageTolerance The slippage tolerance for the given amount in and liquidity.
+    function _getSlippageTolerance(
+        uint256 amountIn,
+        uint128 liquidity,
+        address projectToken,
+        address terminalToken,
+        int24 arithmeticMeanTick
+    )
+        internal
+        pure
+        returns (uint256)
+    {
+        // Direction: is terminalToken token0?
+        (address token0,) = projectToken < terminalToken ? (projectToken, terminalToken) : (terminalToken, projectToken);
+        bool zeroForOne = terminalToken == token0;
+
+        // sqrtP in Q96 from the TWAP tick
+        uint160 sqrtP = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
+
+        // If the sqrtP is 0, there's no valid price so we'll return the maximum slippage tolerance.
+        if (sqrtP == 0) return TWAP_SLIPPAGE_DENOMINATOR;
+
+        // Approximate % of range liquidity consumed by the swap (in bps)
+        // Multiply by 10 to to amplify the results and prevent results on the low end from rounding to zero.
+        uint256 base = mulDiv(amountIn, 10 * TWAP_SLIPPAGE_DENOMINATOR, uint256(liquidity));
+
+        // Compute final slippage tolerance (bps), normalized by √P
+        uint256 slippageTolerance =
+            zeroForOne ? mulDiv(base, uint256(sqrtP), uint256(1) << 96) : mulDiv(base, uint256(1) << 96, uint256(sqrtP));
+
+        // Adjust the slippage tolerance to be reasonable given the ranges.
+        if (slippageTolerance > 15 * TWAP_SLIPPAGE_DENOMINATOR) return TWAP_SLIPPAGE_DENOMINATOR * 88 / 100;
+        else if (slippageTolerance > 10 * TWAP_SLIPPAGE_DENOMINATOR) return TWAP_SLIPPAGE_DENOMINATOR * 67 / 100;
+        else if (slippageTolerance > 30_000) return slippageTolerance / 12;
+        else if (slippageTolerance > 15_000) return slippageTolerance / 10;
+        else if (slippageTolerance > 10_000) return slippageTolerance * 2 / 15;
+        else if (slippageTolerance > 5000) return slippageTolerance * 3 / 20;
+        else if (slippageTolerance > 1500) return slippageTolerance / 5;
+        else if (slippageTolerance > 500) return (slippageTolerance / 5) + 200;
+        else if (slippageTolerance > 0) return (slippageTolerance / 5) + 100;
+        else return UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE;
     }
 
     //*********************************************************************//
@@ -507,14 +541,12 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @param fee The fee used in the pool being set, as a fixed-point number of basis points with 2 decimals. A 0.01%
     /// fee is `100`, a 0.05% fee is `500`, a 0.3% fee is `3000`, and a 1% fee is `10000`.
     /// @param twapWindow The period of time over which the TWAP is computed.
-    /// @param twapSlippageTolerance The maximum spread allowed between the amount received and the TWAP.
     /// @param terminalToken The address of the terminal token that payments to the project are made in.
     /// @return newPool The pool that was set for the project and terminal token.
     function setPoolFor(
         uint256 projectId,
         uint24 fee,
-        uint32 twapWindow,
-        uint256 twapSlippageTolerance,
+        uint256 twapWindow,
         address terminalToken
     )
         external
@@ -526,14 +558,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             projectId: projectId,
             permissionId: JBPermissionIds.SET_BUYBACK_POOL
         });
-
-        // Make sure the provided TWAP slippage tolerance is within reasonable bounds.
-        if (twapSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || twapSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE)
-        {
-            revert JBBuybackHook_InvalidTwapSlippageTolerance(
-                twapSlippageTolerance, MIN_TWAP_SLIPPAGE_TOLERANCE, MAX_TWAP_SLIPPAGE_TOLERANCE
-            );
-        }
 
         // Make sure the provided TWAP window is within reasonable bounds.
         if (twapWindow < MIN_TWAP_WINDOW || twapWindow > MAX_TWAP_WINDOW) {
@@ -595,55 +619,11 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         poolOf[projectId][terminalToken] = newPool;
 
         // Pack and store the TWAP window and the TWAP slippage tolerance in `twapParamsOf`.
-        _twapParamsOf[projectId] = twapSlippageTolerance << 128 | twapWindow;
+        twapWindowOf[projectId] = twapWindow;
         projectTokenOf[projectId] = address(projectToken);
 
         emit TwapWindowChanged({projectId: projectId, oldWindow: 0, newWindow: twapWindow, caller: msg.sender});
-        emit TwapSlippageToleranceChanged({
-            projectId: projectId,
-            oldTolerance: 0,
-            newTolerance: twapSlippageTolerance,
-            caller: msg.sender
-        });
         emit PoolAdded({projectId: projectId, terminalToken: terminalToken, pool: address(newPool), caller: msg.sender});
-    }
-
-    /// @notice Set the TWAP slippage tolerance for a project.
-    /// The TWAP slippage tolerance is the maximum spread allowed between the amount received and the TWAP.
-    /// @dev This can be called by the project's owner or an address with `JBPermissionIds.SET_BUYBACK_TWAP`
-    /// permission from the owner.
-    /// @param projectId The ID of the project to set the TWAP slippage tolerance of.
-    /// @param newSlippageTolerance The new TWAP slippage tolerance, out of `TWAP_SLIPPAGE_DENOMINATOR`.
-    function setTwapSlippageToleranceOf(uint256 projectId, uint256 newSlippageTolerance) external {
-        // Enforce permissions.
-        _requirePermissionFrom({
-            account: PROJECTS.ownerOf(projectId),
-            projectId: projectId,
-            permissionId: JBPermissionIds.SET_BUYBACK_TWAP
-        });
-
-        // Make sure the provided TWAP slippage tolerance is within reasonable bounds.
-        if (newSlippageTolerance < MIN_TWAP_SLIPPAGE_TOLERANCE || newSlippageTolerance > MAX_TWAP_SLIPPAGE_TOLERANCE) {
-            revert JBBuybackHook_InvalidTwapSlippageTolerance(
-                newSlippageTolerance, MIN_TWAP_SLIPPAGE_TOLERANCE, MAX_TWAP_SLIPPAGE_TOLERANCE
-            );
-        }
-
-        // Keep a reference to the currently stored TWAP params.
-        uint256 twapParams = _twapParamsOf[projectId];
-
-        // Keep a reference to the old TWAP slippage tolerance.
-        uint256 oldSlippageTolerance = twapParams >> 128;
-
-        // Store the new packed value of the TWAP params (with the updated tolerance).
-        _twapParamsOf[projectId] = newSlippageTolerance << 128 | ((twapParams << 128) >> 128);
-
-        emit TwapSlippageToleranceChanged({
-            projectId: projectId,
-            oldTolerance: oldSlippageTolerance,
-            newTolerance: newSlippageTolerance,
-            caller: msg.sender
-        });
     }
 
     /// @notice Change the TWAP window for a project.
@@ -652,7 +632,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// permission from the owner.
     /// @param projectId The ID of the project to set the TWAP window of.
     /// @param newWindow The new TWAP window.
-    function setTwapWindowOf(uint256 projectId, uint32 newWindow) external {
+    function setTwapWindowOf(uint256 projectId, uint256 newWindow) external {
         // Enforce permissions.
         _requirePermissionFrom({
             account: PROJECTS.ownerOf(projectId),
@@ -665,14 +645,11 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
             revert JBBuybackHook_InvalidTwapWindow(newWindow, MIN_TWAP_WINDOW, MAX_TWAP_WINDOW);
         }
 
-        // Keep a reference to the stored TWAP params.
-        uint256 twapParams = _twapParamsOf[projectId];
-
         // Keep a reference to the old window value.
-        uint256 oldWindow = uint128(twapParams);
+        uint256 oldWindow = twapWindowOf[projectId];
 
         // Store the new packed value of the TWAP params (with the updated window).
-        _twapParamsOf[projectId] = uint256(newWindow) | ((twapParams >> 128) << 128);
+        twapWindowOf[projectId] = newWindow;
 
         emit TwapWindowChanged({projectId: projectId, oldWindow: oldWindow, newWindow: newWindow, caller: msg.sender});
     }

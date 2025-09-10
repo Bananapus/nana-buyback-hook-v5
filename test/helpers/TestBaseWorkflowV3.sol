@@ -252,6 +252,6 @@ contract TestBaseWorkflowV3 is Test {
 
         // Set the buyback hook pool up for the project.
         vm.prank(multisig);
-        pool = hook.setPoolFor(projectId, fee, uint32(cardinality), twapDelta, address(weth));
+        pool = hook.setPoolFor(projectId, fee, uint32(cardinality), address(weth));
     }
 }

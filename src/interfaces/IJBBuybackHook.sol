@@ -19,36 +19,30 @@ interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallba
     event Mint(uint256 indexed projectId, uint256 leftoverAmount, uint256 tokenCount, address caller);
     event PoolAdded(uint256 indexed projectId, address indexed terminalToken, address pool, address caller);
     event TwapWindowChanged(uint256 indexed projectId, uint256 oldWindow, uint256 newWindow, address caller);
-    event TwapSlippageToleranceChanged(
-        uint256 indexed projectId, uint256 oldTolerance, uint256 newTolerance, address caller
-    );
 
     function CONTROLLER() external view returns (IJBController);
     function DIRECTORY() external view returns (IJBDirectory);
     function PRICES() external view returns (IJBPrices);
-    function MAX_TWAP_SLIPPAGE_TOLERANCE() external view returns (uint256);
-    function MIN_TWAP_SLIPPAGE_TOLERANCE() external view returns (uint256);
     function MAX_TWAP_WINDOW() external view returns (uint256);
     function MIN_TWAP_WINDOW() external view returns (uint256);
     function TWAP_SLIPPAGE_DENOMINATOR() external view returns (uint256);
+    function UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE() external view returns (uint256);
+
     function PROJECTS() external view returns (IJBProjects);
     function UNISWAP_V3_FACTORY() external view returns (address);
     function WETH() external view returns (IWETH9);
 
     function poolOf(uint256 projectId, address terminalToken) external view returns (IUniswapV3Pool pool);
     function projectTokenOf(uint256 projectId) external view returns (address projectTokenOf);
-    function twapSlippageToleranceOf(uint256 projectId) external view returns (uint256 slippageTolerance);
-    function twapWindowOf(uint256 projectId) external view returns (uint32 window);
+    function twapWindowOf(uint256 projectId) external view returns (uint256 window);
 
     function setPoolFor(
         uint256 projectId,
         uint24 fee,
-        uint32 twapWindow,
-        uint256 twapSlippageTolerance,
+        uint256 twapWindow,
         address terminalToken
     )
         external
         returns (IUniswapV3Pool newPool);
-    function setTwapSlippageToleranceOf(uint256 projectId, uint256 newSlippageTolerance) external;
-    function setTwapWindowOf(uint256 projectId, uint32 newWindow) external;
+    function setTwapWindowOf(uint256 projectId, uint256 newWindow) external;
 }

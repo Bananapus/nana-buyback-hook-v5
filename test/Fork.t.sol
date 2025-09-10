@@ -38,6 +38,8 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
 
     // Constants
     uint256 constant TWAP_SLIPPAGE_DENOMINATOR = 10_000;
+    uint256 constant UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE = 1050;
+    uint256 constant LOW_TWAP_SLIPPAGE_TOLERANCE = 300;
 
     IUniswapV3Factory constant factory = IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984);
     IJBToken jbx;
@@ -45,7 +47,6 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
 
     uint256 constant price = 69_420 ether;
     uint32 constant cardinality = 2 minutes;
-    uint256 constant twapDelta = 5000;
     uint24 constant fee = 10_000;
 
     uint256 constant amountPaid = 1 ether;
@@ -155,7 +156,9 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
     }
 
     function setUp() public override {
-        vm.createSelectFork("https://rpc.ankr.com/eth", 17_962_427);
+        vm.createSelectFork(
+            "https://rpc.ankr.com/eth/4bdda9badb97f42aa5cc09055318c1ae2e4d3c0a449ebdf8bf4fe6969b20772a", 17_962_427
+        );
 
         super.setUp();
 
@@ -209,7 +212,7 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         vm.stopPrank();
 
         vm.prank(jbProjects().ownerOf(1));
-        delegate.setPoolFor(1, fee, 2 minutes, twapDelta, address(weth));
+        delegate.setPoolFor(1, fee, 2 minutes, address(weth));
 
         primePool();
 
@@ -251,23 +254,45 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         pool.increaseObservationCardinalityNext(2 minutes);
     }
 
-    function _getTwapQuote(
-        uint256 _amountIn,
-        uint32 _twapWindow,
-        uint256 _twapTolerance
-    )
-        internal
-        view
-        returns (uint256 _amountOut)
-    {
+    function _getTwapQuote(uint256 _amountIn, uint32 _twapWindow) internal view returns (uint256 _amountOut) {
         // Get the twap tick
-        (int24 arithmeticMeanTick,) = OracleLibrary.consult(address(pool), _twapWindow);
+        (int24 arithmeticMeanTick, uint128 liquidity) = OracleLibrary.consult(address(pool), uint32(_twapWindow));
+        console.log("amountIn", _amountIn);
+        console.log("liquidity", liquidity);
+        (address token0,) = address(jbx) < address(weth) ? (address(jbx), address(weth)) : (address(weth), address(jbx));
+        bool zeroForOne = (address(weth) == token0);
+        uint160 sqrtP = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
+        if (sqrtP == 0) return TWAP_SLIPPAGE_DENOMINATOR;
+        uint256 base = mulDiv(_amountIn, 100_000, uint256(liquidity));
+        console.log("base", base);
+        uint256 slippageTolerance =
+            zeroForOne ? mulDiv(base, uint256(sqrtP), uint256(1) << 96) : mulDiv(base, uint256(1) << 96, uint256(sqrtP));
+        console.log("slippageTolerance", slippageTolerance);
+        if (slippageTolerance > 150_000) slippageTolerance = 8800;
+        else if (slippageTolerance > 100_000) slippageTolerance = 6700;
+        else if (slippageTolerance > 30_000) slippageTolerance = slippageTolerance / 12;
+        else if (slippageTolerance > 15_000) slippageTolerance = slippageTolerance / 10;
+        else if (slippageTolerance > 10_000) slippageTolerance = slippageTolerance * 2 / 15;
+        else if (slippageTolerance > 5000) slippageTolerance = slippageTolerance * 3 / 20;
+        else if (slippageTolerance > 1500) slippageTolerance = slippageTolerance / 5;
+        else if (slippageTolerance > 500) slippageTolerance = slippageTolerance / 5 + 200;
+        else if (slippageTolerance > 0) slippageTolerance = (slippageTolerance / 5) + 100;
+        else if (slippageTolerance == 0) slippageTolerance = UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE;
 
-        // Get a quote based on this twap tick
-        _amountOut = OracleLibrary.getQuoteAtTick(arithmeticMeanTick, uint128(_amountIn), address(weth), address(jbx));
+        console.log("slippageTolerance adjusted", slippageTolerance);
 
-        // Return the lowest twap accepted
-        _amountOut -= (_amountOut * _twapTolerance) / TWAP_SLIPPAGE_DENOMINATOR;
+        // Get a quote based on this TWAP tick.
+        _amountOut = OracleLibrary.getQuoteAtTick({
+            tick: arithmeticMeanTick,
+            baseAmount: uint128(_amountIn),
+            baseToken: address(weth),
+            quoteToken: address(address(jbx))
+        });
+        console.log("amountOut", _amountOut);
+
+        // return the lowest acceptable return based on the TWAP and its parameters.
+        _amountOut -= (_amountOut * slippageTolerance) / TWAP_SLIPPAGE_DENOMINATOR;
+        console.log("amountOut after slippage tolerance", _amountOut);
     }
 
     /**
@@ -276,7 +301,7 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
      * @dev    Should mint for both multisig() and reserve
      */
     function test_mintIfWeightGreatherThanPrice(uint256 _weight, uint256 _amountIn) public {
-        _amountIn = bound(_amountIn, 100, 100 ether);
+        _amountIn = bound(_amountIn, 100, 1000 ether);
 
         uint256 _amountOutQuoted = getAmountOut(pool, _amountIn, address(weth));
 
@@ -344,13 +369,17 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
      * @dev    Should swap for both multisig() and reserve (by burning/minting)
      */
     function test_swapIfQuoteBetter(uint256 _weight, uint256 _amountIn, uint256 _reservedPercent) public {
-        _amountIn = bound(_amountIn, 100, 100 ether);
+        _amountIn = bound(_amountIn, 100, 1000 ether);
 
         primePool();
+        uint256 _amountOutTwap = _getTwapQuote(_amountIn, cardinality);
+        console.log("amountOutTwap", _amountOutTwap);
         uint256 _amountOutQuoted = getAmountOut(pool, _amountIn, address(weth));
 
+        console.log("amountOutQuoted", _amountOutQuoted);
+
         // Reconfigure with a weight smaller than the price implied by the quote
-        _weight = 1;
+        _weight = 0;
 
         _reservedPercent = bound(_reservedPercent, 0, 10_000);
 
@@ -479,12 +508,12 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
      * @dev    Should swap for both multisig() and reserve (by burning/minting)
      */
     function test_swapRandomAmountIn(uint256 _amountIn) public {
-        _amountIn = bound(_amountIn, 100, 100 ether);
+        _amountIn = bound(_amountIn, 100, 1000 ether);
 
         uint256 _quote = getAmountOut(pool, _amountIn, address(weth));
 
-        // Reconfigure with a weight of 1
-        _reconfigure(1, address(delegate), 1, 0);
+        // Reconfigure with a weight of 0
+        _reconfigure(1, address(delegate), 0, 0);
 
         uint256 _reservedBalanceBefore = jbController().pendingReservedTokenBalanceOf(1);
 
@@ -548,10 +577,12 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         uint256 _reservedBalanceBefore = jbController().pendingReservedTokenBalanceOf(1);
 
         // The twap which is going to be used
-        uint256 _twap = _getTwapQuote(_amountIn, cardinality, twapDelta);
+        uint256 _twap = _getTwapQuote(_amountIn, cardinality);
+        console.log("twap", _twap);
 
         // The actual quote, here for test only
         uint256 _quote = getAmountOut(pool, _amountIn, address(weth));
+        console.log("quote", _quote);
 
         // for checking balance difference after payment
         uint256 _balanceBeforePayment = jbx.balanceOf(multisig());
@@ -681,8 +712,8 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
     }
 
     function test_mintWithExtraFunds(uint256 _amountIn, uint256 _amountInExtra) public {
-        _amountIn = bound(_amountIn, 100, 10 ether);
-        _amountInExtra = bound(_amountInExtra, 100, 10 ether);
+        _amountIn = bound(_amountIn, 100, 1000 ether);
+        _amountInExtra = bound(_amountInExtra, 100, 1000 ether);
 
         // Refresh the quote
         amountOutQuoted = getAmountOut(pool, _amountIn, address(weth));
