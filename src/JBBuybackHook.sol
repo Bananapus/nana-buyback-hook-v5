@@ -76,17 +76,9 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @notice The denominator used when calculating TWAP slippage percent values.
     uint256 public constant override TWAP_SLIPPAGE_DENOMINATOR = 10_000;
 
-    /// @notice A low slippage tolerance that needs a buffer.
-    /// @dev This serves to avoid low slippage tolerances that could result in failed swaps.
-    uint256 public constant override LOW_TWAP_SLIPPAGE_TOLERANCE = 300;
-
     /// @notice The uncertain slippage tolerance allowed.
     /// @dev This serves to avoid extremely low slippage tolerances that could result in failed swaps.
     uint256 public constant override UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE = 1050;
-
-    /// @notice A buffer to add to the low slippage tolerance.
-    /// @dev This serves to avoid low slippage tolerances that could result in failed swaps.
-    uint256 public constant override SLIPPAGE_TOLERANCE_BUFFER = 100;
 
     //*********************************************************************//
     // -------------------- public immutable properties ------------------ //
