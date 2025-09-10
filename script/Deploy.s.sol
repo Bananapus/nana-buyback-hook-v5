@@ -7,6 +7,7 @@ import {Sphinx} from "@sphinx-labs/contracts/SphinxPlugin.sol";
 import {Script} from "forge-std/Script.sol";
 
 import {JBBuybackHook} from "src/JBBuybackHook.sol";
+import {JBBuybackHookRegistry} from "src/JBBuybackHookRegistry.sol";
 import {IWETH9} from "src/interfaces/external/IWETH9.sol";
 
 contract DeployScript is Script, Sphinx {
@@ -78,36 +79,21 @@ contract DeployScript is Script, Sphinx {
     }
 
     function deploy() public sphinx {
-        // TODO: Determine if we want create or create2 here.
-        // Since the args are different, create2 will deploy to different addresses,
-        // unless we fetch the weth address in the constructor.
-        if (
-            !_isDeployed(
-                BUYBACK_HOOK,
-                type(JBBuybackHook).creationCode,
-                abi.encode(
-                    core.directory,
-                    core.permissions,
-                    core.prices,
-                    core.projects,
-                    core.tokens,
-                    IWETH9(weth),
-                    factory,
-                    trustedForwarder
-                )
-            )
-        ) {
-            new JBBuybackHook{salt: BUYBACK_HOOK}(
-                core.directory,
-                core.permissions,
-                core.prices,
-                core.projects,
-                core.tokens,
-                IWETH9(weth),
-                factory,
-                trustedForwarder
-            );
-        }
+        JBBuybackHook hook = new JBBuybackHook{salt: BUYBACK_HOOK}(
+            core.directory,
+            core.permissions,
+            core.prices,
+            core.projects,
+            core.tokens,
+            IWETH9(weth),
+            factory,
+            trustedForwarder
+        );
+
+        // Deploy the registry with the hook as the default hook.
+        new JBBuybackHookRegistry{salt: BUYBACK_HOOK}(
+            core.permissions, core.projects, hook, safeAddress(), trustedForwarder
+        );
     }
 
     function _isDeployed(

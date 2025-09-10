@@ -5,11 +5,13 @@ import {stdJson} from "forge-std/Script.sol";
 import {Vm} from "forge-std/Vm.sol";
 
 import {IJBBuybackHook} from "../../src/interfaces/IJBBuybackHook.sol";
+import {IJBBuybackHookRegistry} from "../../src/interfaces/IJBBuybackHookRegistry.sol";
 
 import {SphinxConstants, NetworkInfo} from "@sphinx-labs/contracts/SphinxConstants.sol";
 
 struct BuybackDeployment {
     IJBBuybackHook hook;
+    IJBBuybackHookRegistry registry;
 }
 
 library BuybackDeploymentLib {
@@ -44,7 +46,11 @@ library BuybackDeploymentLib {
         returns (BuybackDeployment memory deployment)
     {
         deployment.hook =
-            IJBBuybackHook(_getDeploymentAddress(path, "nana-buyback-hook", network_name, "JBBuybackHook"));
+            IJBBuybackHook(_getDeploymentAddress(path, "nana-buyback-hook-v5", network_name, "JBBuybackHook"));
+
+        deployment.registry = IJBBuybackHookRegistry(
+            _getDeploymentAddress(path, "nana-buyback-hook-v5", network_name, "JBBuybackHookRegistry")
+        );
     }
 
     /// @notice Get the address of a contract that was deployed by the Deploy script.
