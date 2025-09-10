@@ -411,23 +411,23 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         if (sqrtP == 0) return TWAP_SLIPPAGE_DENOMINATOR;
 
         // Approximate % of range liquidity consumed by the swap (in bps)
-        // Multiply by 2 to to amplify the results and prevent results on the low end from rounding to zero.
-        uint256 base = mulDiv(amountIn, 2 * TWAP_SLIPPAGE_DENOMINATOR, uint256(liquidity));
+        // Multiply by 10 to to amplify the results and prevent results on the low end from rounding to zero.
+        uint256 base = mulDiv(amountIn, 10 * TWAP_SLIPPAGE_DENOMINATOR, uint256(liquidity));
 
         // Compute final slippage tolerance (bps), normalized by √P
         uint256 slippageTolerance =
             zeroForOne ? mulDiv(base, uint256(sqrtP), uint256(1) << 96) : mulDiv(base, uint256(1) << 96, uint256(sqrtP));
 
-        /// If base ≥ 10,000 bps (100%), the trade would consume
-        /// nearly all liquidity in the current range → our linear
-        /// slippage estimate is invalid. Return max to signal fallback.
-        if (slippageTolerance > 2 * TWAP_SLIPPAGE_DENOMINATOR) return TWAP_SLIPPAGE_DENOMINATOR;
         // Adjust the slippage tolerance to be reasonable given the ranges.
-        else if (slippageTolerance > 3000) return slippageTolerance / 2;
-        else if (slippageTolerance > 2000) return slippageTolerance * 2 / 3;
-        else if (slippageTolerance > 1000) return slippageTolerance * 3 / 4;
-        else if (slippageTolerance > 300) return slippageTolerance;
-        else if (slippageTolerance > 0) return slippageTolerance + 100;
+        if (slippageTolerance > 15 * TWAP_SLIPPAGE_DENOMINATOR) return TWAP_SLIPPAGE_DENOMINATOR * 88 / 100;
+        else if (slippageTolerance > 10 * TWAP_SLIPPAGE_DENOMINATOR) return TWAP_SLIPPAGE_DENOMINATOR * 67 / 100;
+        else if (slippageTolerance > 30_000) return slippageTolerance / 12;
+        else if (slippageTolerance > 15_000) return slippageTolerance / 10;
+        else if (slippageTolerance > 10_000) return slippageTolerance * 2 / 15;
+        else if (slippageTolerance > 5000) return slippageTolerance * 3 / 20;
+        else if (slippageTolerance > 1500) return slippageTolerance / 5;
+        else if (slippageTolerance > 500) return (slippageTolerance / 5) + 200;
+        else if (slippageTolerance > 0) return (slippageTolerance / 5) + 100;
         else return UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE;
     }
 
