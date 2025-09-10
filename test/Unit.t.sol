@@ -2108,7 +2108,7 @@ contract ForTest_JBBuybackHook is JBBuybackHook {
         IJBPrices prices,
         IJBTokens tokens
     )
-        JBBuybackHook(directory, permissions, prices, projects, tokens, weth, factory)
+        JBBuybackHook(directory, permissions, prices, projects, tokens, weth, factory, address(0))
     {}
 
     function ForTest_getQuote(

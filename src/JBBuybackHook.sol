@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
+import {Context} from "@openzeppelin/contracts/utils/Context.sol";
+import {ERC2771Context} from "@openzeppelin/contracts/metatx/ERC2771Context.sol";
 import {JBPermissioned} from "@bananapus/core-v5/src/abstract/JBPermissioned.sol";
 import {IJBController} from "@bananapus/core-v5/src/interfaces/IJBController.sol";
 import {IJBDirectory} from "@bananapus/core-v5/src/interfaces/IJBDirectory.sol";
@@ -41,7 +43,7 @@ import {IWETH9} from "./interfaces/external/IWETH9.sol";
 /// Depending on which route would yield more tokens for the beneficiary. The project's reserved rate applies to either
 /// route.
 /// @dev Compatible with any `JBTerminal` and any project token that can be pooled on Uniswap v3.
-contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
+contract JBBuybackHook is JBPermissioned, ERC2771Context, IJBBuybackHook {
     // A library that parses the packed ruleset metadata into a friendlier format.
     using JBRulesetMetadataResolver for JBRuleset;
 
@@ -134,6 +136,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @param tokens The token registry.
     /// @param weth The WETH contract.
     /// @param factory The address of the Uniswap v3 factory. Used to calculate pool addresses.
+    /// @param trustedForwarder A trusted forwarder of transactions to this contract.
     constructor(
         IJBDirectory directory,
         IJBPermissions permissions,
@@ -141,15 +144,16 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         IJBProjects projects,
         IJBTokens tokens,
         IWETH9 weth,
-        address factory
+        address factory,
+        address trustedForwarder
     )
         JBPermissioned(permissions)
+        ERC2771Context(trustedForwarder)
     {
         DIRECTORY = directory;
         TOKENS = tokens;
         PROJECTS = projects;
         PRICES = prices;
-        // slither-disable-next-line missing-zero-check
         UNISWAP_V3_FACTORY = factory;
         WETH = weth;
     }
@@ -304,6 +308,11 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     // -------------------------- internal views ------------------------- //
     //*********************************************************************//
 
+    /// @dev `ERC-2771` specifies the context as being a single address (20 bytes).
+    function _contextSuffixLength() internal view override(ERC2771Context, Context) returns (uint256) {
+        return super._contextSuffixLength();
+    }
+
     /// @notice Get a quote based on the TWAP, using the TWAP window and slippage tolerance for the specified project.
     /// @param projectId The ID of the project which the swap is associated with.
     /// @param projectToken The project token being swapped for.
@@ -433,6 +442,18 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         else if (slippageTolerance > 500) return (slippageTolerance / 5) + 200;
         else if (slippageTolerance > 0) return (slippageTolerance / 5) + 100;
         else return UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE;
+    }
+
+    /// @notice The calldata. Preferred to use over `msg.data`.
+    /// @return calldata The `msg.data` of this call.
+    function _msgData() internal view override(ERC2771Context, Context) returns (bytes calldata) {
+        return ERC2771Context._msgData();
+    }
+
+    /// @notice The message's sender. Preferred to use over `msg.sender`.
+    /// @return sender The address which sent this call.
+    function _msgSender() internal view override(ERC2771Context, Context) returns (address sender) {
+        return ERC2771Context._msgSender();
     }
 
     //*********************************************************************//
@@ -634,8 +655,13 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         twapWindowOf[projectId] = twapWindow;
         projectTokenOf[projectId] = address(projectToken);
 
-        emit TwapWindowChanged({projectId: projectId, oldWindow: 0, newWindow: twapWindow, caller: msg.sender});
-        emit PoolAdded({projectId: projectId, terminalToken: terminalToken, pool: address(newPool), caller: msg.sender});
+        emit TwapWindowChanged({projectId: projectId, oldWindow: 0, newWindow: twapWindow, caller: _msgSender()});
+        emit PoolAdded({
+            projectId: projectId,
+            terminalToken: terminalToken,
+            pool: address(newPool),
+            caller: _msgSender()
+        });
     }
 
     /// @notice Change the TWAP window for a project.
@@ -663,7 +689,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         // Store the new packed value of the TWAP params (with the updated window).
         twapWindowOf[projectId] = newWindow;
 
-        emit TwapWindowChanged({projectId: projectId, oldWindow: oldWindow, newWindow: newWindow, caller: msg.sender});
+        emit TwapWindowChanged({projectId: projectId, oldWindow: oldWindow, newWindow: newWindow, caller: _msgSender()});
     }
 
     /// @notice The Uniswap v3 pool callback where the token transfer is expected to happen.

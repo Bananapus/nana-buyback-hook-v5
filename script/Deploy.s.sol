@@ -83,12 +83,26 @@ contract DeployScript is Script, Sphinx {
                 BUYBACK_HOOK,
                 type(JBBuybackHook).creationCode,
                 abi.encode(
-                    core.directory, core.permissions, core.prices, core.projects, core.tokens, IWETH9(weth), factory
+                    core.directory,
+                    core.permissions,
+                    core.prices,
+                    core.projects,
+                    core.tokens,
+                    IWETH9(weth),
+                    factory,
+                    address(0)
                 )
             )
         ) {
             new JBBuybackHook{salt: BUYBACK_HOOK}(
-                core.directory, core.permissions, core.prices, core.projects, core.tokens, IWETH9(weth), factory
+                core.directory,
+                core.permissions,
+                core.prices,
+                core.projects,
+                core.tokens,
+                IWETH9(weth),
+                factory,
+                address(0)
             );
         }
     }
