@@ -273,19 +273,20 @@ contract TestJBBuybackHook_Fork is TestBaseWorkflow, JBTest, UniswapV3ForgeQuote
         bool zeroForOne = (address(weth) == token0);
         uint160 sqrtP = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
         if (sqrtP == 0) return TWAP_SLIPPAGE_DENOMINATOR;
-        uint256 base = mulDiv(_amountIn, 20_000, uint256(liquidity));
+        uint256 base = mulDiv(_amountIn, 100_000, uint256(liquidity));
         console.log("base", base);
         uint256 slippageTolerance =
             zeroForOne ? mulDiv(base, uint256(sqrtP), uint256(1) << 96) : mulDiv(base, uint256(1) << 96, uint256(sqrtP));
         console.log("slippageTolerance", slippageTolerance);
-        if (slippageTolerance > 30_000) slippageTolerance = 8800;
-        else if (slippageTolerance > 20_000) slippageTolerance = 6800;
-        else if (slippageTolerance > 12_000) slippageTolerance = slippageTolerance / 3;
-        else if (slippageTolerance > 3000) slippageTolerance = slippageTolerance / 2;
-        else if (slippageTolerance > 2000) slippageTolerance = slippageTolerance * 3 / 2;
-        else if (slippageTolerance > 1000) slippageTolerance = slippageTolerance * 3 / 4;
-        else if (slippageTolerance > 300) slippageTolerance = slippageTolerance;
-        else if (slippageTolerance > 0) slippageTolerance = slippageTolerance + 100;
+        if (slippageTolerance > 150_000) slippageTolerance = 8800;
+        else if (slippageTolerance > 100_000) slippageTolerance = 6700;
+        else if (slippageTolerance > 30_000) slippageTolerance = slippageTolerance / 12;
+        else if (slippageTolerance > 15_000) slippageTolerance = slippageTolerance / 10;
+        else if (slippageTolerance > 10_000) slippageTolerance = slippageTolerance * 2 / 15;
+        else if (slippageTolerance > 5000) slippageTolerance = slippageTolerance * 3 / 20;
+        else if (slippageTolerance > 1500) slippageTolerance = slippageTolerance / 5;
+        else if (slippageTolerance > 500) slippageTolerance = slippageTolerance / 5 + 200;
+        else if (slippageTolerance > 0) slippageTolerance = (slippageTolerance / 5) + 100;
         else if (slippageTolerance == 0) slippageTolerance = UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE;
 
         console.log("slippageTolerance adjusted", slippageTolerance);
