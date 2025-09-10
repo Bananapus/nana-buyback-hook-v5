@@ -76,17 +76,9 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @notice The denominator used when calculating TWAP slippage percent values.
     uint256 public constant override TWAP_SLIPPAGE_DENOMINATOR = 10_000;
 
-    /// @notice A low slippage tolerance that needs a buffer.
-    /// @dev This serves to avoid low slippage tolerances that could result in failed swaps.
-    uint256 public constant override LOW_TWAP_SLIPPAGE_TOLERANCE = 300;
-
     /// @notice The uncertain slippage tolerance allowed.
     /// @dev This serves to avoid extremely low slippage tolerances that could result in failed swaps.
     uint256 public constant override UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE = 1050;
-
-    /// @notice A buffer to add to the low slippage tolerance.
-    /// @dev This serves to avoid low slippage tolerances that could result in failed swaps.
-    uint256 public constant override SLIPPAGE_TOLERANCE_BUFFER = 100;
 
     //*********************************************************************//
     // -------------------- public immutable properties ------------------ //
@@ -368,7 +360,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         });
 
         // If the slippage tolerance is the maximum, return an empty quote.
-        if (slippageTolerance >= TWAP_SLIPPAGE_DENOMINATOR) return 0;
+        if (slippageTolerance == TWAP_SLIPPAGE_DENOMINATOR) return 0;
 
         // Get a quote based on this TWAP tick.
         amountOut = OracleLibrary.getQuoteAtTick({
@@ -654,7 +646,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         }
 
         // Keep a reference to the old window value.
-        uint256 oldWindow = uint128(twapWindowOf[projectId]);
+        uint256 oldWindow = twapWindowOf[projectId];
 
         // Store the new packed value of the TWAP params (with the updated window).
         twapWindowOf[projectId] = newWindow;
@@ -691,19 +683,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     //*********************************************************************//
     // ---------------------- internal functions ------------------------- //
     //*********************************************************************//
-
-    /// @notice Calculate the square root of a number using the Babylonian method
-    /// @param x The number to calculate the square root of
-    /// @return y The square root of x
-    function _sqrt(uint256 x) internal pure returns (uint256 y) {
-        if (x == 0) return 0;
-        uint256 z = (x + 1) / 2;
-        y = x;
-        while (z < y) {
-            y = z;
-            z = (x / z + z) / 2;
-        }
-    }
 
     /// @notice Swap the terminal token to receive project tokens.
     /// @param context The `afterPayRecordedContext` passed in by the terminal.
