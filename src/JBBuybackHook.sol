@@ -360,7 +360,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         });
 
         // If the slippage tolerance is the maximum, return an empty quote.
-        if (slippageTolerance >= TWAP_SLIPPAGE_DENOMINATOR) return 0;
+        if (slippageTolerance == TWAP_SLIPPAGE_DENOMINATOR) return 0;
 
         // Get a quote based on this TWAP tick.
         amountOut = OracleLibrary.getQuoteAtTick({
