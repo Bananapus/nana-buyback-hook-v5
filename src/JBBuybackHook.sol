@@ -684,19 +684,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     // ---------------------- internal functions ------------------------- //
     //*********************************************************************//
 
-    /// @notice Calculate the square root of a number using the Babylonian method
-    /// @param x The number to calculate the square root of
-    /// @return y The square root of x
-    function _sqrt(uint256 x) internal pure returns (uint256 y) {
-        if (x == 0) return 0;
-        uint256 z = (x + 1) / 2;
-        y = x;
-        while (z < y) {
-            y = z;
-            z = (x / z + z) / 2;
-        }
-    }
-
     /// @notice Swap the terminal token to receive project tokens.
     /// @param context The `afterPayRecordedContext` passed in by the terminal.
     /// @param projectTokenIs0 A flag indicating whether the pool references the project token as the first in the pair.
