@@ -454,7 +454,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
 
         // Parse the metadata forwarded from the data hook.
         (bool projectTokenIs0, uint256 amountToMintWith, uint256 minimumSwapAmountOut, IJBController controller) =
-            abi.decode(context.hookMetadata, (bool, uint256, uint256, address));
+            abi.decode(context.hookMetadata, (bool, uint256, uint256, IJBController));
 
         // If the token paid in isn't the native token, pull the amount to swap from the terminal.
         if (context.forwardedAmount.token != JBConstants.NATIVE_TOKEN) {
