@@ -1977,6 +1977,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
     function test_setTwapWindowOf_revertIfWrongCaller(address notOwner) public {
         // Assume that the caller is not the owner.
         vm.assume(owner != notOwner);
+        vm.assume(notOwner != address(0));
 
         // Mock and expect calls to check the permissions of the caller.
         vm.mockCall(
