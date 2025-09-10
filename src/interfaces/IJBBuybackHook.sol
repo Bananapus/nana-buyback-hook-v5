@@ -27,9 +27,7 @@ interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallba
     function MAX_TWAP_WINDOW() external view returns (uint256);
     function MIN_TWAP_WINDOW() external view returns (uint256);
     function TWAP_SLIPPAGE_DENOMINATOR() external view returns (uint256);
-    function LOW_TWAP_SLIPPAGE_TOLERANCE() external view returns (uint256);
     function UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE() external view returns (uint256);
-    function SLIPPAGE_TOLERANCE_BUFFER() external view returns (uint256);
 
     function UNISWAP_V3_FACTORY() external view returns (address);
     function WETH() external view returns (IWETH9);

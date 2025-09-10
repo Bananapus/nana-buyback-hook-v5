@@ -78,17 +78,9 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     /// @notice The denominator used when calculating TWAP slippage percent values.
     uint256 public constant override TWAP_SLIPPAGE_DENOMINATOR = 10_000;
 
-    /// @notice A low slippage tolerance that needs a buffer.
-    /// @dev This serves to avoid low slippage tolerances that could result in failed swaps.
-    uint256 public constant override LOW_TWAP_SLIPPAGE_TOLERANCE = 300;
-
     /// @notice The uncertain slippage tolerance allowed.
     /// @dev This serves to avoid extremely low slippage tolerances that could result in failed swaps.
     uint256 public constant override UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE = 1050;
-
-    /// @notice A buffer to add to the low slippage tolerance.
-    /// @dev This serves to avoid low slippage tolerances that could result in failed swaps.
-    uint256 public constant override SLIPPAGE_TOLERANCE_BUFFER = 100;
 
     //*********************************************************************//
     // -------------------- public immutable properties ------------------ //
@@ -380,7 +372,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         });
 
         // If the slippage tolerance is the maximum, return an empty quote.
-        if (slippageTolerance >= TWAP_SLIPPAGE_DENOMINATOR) return 0;
+        if (slippageTolerance == TWAP_SLIPPAGE_DENOMINATOR) return 0;
 
         // Get a quote based on this TWAP tick.
         amountOut = OracleLibrary.getQuoteAtTick({
@@ -423,23 +415,23 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         if (sqrtP == 0) return TWAP_SLIPPAGE_DENOMINATOR;
 
         // Approximate % of range liquidity consumed by the swap (in bps)
-        // Multiply by 2 to to amplify the results and prevent results on the low end from rounding to zero.
-        uint256 base = mulDiv(amountIn, 2 * TWAP_SLIPPAGE_DENOMINATOR, uint256(liquidity));
+        // Multiply by 10 to to amplify the results and prevent results on the low end from rounding to zero.
+        uint256 base = mulDiv(amountIn, 10 * TWAP_SLIPPAGE_DENOMINATOR, uint256(liquidity));
 
         // Compute final slippage tolerance (bps), normalized by √P
         uint256 slippageTolerance =
             zeroForOne ? mulDiv(base, uint256(sqrtP), uint256(1) << 96) : mulDiv(base, uint256(1) << 96, uint256(sqrtP));
 
-        /// If base ≥ 10,000 bps (100%), the trade would consume
-        /// nearly all liquidity in the current range → our linear
-        /// slippage estimate is invalid. Return max to signal fallback.
-        if (slippageTolerance > 2 * TWAP_SLIPPAGE_DENOMINATOR) return TWAP_SLIPPAGE_DENOMINATOR;
         // Adjust the slippage tolerance to be reasonable given the ranges.
-        else if (slippageTolerance > 3000) return slippageTolerance / 2;
-        else if (slippageTolerance > 2000) return slippageTolerance * 2 / 3;
-        else if (slippageTolerance > 1000) return slippageTolerance * 3 / 4;
-        else if (slippageTolerance > 300) return slippageTolerance;
-        else if (slippageTolerance > 0) return slippageTolerance + 100;
+        if (slippageTolerance > 15 * TWAP_SLIPPAGE_DENOMINATOR) return TWAP_SLIPPAGE_DENOMINATOR * 88 / 100;
+        else if (slippageTolerance > 10 * TWAP_SLIPPAGE_DENOMINATOR) return TWAP_SLIPPAGE_DENOMINATOR * 67 / 100;
+        else if (slippageTolerance > 30_000) return slippageTolerance / 12;
+        else if (slippageTolerance > 15_000) return slippageTolerance / 10;
+        else if (slippageTolerance > 10_000) return slippageTolerance * 2 / 15;
+        else if (slippageTolerance > 5000) return slippageTolerance * 3 / 20;
+        else if (slippageTolerance > 1500) return slippageTolerance / 5;
+        else if (slippageTolerance > 500) return (slippageTolerance / 5) + 200;
+        else if (slippageTolerance > 0) return (slippageTolerance / 5) + 100;
         else return UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE;
     }
 
@@ -666,7 +658,7 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
         }
 
         // Keep a reference to the old window value.
-        uint256 oldWindow = uint128(twapWindowOf[projectId]);
+        uint256 oldWindow = twapWindowOf[projectId];
 
         // Store the new packed value of the TWAP params (with the updated window).
         twapWindowOf[projectId] = newWindow;
@@ -703,19 +695,6 @@ contract JBBuybackHook is JBPermissioned, IJBBuybackHook {
     //*********************************************************************//
     // ---------------------- internal functions ------------------------- //
     //*********************************************************************//
-
-    /// @notice Calculate the square root of a number using the Babylonian method
-    /// @param x The number to calculate the square root of
-    /// @return y The square root of x
-    function _sqrt(uint256 x) internal pure returns (uint256 y) {
-        if (x == 0) return 0;
-        uint256 z = (x + 1) / 2;
-        y = x;
-        while (z < y) {
-            y = z;
-            z = (x / z + z) / 2;
-        }
-    }
 
     /// @notice Swap the terminal token to receive project tokens.
     /// @param context The `afterPayRecordedContext` passed in by the terminal.
