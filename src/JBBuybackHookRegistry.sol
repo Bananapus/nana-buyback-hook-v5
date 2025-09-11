@@ -60,13 +60,11 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, ERC2771Context, JBPerm
 
     /// @param permissions The permissions contract.
     /// @param projects The project registry.
-    /// @param startingHook The starting hook to use.
     /// @param owner The owner of the contract.
     /// @param trustedForwarder A trusted forwarder of transactions to this contract.
     constructor(
         IJBPermissions permissions,
         IJBProjects projects,
-        IJBRulesetDataHook startingHook,
         address owner,
         address trustedForwarder
     )
@@ -75,7 +73,6 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, ERC2771Context, JBPerm
         Ownable(owner)
     {
         PROJECTS = projects;
-        defaultHook = startingHook;
     }
 
     //*********************************************************************//

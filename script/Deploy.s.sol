@@ -79,6 +79,11 @@ contract DeployScript is Script, Sphinx {
     }
 
     function deploy() public sphinx {
+        // Deploy the registry with the hook as the default hook.
+        JBBuybackHookRegistry registry = new JBBuybackHookRegistry{salt: BUYBACK_HOOK}(
+            core.permissions, core.projects, safeAddress(), trustedForwarder
+        );
+
         JBBuybackHook hook = new JBBuybackHook{salt: BUYBACK_HOOK}(
             core.directory,
             core.permissions,
@@ -90,10 +95,8 @@ contract DeployScript is Script, Sphinx {
             trustedForwarder
         );
 
-        // Deploy the registry with the hook as the default hook.
-        new JBBuybackHookRegistry{salt: BUYBACK_HOOK}(
-            core.permissions, core.projects, hook, safeAddress(), trustedForwarder
-        );
+        // Configure the hook to be the default.
+        registry.setDefaultHook(hook);
     }
 
     function _isDeployed(
