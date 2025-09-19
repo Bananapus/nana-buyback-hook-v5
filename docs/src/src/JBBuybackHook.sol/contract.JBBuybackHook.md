@@ -1,8 +1,8 @@
 # JBBuybackHook
-[Git Source](https://github.com/Bananapus/nana-buyback-hook/blob/9137c87bcd7400fb4252d57a5052a3c2a4978154/src/JBBuybackHook.sol)
+[Git Source](https://github.com/Bananapus/nana-buyback-hook-v5/blob/0ff73aee4ae7a3a75f75129bcf8bbef59b4c3bb1/src/JBBuybackHook.sol)
 
 **Inherits:**
-JBPermissioned, [IJBBuybackHook](/src/interfaces/IJBBuybackHook.sol/interface.IJBBuybackHook.md)
+JBPermissioned, ERC2771Context, [IJBBuybackHook](/src/interfaces/IJBBuybackHook.sol/interface.IJBBuybackHook.md)
 
 The buyback hook allows beneficiaries of a payment to a project to either:
 - Get tokens by paying the project through its terminal OR
@@ -17,30 +17,6 @@ benediction: DEVS BENEDICAT ET PROTEGAT CONTRACTVS MEAM
 
 
 ## State Variables
-### MAX_TWAP_SLIPPAGE_TOLERANCE
-Projects cannot specify a TWAP slippage tolerance larger than this constant (out of `MAX_SLIPPAGE`).
-
-*This prevents TWAP slippage tolerances so high that they would result in highly unfavorable trade
-conditions for the payer unless a quote was specified in the payment metadata.*
-
-
-```solidity
-uint256 public constant override MAX_TWAP_SLIPPAGE_TOLERANCE = 9000;
-```
-
-
-### MIN_TWAP_SLIPPAGE_TOLERANCE
-Projects cannot specify a TWAP slippage tolerance smaller than this constant (out of `MAX_SLIPPAGE`).
-
-*This prevents TWAP slippage tolerances so low that the swap always reverts to default behavior unless a
-quote is specified in the payment metadata.*
-
-
-```solidity
-uint256 public constant override MIN_TWAP_SLIPPAGE_TOLERANCE = 100;
-```
-
-
 ### MAX_TWAP_WINDOW
 Projects cannot specify a TWAP window longer than this constant.
 
@@ -73,12 +49,14 @@ uint256 public constant override TWAP_SLIPPAGE_DENOMINATOR = 10_000;
 ```
 
 
-### CONTROLLER
-The controller used to mint and burn tokens.
+### UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE
+The uncertain slippage tolerance allowed.
+
+*This serves to avoid extremely low slippage tolerances that could result in failed swaps.*
 
 
 ```solidity
-IJBController public immutable override CONTROLLER;
+uint256 public constant override UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE = 1050;
 ```
 
 
@@ -106,6 +84,15 @@ The project registry.
 
 ```solidity
 IJBProjects public immutable override PROJECTS;
+```
+
+
+### TOKENS
+The token registry.
+
+
+```solidity
+IJBTokens public immutable override TOKENS;
 ```
 
 
@@ -145,15 +132,13 @@ mapping(uint256 projectId => address) public override projectTokenOf;
 ```
 
 
-### _twapParamsOf
-The TWAP parameters used for the given project when the payer does not specify a quote.
-See the README for further information.
-
-*This includes the TWAP slippage tolerance and TWAP window, packed into a `uint256`.*
+### twapWindowOf
+The TWAP window for the given project. The TWAP window is the period of time over which the TWAP is
+computed.
 
 
 ```solidity
-mapping(uint256 projectId => uint256) internal _twapParamsOf;
+mapping(uint256 projectId => uint256) public override twapWindowOf;
 ```
 
 
@@ -164,22 +149,29 @@ mapping(uint256 projectId => uint256) internal _twapParamsOf;
 ```solidity
 constructor(
     IJBDirectory directory,
-    IJBController controller,
+    IJBPermissions permissions,
     IJBPrices prices,
+    IJBProjects projects,
+    IJBTokens tokens,
     IWETH9 weth,
-    address factory
+    address factory,
+    address trustedForwarder
 )
-    JBPermissioned(IJBPermissioned(address(controller)).PERMISSIONS());
+    JBPermissioned(permissions)
+    ERC2771Context(trustedForwarder);
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
 |`directory`|`IJBDirectory`|The directory of terminals and controllers.|
-|`controller`|`IJBController`|The controller used to mint and burn tokens.|
+|`permissions`|`IJBPermissions`|The permissions contract.|
 |`prices`|`IJBPrices`|The contract that exposes price feeds.|
+|`projects`|`IJBProjects`|The project registry.|
+|`tokens`|`IJBTokens`|The token registry.|
 |`weth`|`IWETH9`|The WETH contract.|
 |`factory`|`address`|The address of the Uniswap v3 factory. Used to calculate pool addresses.|
+|`trustedForwarder`|`address`|A trusted forwarder of transactions to this contract.|
 
 
 ### beforePayRecordedWith
@@ -236,62 +228,23 @@ Required by the `IJBRulesetDataHook` interfaces. Return false to not leak any pe
 
 
 ```solidity
-function hasMintPermissionFor(uint256, address) external pure override returns (bool);
+function hasMintPermissionFor(uint256, JBRuleset memory, address) external pure override returns (bool);
 ```
-
-### twapSlippageToleranceOf
-
-Get the TWAP slippage tolerance for a given project ID.
-
-*The "TWAP slippage tolerance" is the maximum negative spread between the TWAP and the expected return from
-a swap.
-If the expected return unfavourably exceeds the TWAP slippage tolerance, the swap will revert.*
-
-
-```solidity
-function twapSlippageToleranceOf(uint256 projectId) external view returns (uint256);
-```
-**Parameters**
-
-|Name|Type|Description|
-|----|----|-----------|
-|`projectId`|`uint256`|The ID of the project which the TWAP slippage tolerance applies to.|
-
-**Returns**
-
-|Name|Type|Description|
-|----|----|-----------|
-|`<none>`|`uint256`|tolerance The maximum slippage allowed relative to the TWAP, as a percent out of `TWAP_SLIPPAGE_DENOMINATOR`.|
-
-
-### twapWindowOf
-
-Get the TWAP window for a given project ID.
-
-*The "TWAP window" is the period over which the TWAP is computed.*
-
-
-```solidity
-function twapWindowOf(uint256 projectId) external view override returns (uint32);
-```
-**Parameters**
-
-|Name|Type|Description|
-|----|----|-----------|
-|`projectId`|`uint256`|The ID of the project which the TWAP window applies to.|
-
-**Returns**
-
-|Name|Type|Description|
-|----|----|-----------|
-|`<none>`|`uint32`|secondsAgo The TWAP window in seconds.|
-
 
 ### supportsInterface
 
 
 ```solidity
 function supportsInterface(bytes4 interfaceId) public pure override returns (bool);
+```
+
+### _contextSuffixLength
+
+*`ERC-2771` specifies the context as being a single address (20 bytes).*
+
+
+```solidity
+function _contextSuffixLength() internal view override(ERC2771Context, Context) returns (uint256);
 ```
 
 ### _getQuote
@@ -324,6 +277,70 @@ function _getQuote(
 |Name|Type|Description|
 |----|----|-----------|
 |`amountOut`|`uint256`|The minimum number of tokens to receive based on the TWAP and its params.|
+
+
+### _getSlippageTolerance
+
+Get the slippage tolerance for a given amount in and liquidity.
+
+
+```solidity
+function _getSlippageTolerance(
+    uint256 amountIn,
+    uint128 liquidity,
+    address projectToken,
+    address terminalToken,
+    int24 arithmeticMeanTick
+)
+    internal
+    pure
+    returns (uint256);
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`amountIn`|`uint256`|The amount in to get the slippage tolerance for.|
+|`liquidity`|`uint128`|The liquidity to get the slippage tolerance for.|
+|`projectToken`|`address`|The project token to get the slippage tolerance for.|
+|`terminalToken`|`address`|The terminal token to get the slippage tolerance for.|
+|`arithmeticMeanTick`|`int24`|The arithmetic mean tick to get the slippage tolerance for.|
+
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`<none>`|`uint256`|slippageTolerance The slippage tolerance for the given amount in and liquidity.|
+
+
+### _msgData
+
+The calldata. Preferred to use over `msg.data`.
+
+
+```solidity
+function _msgData() internal view override(ERC2771Context, Context) returns (bytes calldata);
+```
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`<none>`|`bytes`|calldata The `msg.data` of this call.|
+
+
+### _msgSender
+
+The message's sender. Preferred to use over `msg.sender`.
+
+
+```solidity
+function _msgSender() internal view override(ERC2771Context, Context) returns (address sender);
+```
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`sender`|`address`|The address which sent this call.|
 
 
 ### afterPayRecordedWith
@@ -361,8 +378,7 @@ permission from the owner.*
 function setPoolFor(
     uint256 projectId,
     uint24 fee,
-    uint32 twapWindow,
-    uint256 twapSlippageTolerance,
+    uint256 twapWindow,
     address terminalToken
 )
     external
@@ -374,8 +390,7 @@ function setPoolFor(
 |----|----|-----------|
 |`projectId`|`uint256`|The ID of the project to set the pool for.|
 |`fee`|`uint24`|The fee used in the pool being set, as a fixed-point number of basis points with 2 decimals. A 0.01% fee is `100`, a 0.05% fee is `500`, a 0.3% fee is `3000`, and a 1% fee is `10000`.|
-|`twapWindow`|`uint32`|The period of time over which the TWAP is computed.|
-|`twapSlippageTolerance`|`uint256`|The maximum spread allowed between the amount received and the TWAP.|
+|`twapWindow`|`uint256`|The period of time over which the TWAP is computed.|
 |`terminalToken`|`address`|The address of the terminal token that payments to the project are made in.|
 
 **Returns**
@@ -383,26 +398,6 @@ function setPoolFor(
 |Name|Type|Description|
 |----|----|-----------|
 |`newPool`|`IUniswapV3Pool`|The pool that was set for the project and terminal token.|
-
-
-### setTwapSlippageToleranceOf
-
-Set the TWAP slippage tolerance for a project.
-The TWAP slippage tolerance is the maximum spread allowed between the amount received and the TWAP.
-
-*This can be called by the project's owner or an address with `JBPermissionIds.SET_BUYBACK_TWAP`
-permission from the owner.*
-
-
-```solidity
-function setTwapSlippageToleranceOf(uint256 projectId, uint256 newSlippageTolerance) external;
-```
-**Parameters**
-
-|Name|Type|Description|
-|----|----|-----------|
-|`projectId`|`uint256`|The ID of the project to set the TWAP slippage tolerance of.|
-|`newSlippageTolerance`|`uint256`|The new TWAP slippage tolerance, out of `TWAP_SLIPPAGE_DENOMINATOR`.|
 
 
 ### setTwapWindowOf
@@ -415,14 +410,14 @@ permission from the owner.*
 
 
 ```solidity
-function setTwapWindowOf(uint256 projectId, uint32 newWindow) external;
+function setTwapWindowOf(uint256 projectId, uint256 newWindow) external;
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
 |`projectId`|`uint256`|The ID of the project to set the TWAP window of.|
-|`newWindow`|`uint32`|The new TWAP window.|
+|`newWindow`|`uint256`|The new TWAP window.|
 
 
 ### uniswapV3SwapCallback
@@ -450,7 +445,8 @@ Swap the terminal token to receive project tokens.
 ```solidity
 function _swap(
     JBAfterPayRecordedContext calldata context,
-    bool projectTokenIs0
+    bool projectTokenIs0,
+    IJBController controller
 )
     internal
     returns (uint256 amountReceived);
@@ -461,6 +457,7 @@ function _swap(
 |----|----|-----------|
 |`context`|`JBAfterPayRecordedContext`|The `afterPayRecordedContext` passed in by the terminal.|
 |`projectTokenIs0`|`bool`|A flag indicating whether the pool references the project token as the first in the pair.|
+|`controller`|`IJBController`|The controller used to mint and burn tokens.|
 
 **Returns**
 
@@ -480,12 +477,6 @@ error JBBuybackHook_CallerNotPool(address caller);
 
 ```solidity
 error JBBuybackHook_InsufficientPayAmount(uint256 swapAmount, uint256 totalPaid);
-```
-
-### JBBuybackHook_InvalidTwapSlippageTolerance
-
-```solidity
-error JBBuybackHook_InvalidTwapSlippageTolerance(uint256 value, uint256 min, uint256 max);
 ```
 
 ### JBBuybackHook_InvalidTwapWindow

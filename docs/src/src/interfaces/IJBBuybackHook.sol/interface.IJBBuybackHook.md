@@ -1,18 +1,11 @@
 # IJBBuybackHook
-[Git Source](https://github.com/Bananapus/nana-buyback-hook/blob/9137c87bcd7400fb4252d57a5052a3c2a4978154/src/interfaces/IJBBuybackHook.sol)
+[Git Source](https://github.com/Bananapus/nana-buyback-hook-v5/blob/0ff73aee4ae7a3a75f75129bcf8bbef59b4c3bb1/src/interfaces/IJBBuybackHook.sol)
 
 **Inherits:**
 IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallback
 
 
 ## Functions
-### CONTROLLER
-
-
-```solidity
-function CONTROLLER() external view returns (IJBController);
-```
-
 ### DIRECTORY
 
 
@@ -27,18 +20,18 @@ function DIRECTORY() external view returns (IJBDirectory);
 function PRICES() external view returns (IJBPrices);
 ```
 
-### MAX_TWAP_SLIPPAGE_TOLERANCE
+### PROJECTS
 
 
 ```solidity
-function MAX_TWAP_SLIPPAGE_TOLERANCE() external view returns (uint256);
+function PROJECTS() external view returns (IJBProjects);
 ```
 
-### MIN_TWAP_SLIPPAGE_TOLERANCE
+### TOKENS
 
 
 ```solidity
-function MIN_TWAP_SLIPPAGE_TOLERANCE() external view returns (uint256);
+function TOKENS() external view returns (IJBTokens);
 ```
 
 ### MAX_TWAP_WINDOW
@@ -62,11 +55,11 @@ function MIN_TWAP_WINDOW() external view returns (uint256);
 function TWAP_SLIPPAGE_DENOMINATOR() external view returns (uint256);
 ```
 
-### PROJECTS
+### UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE
 
 
 ```solidity
-function PROJECTS() external view returns (IJBProjects);
+function UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE() external view returns (uint256);
 ```
 
 ### UNISWAP_V3_FACTORY
@@ -97,18 +90,11 @@ function poolOf(uint256 projectId, address terminalToken) external view returns 
 function projectTokenOf(uint256 projectId) external view returns (address projectTokenOf);
 ```
 
-### twapSlippageToleranceOf
-
-
-```solidity
-function twapSlippageToleranceOf(uint256 projectId) external view returns (uint256 slippageTolerance);
-```
-
 ### twapWindowOf
 
 
 ```solidity
-function twapWindowOf(uint256 projectId) external view returns (uint32 window);
+function twapWindowOf(uint256 projectId) external view returns (uint256 window);
 ```
 
 ### setPoolFor
@@ -118,26 +104,18 @@ function twapWindowOf(uint256 projectId) external view returns (uint32 window);
 function setPoolFor(
     uint256 projectId,
     uint24 fee,
-    uint32 twapWindow,
-    uint256 twapSlippageTolerance,
+    uint256 twapWindow,
     address terminalToken
 )
     external
     returns (IUniswapV3Pool newPool);
 ```
 
-### setTwapSlippageToleranceOf
-
-
-```solidity
-function setTwapSlippageToleranceOf(uint256 projectId, uint256 newSlippageTolerance) external;
-```
-
 ### setTwapWindowOf
 
 
 ```solidity
-function setTwapWindowOf(uint256 projectId, uint32 newWindow) external;
+function setTwapWindowOf(uint256 projectId, uint256 newWindow) external;
 ```
 
 ## Events
@@ -165,13 +143,5 @@ event PoolAdded(uint256 indexed projectId, address indexed terminalToken, addres
 
 ```solidity
 event TwapWindowChanged(uint256 indexed projectId, uint256 oldWindow, uint256 newWindow, address caller);
-```
-
-### TwapSlippageToleranceChanged
-
-```solidity
-event TwapSlippageToleranceChanged(
-    uint256 indexed projectId, uint256 oldTolerance, uint256 newTolerance, address caller
-);
 ```
 
