@@ -7,17 +7,18 @@ import {IJBPrices} from "@bananapus/core-v5/src/interfaces/IJBPrices.sol";
 import {IJBProjects} from "@bananapus/core-v5/src/interfaces/IJBProjects.sol";
 import {IJBRulesetDataHook} from "@bananapus/core-v5/src/interfaces/IJBRulesetDataHook.sol";
 import {IJBTokens} from "@bananapus/core-v5/src/interfaces/IJBTokens.sol";
-import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 
 import {IWETH9} from "./external/IWETH9.sol";
 
-interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallback {
+interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook {
     event Swap(
-        uint256 indexed projectId, uint256 amountToSwapWith, IUniswapV3Pool pool, uint256 amountReceived, address caller
+        uint256 indexed projectId, uint256 amountToSwapWith, PoolId indexed poolId, uint256 amountReceived, address caller
     );
     event Mint(uint256 indexed projectId, uint256 leftoverAmount, uint256 tokenCount, address caller);
-    event PoolAdded(uint256 indexed projectId, address indexed terminalToken, address pool, address caller);
+    event PoolAdded(uint256 indexed projectId, address indexed terminalToken, PoolId poolId, address caller);
     event TwapWindowChanged(uint256 indexed projectId, uint256 oldWindow, uint256 newWindow, address caller);
 
     function DIRECTORY() external view returns (IJBDirectory);
@@ -29,20 +30,21 @@ interface IJBBuybackHook is IJBPayHook, IJBRulesetDataHook, IUniswapV3SwapCallba
     function TWAP_SLIPPAGE_DENOMINATOR() external view returns (uint256);
     function UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE() external view returns (uint256);
 
-    function UNISWAP_V3_FACTORY() external view returns (address);
+    function POOL_MANAGER() external view returns (IPoolManager);
     function WETH() external view returns (IWETH9);
 
-    function poolOf(uint256 projectId, address terminalToken) external view returns (IUniswapV3Pool pool);
+    function poolKeyOf(uint256 projectId, address terminalToken)
+        external
+        view
+        returns (PoolKey memory key);
     function projectTokenOf(uint256 projectId) external view returns (address projectTokenOf);
     function twapWindowOf(uint256 projectId) external view returns (uint256 window);
 
     function setPoolFor(
         uint256 projectId,
-        uint24 fee,
+        PoolKey calldata poolKey,
         uint256 twapWindow,
         address terminalToken
-    )
-        external
-        returns (IUniswapV3Pool newPool);
+    ) external;
     function setTwapWindowOf(uint256 projectId, uint256 newWindow) external;
 }

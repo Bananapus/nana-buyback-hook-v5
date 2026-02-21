@@ -1,6 +1,6 @@
 [profile.default]
-solc = '0.8.23'
-vm_version = 'paris'                   # Required for L2s (Optimism, Arbitrum, etc.)
+solc = '0.8.26'
+evm_version = 'cancun'                 # Required for V4 transient storage (TSTORE/TLOAD)
 sizes = true
 verbosity = 3                           # display errors
 optimizer_runs = 100000000
