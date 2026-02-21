@@ -359,17 +359,12 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IJBBuybackHook {
         // Keep a reference to the liquidity.
         uint128 liquidity;
 
-        // Resolve mean tick and liquidity source
-        if (oldestObservation == 0) {
-            // fallback: use spot tick and current in-range liquidity
-            // slither-disable-next-line unused-return
-            (, arithmeticMeanTick,,,,,) = pool.slot0();
-            liquidity = pool.liquidity();
-        } else {
-            (arithmeticMeanTick, liquidity) = OracleLibrary.consult(address(pool), uint32(twapWindow));
-        }
+        // If no observation history, fall back to minting (skip buyback) — slot0 is flash-loan manipulable.
+        if (oldestObservation == 0) return 0;
 
-        // If there's no liquidity, return an empty quote.
+        (arithmeticMeanTick, liquidity) = OracleLibrary.consult(address(pool), uint32(twapWindow));
+
+        // If there's no liquidity, fall back to minting.
         if (liquidity == 0) return 0;
 
         // Get the pool fee in basis points for the sigmoid formula.
