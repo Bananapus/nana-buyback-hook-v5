@@ -293,12 +293,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         beforePayRecordedContext.weight = tokenCount;
         beforePayRecordedContext.metadata = "";
 
-        // Mock the pool being unlocked.
+        // Mock the pool being unlocked (slot0 is called first to check if the pool is valid).
         vm.mockCall(address(pool), abi.encodeCall(pool.slot0, ()), abi.encode(0, 0, 0, 1, 0, 0, true));
-        vm.mockCall(address(pool), abi.encodeCall(pool.liquidity, ()), abi.encode(1 ether));
-        vm.mockCall(address(pool), abi.encodeCall(pool.fee, ()), abi.encode(uint24(3000)));
-        vm.expectCall(address(pool), abi.encodeCall(pool.slot0, ()));
-        vm.expectCall(address(pool), abi.encodeCall(pool.liquidity, ()));
 
         // Return the oldest observationTimestamp as the current block, making oldest observation 0.
         mockExpect(address(pool), abi.encodeCall(pool.observations, (0)), abi.encode(block.timestamp, 0, 0, true));
@@ -357,34 +353,10 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         vm.prank(terminalStore);
         (weightReturned, specificationsReturned) = hook.beforePayRecordedWith(beforePayRecordedContext);
 
-        // Bypass testing the Uniswap oracle lib by using the internal function `_getQuote(...)`.
-        uint256 twapAmountOut = hook.ForTest_getQuote(projectId, address(projectToken), 1 ether, address(weth));
-
-        // If minting would yield more tokens, mint:
-        if (tokenCount >= twapAmountOut) {
-            // No hook specifications should be returned.
-            assertEq(specificationsReturned.length, 0);
-
-            // The weight should be returned unchanged.
-            assertEq(weightReturned, tokenCount);
-        }
-        // Otherwise, swap (with the appropriate hook specification):
-        else {
-            // There should be 1 hook specification,
-            assertEq(specificationsReturned.length, 1);
-            // with the correct hook address,
-            assertEq(address(specificationsReturned[0].hook), address(hook));
-            // the full amount paid in,
-            assertEq(specificationsReturned[0].amount, 1 ether);
-            // the correct metadata,
-            assertEq(
-                specificationsReturned[0].metadata,
-                abi.encode(address(projectToken) < address(weth), 0, twapAmountOut, controller),
-                "Wrong metadata returned in hook specification"
-            );
-            // and a weight of 0 to prevent additional minting from the terminal.
-            assertEq(weightReturned, 0);
-        }
+        // With M-5 fix: when oldestObservation == 0 (no TWAP history), _getQuote returns 0
+        // to avoid using the flash-loan-manipulable slot0. This always falls back to minting.
+        assertEq(specificationsReturned.length, 0, "Should have no hook specs (fall back to mint)");
+        assertEq(weightReturned, tokenCount, "Should return original weight (fall back to mint)");
     }
 
     /// @notice Test `beforePayRecordedContext` when no quote is provided.
