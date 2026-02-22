@@ -561,6 +561,7 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IUnlockCallback, IJBBu
 
         // Validate the pool is initialized in the PoolManager.
         PoolId poolId = poolKey.toId();
+        // slither-disable-next-line unused-return
         (uint160 sqrtPriceX96,,,) = POOL_MANAGER.getSlot0(poolId);
         if (sqrtPriceX96 == 0) revert JBBuybackHook_PoolNotInitialized(poolId);
 
@@ -663,11 +664,13 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IUnlockCallback, IJBBu
         // Settle the input (we owe the PoolManager).
         if (inputCurrency.isAddressZero()) {
             // Native ETH: settle with value.
+            // slither-disable-next-line unused-return
             POOL_MANAGER.settle{value: inputAmount}();
         } else {
             // ERC-20: sync → transfer → settle.
             POOL_MANAGER.sync(inputCurrency);
             IERC20(Currency.unwrap(inputCurrency)).safeTransfer(address(POOL_MANAGER), inputAmount);
+            // slither-disable-next-line unused-return
             POOL_MANAGER.settle();
         }
 

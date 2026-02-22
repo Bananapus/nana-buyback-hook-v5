@@ -6,7 +6,6 @@ verbosity = 3                           # display errors
 optimizer_runs = 100000000
 block_number = 14126430
 block_timestamp = 1643802347
-runs = 16384
 libs = ["node_modules", "lib"]
 build_info = true
 extra_output = ['storageLayout']
@@ -29,7 +28,7 @@ base_sepolia = "${RPC_BASE_SEPOLIA}"
 [profile.ci_sizes]
 optimizer_runs = 200
 
-[invariant] 
+[invariant]
 fail_on_revert = false
 
 [fuzz]
@@ -37,6 +36,9 @@ runs = 16384
 seed = '0xd70284f7'
 include_storage = true
 include_push_bytes = true
+
+[lint]
+lint_on_build = false
 
 [fmt]
 number_underscore = "thousands"
