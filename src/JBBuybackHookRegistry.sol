@@ -46,9 +46,9 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, ERC2771Context, JBPerm
     /// @custom:param projectId The ID of the project to get the locked hook for.
     mapping(uint256 projectId => bool) public override hasLockedHook;
 
-    /// @notice The hook for the given project.
+    /// @notice The hook explicitly set for the given project.
     /// @custom:param projectId The ID of the project to get the hook for.
-    mapping(uint256 projectId => IJBRulesetDataHook) public override hookOf;
+    mapping(uint256 projectId => IJBRulesetDataHook) internal _hookOf;
 
     /// @notice The address of each project's token.
     /// @custom:param projectId The ID of the project the token belongs to.
@@ -79,6 +79,14 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, ERC2771Context, JBPerm
     // ------------------------- external views -------------------------- //
     //*********************************************************************//
 
+    /// @notice The hook for the given project, or the default hook if none is set.
+    /// @param projectId The ID of the project to get the hook for.
+    /// @return hook The hook for the project.
+    function hookOf(uint256 projectId) external view override returns (IJBRulesetDataHook hook) {
+        hook = _hookOf[projectId];
+        if (hook == IJBRulesetDataHook(address(0))) hook = defaultHook;
+    }
+
     /// @notice Forward the call to the hook for the project.
     function beforePayRecordedWith(JBBeforePayRecordedContext calldata context)
         external
@@ -86,10 +94,8 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, ERC2771Context, JBPerm
         override
         returns (uint256 weight, JBPayHookSpecification[] memory hookSpecifications)
     {
-        // Get the hook for the project.
-        IJBRulesetDataHook hook = hookOf[context.projectId];
-
-        // If the hook is not set, use the default hook.
+        // Get the hook for the project (falls back to default).
+        IJBRulesetDataHook hook = _hookOf[context.projectId];
         if (hook == IJBRulesetDataHook(address(0))) hook = defaultHook;
 
         // Forward the call to the hook.
@@ -123,10 +129,8 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, ERC2771Context, JBPerm
         override
         returns (bool)
     {
-        // Get the hook for the project.
-        IJBRulesetDataHook hook = hookOf[projectId];
-
-        // If the hook is not set, use the default hook.
+        // Get the hook for the project (falls back to default).
+        IJBRulesetDataHook hook = _hookOf[projectId];
         if (hook == IJBRulesetDataHook(address(0))) hook = defaultHook;
 
         // Make sure the hook has mint permission.
@@ -203,7 +207,7 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, ERC2771Context, JBPerm
         hasLockedHook[projectId] = true;
 
         // If the hook is not set, lock in the default hook.
-        if (hookOf[projectId] == IJBRulesetDataHook(address(0))) hookOf[projectId] = defaultHook;
+        if (_hookOf[projectId] == IJBRulesetDataHook(address(0))) _hookOf[projectId] = defaultHook;
 
         emit JBBuybackHookRegistry_LockHook(projectId);
     }
@@ -240,7 +244,7 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, ERC2771Context, JBPerm
         });
 
         // Set the hook.
-        hookOf[projectId] = hook;
+        _hookOf[projectId] = hook;
 
         emit JBBuybackHookRegistry_SetHook(projectId, hook);
     }
