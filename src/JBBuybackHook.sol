@@ -86,7 +86,7 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IUnlockCallback, IJBBu
     uint256 public constant override MAX_TWAP_WINDOW = 2 days;
 
     /// @notice Projects cannot specify a TWAP window shorter than this constant.
-    uint256 public constant override MIN_TWAP_WINDOW = 2 minutes;
+    uint256 public constant override MIN_TWAP_WINDOW = 5 minutes;
 
     /// @notice The denominator used when calculating TWAP slippage percent values.
     uint256 public constant override TWAP_SLIPPAGE_DENOMINATOR = 10_000;
@@ -149,6 +149,7 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IUnlockCallback, IJBBu
         PoolKey key;
         bool projectTokenIs0;
         uint256 amountIn;
+        uint256 minimumSwapAmountOut;
         address terminalToken;
     }
 
@@ -257,15 +258,17 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IUnlockCallback, IJBBu
         // Keep a reference to the token being used by the terminal. Default to wETH if the terminal uses native.
         address terminalToken = context.amount.token == JBConstants.NATIVE_TOKEN ? address(WETH) : context.amount.token;
 
-        // If a minimum amount wasn't specified by the payer/client, calculate a minimum based on the TWAP.
-        if (minimumSwapAmountOut == 0) {
-            minimumSwapAmountOut = _getQuote({
-                projectId: context.projectId,
-                projectToken: projectToken,
-                amountIn: amountToSwapWith,
-                terminalToken: terminalToken
-            });
-        }
+        // Always compute the TWAP-based minimum.
+        uint256 twapMinimum = _getQuote({
+            projectId: context.projectId,
+            projectToken: projectToken,
+            amountIn: amountToSwapWith,
+            terminalToken: terminalToken
+        });
+
+        // Use the higher of the payer's quote and the TWAP quote.
+        // This prevents a stale/malicious payer quote from getting a worse deal than the oracle suggests.
+        if (twapMinimum > minimumSwapAmountOut) minimumSwapAmountOut = twapMinimum;
 
         // If the minimum amount from the swap exceeds what minting directly would yield, swap.
         if (tokenCountWithoutHook < minimumSwapAmountOut) {
@@ -436,7 +439,12 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IUnlockCallback, IJBBu
 
         // Get a reference to the number of project tokens that was swapped for.
         // slither-disable-next-line reentrancy-events
-        uint256 exactSwapAmountOut = _swap({context: context, projectTokenIs0: projectTokenIs0, controller: controller});
+        uint256 exactSwapAmountOut = _swap({
+            context: context,
+            projectTokenIs0: projectTokenIs0,
+            minimumSwapAmountOut: minimumSwapAmountOut,
+            controller: controller
+        });
 
         // Ensure swap satisfies payer/client minimum amount or calculated TWAP.
         if (exactSwapAmountOut < minimumSwapAmountOut) {
@@ -621,16 +629,22 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IUnlockCallback, IJBBu
 
         SwapCallbackData memory params = abi.decode(data, (SwapCallbackData));
 
+        // Compute a price limit that stops the swap if the rate is worse than the minimum acceptable output.
+        bool zeroForOne = !params.projectTokenIs0;
+        uint160 sqrtPriceLimit = JBSwapLib.sqrtPriceLimitFromAmounts({
+            amountIn: params.amountIn,
+            minimumAmountOut: params.minimumSwapAmountOut,
+            zeroForOne: zeroForOne
+        });
+
         // Execute the swap: we're buying project tokens (the output) with terminal tokens (the input).
         // zeroForOne = !projectTokenIs0 (we swap terminal→project, terminal is the "other" token).
         BalanceDelta delta = POOL_MANAGER.swap({
             key: params.key,
             params: SwapParams({
-                zeroForOne: !params.projectTokenIs0,
+                zeroForOne: zeroForOne,
                 amountSpecified: -int256(params.amountIn), // Negative = exact input
-                sqrtPriceLimitX96: params.projectTokenIs0
-                    ? TickMath.MAX_SQRT_PRICE - 1
-                    : TickMath.MIN_SQRT_PRICE + 1
+                sqrtPriceLimitX96: sqrtPriceLimit
             }),
             hookData: ""
         });
@@ -690,11 +704,13 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IUnlockCallback, IJBBu
     /// @notice Swap the terminal token to receive project tokens via V4.
     /// @param context The `afterPayRecordedContext` passed in by the terminal.
     /// @param projectTokenIs0 Whether the project token is currency0 in the pool.
+    /// @param minimumSwapAmountOut The minimum acceptable output, used for sqrtPriceLimit computation.
     /// @param controller The controller used to mint and burn tokens.
     /// @return amountReceived The amount of project tokens received from the swap.
     function _swap(
         JBAfterPayRecordedContext calldata context,
         bool projectTokenIs0,
+        uint256 minimumSwapAmountOut,
         IJBController controller
     )
         internal
@@ -725,6 +741,7 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IUnlockCallback, IJBBu
                 key: key,
                 projectTokenIs0: projectTokenIs0,
                 amountIn: amountToSwapWith,
+                minimumSwapAmountOut: minimumSwapAmountOut,
                 terminalToken: context.forwardedAmount.token
             })
         );

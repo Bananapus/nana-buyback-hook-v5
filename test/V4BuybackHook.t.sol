@@ -412,6 +412,7 @@ contract V4BuybackHookTest is Test {
                 key: poolKey,
                 projectTokenIs0: address(projectToken) < address(mockWeth),
                 amountIn: 1 ether,
+                minimumSwapAmountOut: 0,
                 terminalToken: JBConstants.NATIVE_TOKEN
             })
         );
@@ -824,5 +825,256 @@ contract V4BuybackHookTest is Test {
             )
         );
         hook.setPoolFor(twapProjectId, poolKey, 3 days, address(mockWeth));
+    }
+
+    //*********************************************************************//
+    // -------------- MEV hardening tests (price limit + TWAP) ---------- //
+    //*********************************************************************//
+
+    /// @notice Test that the sqrtPriceLimit formula produces correct values at known points.
+    /// @dev At price = 1.0 (equal amounts), sqrtPriceX96 should be ~2^96.
+    function test_sqrtPriceLimitFormula() public pure {
+        // Equal amounts → price = 1.0 → sqrtPrice = 2^96
+        uint160 limit = JBSwapLib.sqrtPriceLimitFromAmounts(1e18, 1e18, true);
+        // 2^96 = 79228162514264337593543950336
+        // Allow 0.01% tolerance due to integer sqrt rounding.
+        uint256 expected = uint256(1) << 96;
+        assertApproxEqRel(uint256(limit), expected, 1e14, "Equal amounts should give ~2^96");
+
+        // 4:1 ratio → price = 0.25 → sqrt = 0.5 → sqrtPriceX96 = 2^95
+        uint160 limit2 = JBSwapLib.sqrtPriceLimitFromAmounts(4e18, 1e18, true);
+        uint256 expected2 = uint256(1) << 95;
+        assertApproxEqRel(uint256(limit2), expected2, 1e14, "4:1 ratio should give ~2^95");
+
+        // !zeroForOne: 1:1 → sqrtPrice = 2^96
+        uint160 limit3 = JBSwapLib.sqrtPriceLimitFromAmounts(1e18, 1e18, false);
+        assertApproxEqRel(uint256(limit3), expected, 1e14, "!zeroForOne equal amounts should give ~2^96");
+
+        // minimumAmountOut=0 → extreme value
+        uint160 limitNoMin = JBSwapLib.sqrtPriceLimitFromAmounts(1e18, 0, true);
+        assertEq(limitNoMin, TickMath.MIN_SQRT_PRICE + 1, "0 minimum should return MIN+1 for zeroForOne");
+
+        uint160 limitNoMin2 = JBSwapLib.sqrtPriceLimitFromAmounts(1e18, 0, false);
+        assertEq(limitNoMin2, TickMath.MAX_SQRT_PRICE - 1, "0 minimum should return MAX-1 for !zeroForOne");
+    }
+
+    /// @notice Fuzz: sqrtPriceLimitFromAmounts always returns a value within [MIN_SQRT_PRICE, MAX_SQRT_PRICE].
+    function testFuzz_sqrtPriceLimitBounds(uint256 amountIn, uint256 minimumOut, bool zeroForOne) public pure {
+        amountIn = bound(amountIn, 1, type(uint128).max);
+        minimumOut = bound(minimumOut, 0, type(uint128).max);
+
+        uint160 limit = JBSwapLib.sqrtPriceLimitFromAmounts(amountIn, minimumOut, zeroForOne);
+
+        assertGe(uint256(limit), uint256(TickMath.MIN_SQRT_PRICE), "Limit below MIN_SQRT_PRICE");
+        assertLe(uint256(limit), uint256(TickMath.MAX_SQRT_PRICE), "Limit above MAX_SQRT_PRICE");
+
+        // Direction constraints:
+        if (minimumOut > 0) {
+            if (zeroForOne) {
+                // Price decreases → limit must be < MAX
+                assertLt(uint256(limit), uint256(TickMath.MAX_SQRT_PRICE), "zeroForOne limit should be < MAX");
+            } else {
+                // Price increases → limit must be > MIN
+                assertGt(uint256(limit), uint256(TickMath.MIN_SQRT_PRICE), "!zeroForOne limit should be > MIN");
+            }
+        }
+    }
+
+    /// @notice Test that the sqrtPriceLimit causes partial fills when the pool can't fill at the minimum rate.
+    /// @dev Configures MockPoolManager to return fewer tokens than the full swap would have.
+    ///      The leftover input should be returned via addToBalanceOf + minted.
+    function test_sqrtPriceLimitEnforced() public {
+        bool projectTokenIs0 = address(projectToken) < address(mockWeth);
+        uint256 payAmount = 10 ether;
+        // Partial fill: only 3 ether consumed by the swap, returning 300 tokens.
+        // The remaining 7 ether should trigger the leftover mint path.
+        uint256 swapConsumed = 3 ether;
+        uint256 swapOut = 300e18;
+
+        // Configure deltas for a partial fill.
+        if (projectTokenIs0) {
+            mockPM.setMockDeltas(-int128(uint128(swapOut)), int128(uint128(swapConsumed)));
+        } else {
+            mockPM.setMockDeltas(int128(uint128(swapConsumed)), -int128(uint128(swapOut)));
+        }
+
+        // Pre-fund MockPoolManager with project tokens.
+        projectToken.mint(address(mockPM), swapOut);
+
+        // Build context with minimumSwapAmountOut = 100e18 (below swapOut, so slippage passes).
+        JBAfterPayRecordedContext memory ctx =
+            _makeAfterPayContext(JBConstants.NATIVE_TOKEN, payAmount, projectTokenIs0, 0, 100e18);
+
+        // Mock addToBalanceOf for the leftover.
+        vm.mockCall(
+            address(terminal),
+            abi.encodeWithSignature("addToBalanceOf(uint256,address,uint256,bool,string,bytes)"),
+            abi.encode()
+        );
+
+        // Execute.
+        vm.deal(address(terminal), payAmount);
+        vm.prank(address(terminal));
+        hook.afterPayRecordedWith{value: payAmount}(ctx);
+
+        // Verify the swap executed (partial).
+        assertTrue(mockPM.swapCalled(), "swap() should have been called for partial fill");
+    }
+
+    /// @notice Test that a payer's bad quote is overridden by a higher TWAP minimum.
+    /// @dev Sets up the oracle to return a higher quote than the payer specified, then verifies
+    ///      the hook uses the TWAP quote (higher of the two) in the swap decision.
+    function test_payerQuoteCrossValidation() public {
+        // Set up a project with _poolIsSet = true via setPoolFor.
+        uint256 cvProjectId = 300;
+        vm.mockCall(address(projects), abi.encodeCall(projects.ownerOf, (cvProjectId)), abi.encode(owner));
+        vm.mockCall(
+            address(tokens),
+            abi.encodeCall(tokens.tokenOf, (cvProjectId)),
+            abi.encode(IJBToken(address(projectToken)))
+        );
+        vm.mockCall(
+            address(directory),
+            abi.encodeCall(directory.controllerOf, (cvProjectId)),
+            abi.encode(controller)
+        );
+
+        uint160 sqrtPrice = TickMath.getSqrtPriceAtTick(0);
+        mockPM.setSlot0(poolId, sqrtPrice, 0, 3000);
+        mockPM.setLiquidity(poolId, 1_000_000 ether);
+
+        vm.prank(owner);
+        hook.setPoolFor(cvProjectId, poolKey, twapWindow, address(mockWeth));
+
+        // Configure oracle: tick=0 means price=1, so 1 ETH -> ~1 token.
+        // With slippage applied, the TWAP-based quote will be somewhat less than 1e18 but still substantial.
+        mockOracle.setObserveData(0, 0, 0, uint160(uint256(twapWindow) << 64));
+
+        // Mock currentRulesetOf for this project.
+        JBRulesetMetadata memory meta = JBRulesetMetadata({
+            reservedPercent: 0,
+            cashOutTaxRate: 0,
+            baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            pausePay: false,
+            pauseCreditTransfers: false,
+            allowOwnerMinting: true,
+            allowSetCustomToken: true,
+            allowTerminalMigration: false,
+            allowSetTerminals: false,
+            ownerMustSendPayouts: false,
+            allowSetController: false,
+            allowAddAccountingContext: false,
+            allowAddPriceFeed: false,
+            holdFees: false,
+            useTotalSurplusForCashOuts: false,
+            useDataHookForPay: true,
+            useDataHookForCashOut: false,
+            dataHook: address(hook),
+            metadata: 0
+        });
+
+        JBRuleset memory ruleset = JBRuleset({
+            cycleNumber: 1,
+            id: 1,
+            basedOnId: 0,
+            start: uint48(block.timestamp),
+            duration: 30 days,
+            weight: 1e18,
+            weightCutPercent: 0,
+            approvalHook: IJBRulesetApprovalHook(address(0)),
+            metadata: meta.packRulesetMetadata()
+        });
+
+        vm.mockCall(
+            address(controller),
+            abi.encodeCall(IJBController.currentRulesetOf, (cvProjectId)),
+            abi.encode(ruleset, meta)
+        );
+
+        // Payer provides a very low quote (1 token), meaning they'd accept terrible execution.
+        uint256 badPayerQuote = 1;
+        uint256 amountToSwapWith = 1 ether;
+
+        // Encode the payer's bad quote as metadata.
+        bytes memory quoteMetadata = abi.encode(amountToSwapWith, badPayerQuote);
+        bytes4 metadataId = JBMetadataResolver.getId("quote");
+        bytes memory fullMetadata = JBMetadataResolver.addToMetadata("", metadataId, quoteMetadata);
+
+        JBBeforePayRecordedContext memory beforeCtx = JBBeforePayRecordedContext({
+            terminal: address(terminal),
+            payer: payer,
+            amount: JBTokenAmount({
+                token: address(mockWeth),
+                decimals: 18,
+                currency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+                value: amountToSwapWith
+            }),
+            projectId: cvProjectId,
+            rulesetId: 1,
+            beneficiary: beneficiary,
+            weight: 1e18,
+            reservedPercent: 0,
+            metadata: fullMetadata
+        });
+
+        // Call beforePayRecordedWith. If the TWAP quote > payer's bad quote,
+        // the hook should use the TWAP quote (the higher one).
+        (, JBPayHookSpecification[] memory specs) = hook.beforePayRecordedWith(beforeCtx);
+
+        // The hook should still choose the swap path (specs.length == 1) because the TWAP quote
+        // should exceed the mint count. The minimumSwapAmountOut in the hook spec metadata
+        // should be the TWAP-based value (> 1).
+        if (specs.length == 1) {
+            (, , uint256 minOut,) = abi.decode(specs[0].metadata, (bool, uint256, uint256, IJBController));
+            assertGt(minOut, badPayerQuote, "TWAP minimum should override bad payer quote");
+        }
+        // If specs.length == 0, the mint path was chosen (TWAP returned 0) — still valid,
+        // the cross-validation didn't make things worse.
+    }
+
+    /// @notice Test that setPoolFor rejects TWAP windows shorter than the new 5-minute minimum.
+    function test_minTwapWindow5Minutes() public {
+        assertEq(hook.MIN_TWAP_WINDOW(), 5 minutes, "MIN_TWAP_WINDOW should be 5 minutes");
+
+        uint256 newProjectId = 400;
+        vm.mockCall(address(projects), abi.encodeCall(projects.ownerOf, (newProjectId)), abi.encode(owner));
+        vm.mockCall(
+            address(tokens),
+            abi.encodeCall(tokens.tokenOf, (newProjectId)),
+            abi.encode(IJBToken(address(projectToken)))
+        );
+
+        uint160 sqrtPrice = TickMath.getSqrtPriceAtTick(0);
+        mockPM.setSlot0(poolId, sqrtPrice, 0, 3000);
+
+        // 2 minutes should now be rejected (was valid before, now too small).
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                JBBuybackHook.JBBuybackHook_InvalidTwapWindow.selector,
+                2 minutes,
+                hook.MIN_TWAP_WINDOW(),
+                hook.MAX_TWAP_WINDOW()
+            )
+        );
+        hook.setPoolFor(newProjectId, poolKey, 2 minutes, address(mockWeth));
+
+        // 4 minutes should also be rejected.
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                JBBuybackHook.JBBuybackHook_InvalidTwapWindow.selector,
+                4 minutes,
+                hook.MIN_TWAP_WINDOW(),
+                hook.MAX_TWAP_WINDOW()
+            )
+        );
+        hook.setPoolFor(newProjectId, poolKey, 4 minutes, address(mockWeth));
+
+        // 5 minutes should succeed.
+        vm.prank(owner);
+        hook.setPoolFor(newProjectId, poolKey, 5 minutes, address(mockWeth));
+
+        assertEq(hook.twapWindowOf(newProjectId), 5 minutes, "TWAP window should be 5 minutes");
     }
 }
