@@ -53,8 +53,8 @@ contract MEVScenarios is Test {
 
             oracleQuote = JBSwapLib.getQuoteAtTick(fairTick, uint128(amountIn), address(0x01), address(0x02));
             uint160 sqrtP = TickMath.getSqrtPriceAtTick(fairTick);
-            uint256 impactBps = JBSwapLib.calculateImpact(amountIn, liquidity, sqrtP, zeroForOne);
-            slippageBps = JBSwapLib.getSlippageTolerance(impactBps, feeBps);
+            uint256 impact = JBSwapLib.calculateImpact(amountIn, liquidity, sqrtP, zeroForOne);
+            slippageBps = JBSwapLib.getSlippageTolerance(impact, feeBps);
             uint256 minimumOut = oracleQuote - (oracleQuote * slippageBps) / BPS;
             uint160 priceLimit = JBSwapLib.sqrtPriceLimitFromAmounts(amountIn, minimumOut, zeroForOne);
             limitTick = TickMath.getTickAtSqrtPrice(priceLimit);
@@ -62,7 +62,7 @@ contract MEVScenarios is Test {
             console.log("");
             console.log("====== SANDWICH PROTECTION BY ATTACK STRENGTH ======");
             console.log("Pool: 1M liq, 0.3%% fee | Victim: 100 ETH");
-            console.log("Impact: %s bps | Slippage: %s bps", impactBps, slippageBps);
+            console.log("Impact: %s | Slippage: %s bps", impact, slippageBps);
             console.log("MinOut: %s | LimitTick: %s", _formatEther(minimumOut), _tickStr(limitTick));
             console.log("");
         }
@@ -129,7 +129,7 @@ contract MEVScenarios is Test {
                 uint256 minOut = quote - (quote * slippage) / BPS;
                 uint256 lostTokens = quote - minOut;
 
-                console.log("  %s ETH: impact=%sbps slippage=%sbps",
+                console.log("  %s ETH: impact=%s slippage=%sbps",
                     _formatEther(amountIn), _toString(impact), _toString(slippage));
                 console.log("    quote=%s minOut=%s maxLoss=%s",
                     _formatEther(quote), _formatEther(minOut), _formatEther(lostTokens));
@@ -291,37 +291,36 @@ contract MEVScenarios is Test {
     // ---- test: impact estimation edge case at zero ------------------- //
     //*********************************************************************//
 
-    /// @notice When impact rounds to 0 (deep pool + small swap), the uncertain tolerance
-    ///         kicks in. This is correct but means deep pools get a 10.5% tolerance
-    ///         for small swaps. Verify and explain.
-    function test_zeroImpactUncertainTolerance() public pure {
+    /// @notice With high-precision impact (1e18 amplifier), even tiny swaps in deep pools
+    ///         get tight tolerance (pool fee + 1% buffer) instead of the old 10.5% flat rate.
+    function test_deepPoolPrecisionTolerance() public pure {
         console.log("");
-        console.log("====== ZERO IMPACT -> UNCERTAIN TOLERANCE ======");
-        console.log("When impact rounds to 0 (tiny swap in deep pool),");
-        console.log("the sigmoid returns UNCERTAIN_TOLERANCE (1050 bps = 10.5%%).");
-        console.log("This is conservative but safe: better to overshoot than undershoot.");
+        console.log("====== DEEP POOL PRECISION TOLERANCE ======");
+        console.log("With 1e18 precision, small swaps in deep pools get tight tolerance:");
+        console.log("minSlippage = poolFee + 1%% buffer, floor 2%%.");
         console.log("");
 
         uint160 sqrtP = TickMath.getSqrtPriceAtTick(0);
 
-        // Deep pool: 100M liquidity, tiny swaps.
+        // Deep pool: 100M liquidity, various swap sizes.
         uint128 liq = 100_000_000e18;
-        uint256[4] memory amounts = [uint256(0.01 ether), 0.1 ether, 1 ether, 10 ether];
+        uint256[5] memory amounts = [uint256(0.01 ether), 0.1 ether, 1 ether, 10 ether, 1000 ether];
 
         for (uint256 i = 0; i < amounts.length; i++) {
             uint256 impact = JBSwapLib.calculateImpact(amounts[i], liq, sqrtP, true);
             uint256 slippage = JBSwapLib.getSlippageTolerance(impact, 30);
-            string memory note = impact == 0 ? "UNCERTAIN" : "sigmoid";
 
             console.log("  %s ETH: impact=%s slippage=%sbps",
                 _formatEther(amounts[i]), _toString(impact), _toString(slippage));
-            console.log("    mode: %s", note);
         }
 
+        // Verify: all small swaps get ~200 bps (2%) tolerance, not 1050 (10.5%)
+        uint256 tinyImpact = JBSwapLib.calculateImpact(1 ether, liq, sqrtP, true);
+        uint256 tinySlippage = JBSwapLib.getSlippageTolerance(tinyImpact, 30);
+        assertEq(tinySlippage, 200, "1 ETH in 100M pool should get minSlippage (200 bps)");
+
         console.log("");
-        console.log("At 10 ETH in a 100M pool, impact is still 0. The uncertain");
-        console.log("tolerance (10.5%%) is arguably too generous for such pools.");
-        console.log("But it is safe -- the sqrtPriceLimit still constrains execution.");
+        console.log("KEY: all get tight 200 bps (2%%), not the old 1050 bps (10.5%%).");
     }
 
     //*********************************************************************//

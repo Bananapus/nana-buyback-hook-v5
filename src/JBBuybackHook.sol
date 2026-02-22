@@ -386,13 +386,13 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IUnlockCallback, IJBBu
         // Calculate price impact.
         bool zeroForOne = terminalToken < projectToken;
         uint160 sqrtP = TickMath.getSqrtPriceAtTick(arithmeticMeanTick);
-        uint256 impactBps = JBSwapLib.calculateImpact(amountIn, meanLiquidity, sqrtP, zeroForOne);
+        uint256 impact = JBSwapLib.calculateImpact(amountIn, meanLiquidity, sqrtP, zeroForOne);
 
         // Get the pool fee in bps (V4 fees are in hundredths of a bip, so divide by 100).
         uint256 poolFeeBps = uint256(key.fee) / 100;
 
         // Calculate continuous sigmoid slippage tolerance.
-        uint256 slippageTolerance = JBSwapLib.getSlippageTolerance(impactBps, poolFeeBps);
+        uint256 slippageTolerance = JBSwapLib.getSlippageTolerance(impact, poolFeeBps);
 
         // If the slippage tolerance is the maximum, return 0 to trigger mint.
         if (slippageTolerance >= TWAP_SLIPPAGE_DENOMINATOR) return 0;
