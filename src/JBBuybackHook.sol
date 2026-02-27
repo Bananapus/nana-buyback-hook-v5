@@ -35,6 +35,7 @@ import {JBPermissionIds} from "@bananapus/permission-ids-v5/src/JBPermissionIds.
 
 import {IJBBuybackHook} from "./interfaces/IJBBuybackHook.sol";
 import {IWETH9} from "./interfaces/external/IWETH9.sol";
+import {JBSwapLib} from "./libraries/JBSwapLib.sol";
 
 /// @custom:benediction DEVS BENEDICAT ET PROTEGAT CONTRACTVS MEAM
 /// @notice The buyback hook allows beneficiaries of a payment to a project to either:
@@ -371,17 +372,21 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IJBBuybackHook {
         // If there's no liquidity, return an empty quote.
         if (liquidity == 0) return 0;
 
-        // Calculate the slippage tolerance.
+        // Get the pool fee in basis points for the sigmoid formula.
+        uint256 poolFeeBps = uint256(pool.fee()) / 100;
+
+        // Calculate the slippage tolerance using the continuous sigmoid formula.
         uint256 slippageTolerance = _getSlippageTolerance({
             amountIn: amountIn,
             liquidity: liquidity,
             projectToken: projectToken,
             terminalToken: terminalToken,
-            arithmeticMeanTick: arithmeticMeanTick
+            arithmeticMeanTick: arithmeticMeanTick,
+            poolFeeBps: poolFeeBps
         });
 
-        // If the slippage tolerance is the maximum, return an empty quote.
-        if (slippageTolerance == TWAP_SLIPPAGE_DENOMINATOR) return 0;
+        // If the slippage tolerance meets or exceeds the maximum, return an empty quote.
+        if (slippageTolerance >= TWAP_SLIPPAGE_DENOMINATOR) return 0;
 
         // Get a quote based on this TWAP tick.
         amountOut = OracleLibrary.getQuoteAtTick({
@@ -396,18 +401,21 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IJBBuybackHook {
     }
 
     /// @notice Get the slippage tolerance for a given amount in and liquidity.
+    /// @dev Uses the continuous sigmoid formula from JBSwapLib for smoother behavior across all swap sizes.
     /// @param amountIn The amount in to get the slippage tolerance for.
     /// @param liquidity The liquidity to get the slippage tolerance for.
     /// @param projectToken The project token to get the slippage tolerance for.
     /// @param terminalToken The terminal token to get the slippage tolerance for.
     /// @param arithmeticMeanTick The arithmetic mean tick to get the slippage tolerance for.
+    /// @param poolFeeBps The pool fee in basis points (e.g., 30 for 0.3%).
     /// @return slippageTolerance The slippage tolerance for the given amount in and liquidity.
     function _getSlippageTolerance(
         uint256 amountIn,
         uint128 liquidity,
         address projectToken,
         address terminalToken,
-        int24 arithmeticMeanTick
+        int24 arithmeticMeanTick,
+        uint256 poolFeeBps
     )
         internal
         pure
@@ -423,25 +431,11 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IJBBuybackHook {
         // If the sqrtP is 0, there's no valid price so we'll return the maximum slippage tolerance.
         if (sqrtP == 0) return TWAP_SLIPPAGE_DENOMINATOR;
 
-        // Approximate % of range liquidity consumed by the swap (in bps)
-        // Multiply by 10 to to amplify the results and prevent results on the low end from rounding to zero.
-        uint256 base = mulDiv(amountIn, 10 * TWAP_SLIPPAGE_DENOMINATOR, uint256(liquidity));
+        // Calculate impact using 1e18 precision (prevents rounding to 0 for small swaps).
+        uint256 impact = JBSwapLib.calculateImpact(amountIn, liquidity, sqrtP, zeroForOne);
 
-        // Compute final slippage tolerance (bps), normalized by √P
-        uint256 slippageTolerance =
-            zeroForOne ? mulDiv(base, uint256(sqrtP), uint256(1) << 96) : mulDiv(base, uint256(1) << 96, uint256(sqrtP));
-
-        // Adjust the slippage tolerance to be reasonable given the ranges.
-        if (slippageTolerance > 15 * TWAP_SLIPPAGE_DENOMINATOR) return TWAP_SLIPPAGE_DENOMINATOR * 88 / 100;
-        else if (slippageTolerance > 10 * TWAP_SLIPPAGE_DENOMINATOR) return TWAP_SLIPPAGE_DENOMINATOR * 67 / 100;
-        else if (slippageTolerance > 30_000) return slippageTolerance / 12;
-        else if (slippageTolerance > 15_000) return slippageTolerance / 10;
-        else if (slippageTolerance > 10_000) return slippageTolerance * 2 / 15;
-        else if (slippageTolerance > 5000) return slippageTolerance * 3 / 20;
-        else if (slippageTolerance > 1500) return slippageTolerance / 5;
-        else if (slippageTolerance > 500) return (slippageTolerance / 5) + 200;
-        else if (slippageTolerance > 0) return (slippageTolerance / 5) + 100;
-        else return UNCERTAIN_TWAP_SLIPPAGE_TOLERANCE;
+        // Use the continuous sigmoid formula with pool fee awareness.
+        return JBSwapLib.getSlippageTolerance(impact, poolFeeBps);
     }
 
     /// @notice The calldata. Preferred to use over `msg.data`.
@@ -486,7 +480,12 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IJBBuybackHook {
 
         // Get a reference to the number of project tokens that was swapped for.
         // slither-disable-next-line reentrancy-events
-        uint256 exactSwapAmountOut = _swap({context: context, projectTokenIs0: projectTokenIs0, controller: controller});
+        uint256 exactSwapAmountOut = _swap({
+            context: context,
+            projectTokenIs0: projectTokenIs0,
+            controller: controller,
+            minimumSwapAmountOut: minimumSwapAmountOut
+        });
 
         // Ensure swap satisfies payer/client minimum amount or calculated TWAP if payer/client did not specify.
         if (exactSwapAmountOut < minimumSwapAmountOut) {
@@ -726,11 +725,13 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IJBBuybackHook {
     /// @param context The `afterPayRecordedContext` passed in by the terminal.
     /// @param projectTokenIs0 A flag indicating whether the pool references the project token as the first in the pair.
     /// @param controller The controller used to mint and burn tokens.
+    /// @param minimumSwapAmountOut The minimum acceptable output from the swap (used for sqrtPriceLimit).
     /// @return amountReceived The amount of project tokens received from the swap.
     function _swap(
         JBAfterPayRecordedContext calldata context,
         bool projectTokenIs0,
-        IJBController controller
+        IJBController controller,
+        uint256 minimumSwapAmountOut
     )
         internal
         returns (uint256 amountReceived)
@@ -745,13 +746,22 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IJBBuybackHook {
         // Get a reference to the pool that'll be used to make the swap.
         IUniswapV3Pool pool = poolOf[context.projectId][terminalTokenWithWETH];
 
+        // Compute a dynamic sqrtPriceLimit from the minimum acceptable output (MEV protection).
+        // When selling terminalToken for projectToken:
+        //   zeroForOne = !projectTokenIs0
+        uint160 sqrtPriceLimit = JBSwapLib.sqrtPriceLimitFromAmounts(
+            amountToSwapWith,
+            minimumSwapAmountOut,
+            !projectTokenIs0
+        );
+
         // Try swapping.
         // slither-disable-next-line reentrancy-events
         try pool.swap({
             recipient: address(this),
             zeroForOne: !projectTokenIs0,
             amountSpecified: int256(amountToSwapWith),
-            sqrtPriceLimitX96: projectTokenIs0 ? TickMath.MAX_SQRT_RATIO - 1 : TickMath.MIN_SQRT_RATIO + 1,
+            sqrtPriceLimitX96: sqrtPriceLimit,
             data: abi.encode(context.projectId, context.forwardedAmount.token)
         }) returns (int256 amount0, int256 amount1) {
             // If the swap succeded, take note of the amount of tokens received.
