@@ -31,12 +31,12 @@ Route project payments through the better of two paths -- minting from the termi
 
 | Dependency | Import | Used For |
 |------------|--------|----------|
-| `nana-core-v5` | `IJBDirectory`, `IJBController`, `IJBMultiTerminal` | Directory lookups (`isTerminalOf`, `controllerOf`), token minting (`mintTokensOf`), token burning (`burnTokensOf`), balance management (`addToBalanceOf`) |
-| `nana-core-v5` | `IJBPrices` | Cross-currency weight ratio when ruleset base currency differs from payment currency |
-| `nana-core-v5` | `IJBTokens`, `IJBProjects`, `IJBPermissions` | Token lookups, project ownership, permission checks (`SET_BUYBACK_POOL`, `SET_BUYBACK_TWAP`) |
-| `nana-core-v5` | `JBMetadataResolver` | Parsing `"quote"` metadata key from payment calldata (contains `amountToSwapWith` and `minimumSwapAmountOut`) |
-| `nana-core-v5` | `JBRulesetMetadataResolver` | Extracting `baseCurrency()` from packed ruleset metadata |
-| `nana-permission-ids-v5` | `JBPermissionIds` | Permission ID constants |
+| `nana-core-v6` | `IJBDirectory`, `IJBController`, `IJBMultiTerminal` | Directory lookups (`isTerminalOf`, `controllerOf`), token minting (`mintTokensOf`), token burning (`burnTokensOf`), balance management (`addToBalanceOf`) |
+| `nana-core-v6` | `IJBPrices` | Cross-currency weight ratio when ruleset base currency differs from payment currency |
+| `nana-core-v6` | `IJBTokens`, `IJBProjects`, `IJBPermissions` | Token lookups, project ownership, permission checks (`SET_BUYBACK_POOL`, `SET_BUYBACK_TWAP`) |
+| `nana-core-v6` | `JBMetadataResolver` | Parsing `"quote"` metadata key from payment calldata (contains `amountToSwapWith` and `minimumSwapAmountOut`) |
+| `nana-core-v6` | `JBRulesetMetadataResolver` | Extracting `baseCurrency()` from packed ruleset metadata |
+| `nana-permission-ids-v6` | `JBPermissionIds` | Permission ID constants |
 | `@uniswap/v3-core` | `IUniswapV3Pool`, `TickMath` | Pool swaps and tick-to-sqrtPrice conversion |
 | `@uniswap/v3-periphery` | `OracleLibrary` | TWAP oracle consultation (`consult`, `getQuoteAtTick`, `getOldestObservationSecondsAgo`) |
 | `@prb/math` | `mulDiv` | Safe fixed-point multiplication |
