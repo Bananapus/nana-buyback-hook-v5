@@ -20,6 +20,7 @@ import "forge-std/Test.sol";
 
 import "./helpers/PoolAddress.sol";
 import "src/JBBuybackHook.sol";
+import {JBSwapLib} from "src/libraries/JBSwapLib.sol";
 
 /// @notice Unit tests for `JBBuybackHook`.
 contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
@@ -292,11 +293,8 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         beforePayRecordedContext.weight = tokenCount;
         beforePayRecordedContext.metadata = "";
 
-        // Mock the pool being unlocked.
+        // Mock the pool being unlocked (slot0 is called first to check if the pool is valid).
         vm.mockCall(address(pool), abi.encodeCall(pool.slot0, ()), abi.encode(0, 0, 0, 1, 0, 0, true));
-        vm.mockCall(address(pool), abi.encodeCall(pool.liquidity, ()), abi.encode(1 ether));
-        vm.expectCall(address(pool), abi.encodeCall(pool.slot0, ()));
-        vm.expectCall(address(pool), abi.encodeCall(pool.liquidity, ()));
 
         // Return the oldest observationTimestamp as the current block, making oldest observation 0.
         mockExpect(address(pool), abi.encodeCall(pool.observations, (0)), abi.encode(block.timestamp, 0, 0, true));
@@ -355,34 +353,10 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         vm.prank(terminalStore);
         (weightReturned, specificationsReturned) = hook.beforePayRecordedWith(beforePayRecordedContext);
 
-        // Bypass testing the Uniswap oracle lib by using the internal function `_getQuote(...)`.
-        uint256 twapAmountOut = hook.ForTest_getQuote(projectId, address(projectToken), 1 ether, address(weth));
-
-        // If minting would yield more tokens, mint:
-        if (tokenCount >= twapAmountOut) {
-            // No hook specifications should be returned.
-            assertEq(specificationsReturned.length, 0);
-
-            // The weight should be returned unchanged.
-            assertEq(weightReturned, tokenCount);
-        }
-        // Otherwise, swap (with the appropriate hook specification):
-        else {
-            // There should be 1 hook specification,
-            assertEq(specificationsReturned.length, 1);
-            // with the correct hook address,
-            assertEq(address(specificationsReturned[0].hook), address(hook));
-            // the full amount paid in,
-            assertEq(specificationsReturned[0].amount, 1 ether);
-            // the correct metadata,
-            assertEq(
-                specificationsReturned[0].metadata,
-                abi.encode(address(projectToken) < address(weth), 0, twapAmountOut, controller),
-                "Wrong metadata returned in hook specification"
-            );
-            // and a weight of 0 to prevent additional minting from the terminal.
-            assertEq(weightReturned, 0);
-        }
+        // With M-5 fix: when oldestObservation == 0 (no TWAP history), _getQuote returns 0
+        // to avoid using the flash-loan-manipulable slot0. This always falls back to minting.
+        assertEq(specificationsReturned.length, 0, "Should have no hook specs (fall back to mint)");
+        assertEq(weightReturned, tokenCount, "Should return original weight (fall back to mint)");
     }
 
     /// @notice Test `beforePayRecordedContext` when no quote is provided.
@@ -395,6 +369,7 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
 
         // Mock the pool being unlocked.
         vm.mockCall(address(pool), abi.encodeCall(pool.slot0, ()), abi.encode(0, 0, 0, 1, 0, 0, true));
+        vm.mockCall(address(pool), abi.encodeCall(pool.fee, ()), abi.encode(uint24(3000)));
         vm.expectCall(address(pool), abi.encodeCall(pool.slot0, ()));
 
         // Return the oldest observationTimestamp as the current block, making oldest observation 0.
@@ -800,6 +775,11 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             controller // The token count is used.
         );
 
+        // Compute the dynamic sqrtPriceLimit the production code will use.
+        bool zeroForOne_swapETH = address(weth) < address(projectToken);
+        uint160 sqrtPriceLimit_swapETH =
+            JBSwapLib.sqrtPriceLimitFromAmounts(1 ether, tokenCount, zeroForOne_swapETH);
+
         // Mock and expect the swap call.
         vm.mockCall(
             address(pool),
@@ -807,9 +787,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
                 pool.swap,
                 (
                     address(hook),
-                    address(weth) < address(projectToken),
+                    zeroForOne_swapETH,
                     int256(1 ether),
-                    address(projectToken) < address(weth) ? TickMath.MAX_SQRT_RATIO - 1 : TickMath.MIN_SQRT_RATIO + 1,
+                    sqrtPriceLimit_swapETH,
                     abi.encode(projectId, JBConstants.NATIVE_TOKEN)
                 )
             ),
@@ -821,9 +801,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
                 pool.swap,
                 (
                     address(hook),
-                    address(weth) < address(projectToken),
+                    zeroForOne_swapETH,
                     int256(1 ether),
-                    address(projectToken) < address(weth) ? TickMath.MAX_SQRT_RATIO - 1 : TickMath.MIN_SQRT_RATIO + 1,
+                    sqrtPriceLimit_swapETH,
                     abi.encode(projectId, JBConstants.NATIVE_TOKEN)
                 )
             )
@@ -952,6 +932,11 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
             controller // The TWAP quote, which exceeds the token count, is used.
         );
 
+        // Compute the dynamic sqrtPriceLimit the production code will use.
+        bool zeroForOne_extra = address(weth) < address(projectToken);
+        uint160 sqrtPriceLimit_extra =
+            JBSwapLib.sqrtPriceLimitFromAmounts(1 ether, twapQuote, zeroForOne_extra);
+
         // Mock and expect the swap call.
         vm.mockCall(
             address(pool),
@@ -959,9 +944,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
                 pool.swap,
                 (
                     address(hook),
-                    address(weth) < address(projectToken),
+                    zeroForOne_extra,
                     int256(1 ether),
-                    address(projectToken) < address(weth) ? TickMath.MAX_SQRT_RATIO - 1 : TickMath.MIN_SQRT_RATIO + 1,
+                    sqrtPriceLimit_extra,
                     abi.encode(projectId, JBConstants.NATIVE_TOKEN)
                 )
             ),
@@ -973,9 +958,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
                 pool.swap,
                 (
                     address(hook),
-                    address(weth) < address(projectToken),
+                    zeroForOne_extra,
                     int256(1 ether),
-                    address(projectToken) < address(weth) ? TickMath.MAX_SQRT_RATIO - 1 : TickMath.MIN_SQRT_RATIO + 1,
+                    sqrtPriceLimit_extra,
                     abi.encode(projectId, JBConstants.NATIVE_TOKEN)
                 )
             )
@@ -1106,6 +1091,13 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         afterPayRecordedContext.hookMetadata =
             abi.encode(address(projectToken) < address(weth), 0, tokenCount, controller);
 
+        // Compute the dynamic sqrtPriceLimit the production code will use.
+        // Note: projectTokenIs0 from hookMetadata is `address(projectToken) < address(weth)`,
+        // so zeroForOne = !projectTokenIs0 = !(address(projectToken) < address(weth)).
+        bool zeroForOne_erc20 = !(address(projectToken) < address(weth));
+        uint160 sqrtPriceLimit_erc20 =
+            JBSwapLib.sqrtPriceLimitFromAmounts(1 ether, tokenCount, zeroForOne_erc20);
+
         // Mock and expect the swap call.
         vm.mockCall(
             address(randomPool),
@@ -1113,11 +1105,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
                 randomPool.swap,
                 (
                     address(hook),
-                    address(randomTerminalToken) < address(otherRandomProjectToken),
+                    zeroForOne_erc20,
                     int256(1 ether),
-                    address(otherRandomProjectToken) < address(randomTerminalToken)
-                        ? TickMath.MAX_SQRT_RATIO - 1
-                        : TickMath.MIN_SQRT_RATIO + 1,
+                    sqrtPriceLimit_erc20,
                     abi.encode(randomId, randomTerminalToken)
                 )
             ),
@@ -1129,11 +1119,9 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
                 randomPool.swap,
                 (
                     address(hook),
-                    address(randomTerminalToken) < address(otherRandomProjectToken),
+                    zeroForOne_erc20,
                     int256(1 ether),
-                    address(otherRandomProjectToken) < address(randomTerminalToken)
-                        ? TickMath.MAX_SQRT_RATIO - 1
-                        : TickMath.MIN_SQRT_RATIO + 1,
+                    sqrtPriceLimit_erc20,
                     abi.encode(randomId, randomTerminalToken)
                 )
             )
@@ -1276,6 +1264,11 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
         afterPayRecordedContext.hookMetadata =
             abi.encode(address(projectToken) < address(weth), 0, tokenCount, controller);
 
+        // Compute the dynamic sqrtPriceLimit the production code will use.
+        bool zeroForOne_revert = address(weth) < address(projectToken);
+        uint160 sqrtPriceLimit_revert =
+            JBSwapLib.sqrtPriceLimitFromAmounts(1 ether, tokenCount, zeroForOne_revert);
+
         // Mock the swap call reverting.
         vm.mockCallRevert(
             address(pool),
@@ -1283,10 +1276,10 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
                 pool.swap,
                 (
                     address(hook),
-                    address(weth) < address(projectToken),
+                    zeroForOne_revert,
                     int256(1 ether),
-                    address(projectToken) < address(weth) ? TickMath.MAX_SQRT_RATIO - 1 : TickMath.MIN_SQRT_RATIO + 1,
-                    abi.encode(projectId, weth)
+                    sqrtPriceLimit_revert,
+                    abi.encode(projectId, JBConstants.NATIVE_TOKEN)
                 )
             ),
             abi.encode("no swap")
