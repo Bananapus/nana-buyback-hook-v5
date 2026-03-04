@@ -569,6 +569,9 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IJBBuybackHook {
     /// @dev Uses create2 for callback auth and to allow adding pools which haven't been deployed yet.
     /// This can be called by the project's owner or an address which has the `JBPermissionIds.SET_BUYBACK_POOL`
     /// permission from the owner.
+    /// @dev L-13: Pool addresses are intentionally immutable once set. This prevents manipulation of swap routing
+    /// after a project's buyback hook is configured. If a project needs to use a different pool (e.g., one with
+    /// better liquidity), a new buyback hook must be deployed and configured for the project.
     /// @param projectId The ID of the project to set the pool for.
     /// @param fee The fee used in the pool being set, as a fixed-point number of basis points with 2 decimals. A 0.01%
     /// fee is `100`, a 0.05% fee is `500`, a 0.3% fee is `3000`, and a 1% fee is `10000`.
@@ -592,6 +595,8 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IJBBuybackHook {
         });
 
         // Make sure this pool hasn't already been set in this hook.
+        // L-13: This is intentional — pool addresses are permanently locked after being set to prevent
+        // swap routing manipulation. Changing pools requires deploying a new buyback hook.
         if (poolOf[projectId][terminalToken] != IUniswapV3Pool(address(0))) {
             revert JBBuybackHook_PoolAlreadySet(poolOf[projectId][terminalToken]);
         }
