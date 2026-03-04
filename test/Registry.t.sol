@@ -219,8 +219,8 @@ contract Test_BuybackHookRegistry_Unit is Test {
         vm.prank(owner);
         registry.setDefaultHook(hookA);
 
-        // No project-specific hook set. Lock should copy default.
-        assertEq(address(registry.hookOf(projectId)), address(0), "hookOf should be 0 before lock");
+        // No project-specific hook set. hookOf should already return the default.
+        assertEq(address(registry.hookOf(projectId)), address(hookA), "hookOf should return default before lock");
 
         vm.prank(projectOwner);
         registry.lockHookFor(projectId);
@@ -353,6 +353,37 @@ contract Test_BuybackHookRegistry_Unit is Test {
             registry.supportsInterface(type(IERC165).interfaceId),
             "should support IERC165"
         );
+    }
+
+    //*********************************************************************//
+    // --- hookOf default fallback (L-27) -------------------------------- //
+    //*********************************************************************//
+
+    function test_hookOf_returnsDefaultWhenNoProjectHook() public {
+        // Set a default hook.
+        vm.prank(owner);
+        registry.setDefaultHook(hookA);
+
+        // No project-specific hook set — hookOf should return the default.
+        assertEq(address(registry.hookOf(projectId)), address(hookA), "hookOf should return defaultHook");
+    }
+
+    function test_hookOf_returnsProjectHookOverDefault() public {
+        // Set default to hookA, then set project-specific to hookB.
+        vm.prank(owner);
+        registry.setDefaultHook(hookA);
+
+        vm.prank(owner);
+        registry.allowHook(hookB);
+        vm.prank(projectOwner);
+        registry.setHookFor(projectId, hookB);
+
+        assertEq(address(registry.hookOf(projectId)), address(hookB), "hookOf should prefer project hook");
+    }
+
+    function test_hookOf_returnsZeroWhenNoDefaultAndNoProjectHook() public view {
+        // No default, no project hook → address(0).
+        assertEq(address(registry.hookOf(projectId)), address(0), "hookOf should be address(0) with no hooks");
     }
 
     //*********************************************************************//
