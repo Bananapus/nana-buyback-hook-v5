@@ -409,6 +409,61 @@ contract Test_BuybackHookRegistry_Unit is Test {
     }
 
     //*********************************************************************//
+    // --- L-26: disallowHook clears defaultHook ------------------------ //
+    //*********************************************************************//
+
+    function test_disallowHook_clearsDefaultIfMatch() public {
+        // Set hookA as default.
+        vm.prank(owner);
+        registry.setDefaultHook(hookA);
+        assertEq(address(registry.defaultHook()), address(hookA));
+
+        // Disallow hookA — should clear the default.
+        vm.prank(owner);
+        registry.disallowHook(hookA);
+
+        assertEq(address(registry.defaultHook()), address(0), "defaultHook should be cleared when disallowed");
+    }
+
+    function test_disallowHook_doesNotClearDefaultIfNoMatch() public {
+        // Set hookA as default, disallow hookB.
+        vm.prank(owner);
+        registry.setDefaultHook(hookA);
+
+        vm.prank(owner);
+        registry.allowHook(hookB);
+
+        vm.prank(owner);
+        registry.disallowHook(hookB);
+
+        assertEq(address(registry.defaultHook()), address(hookA), "defaultHook should remain when disallowing a different hook");
+    }
+
+    //*********************************************************************//
+    // --- L-27: lockHookFor reverts when no hook set ------------------- //
+    //*********************************************************************//
+
+    function test_lockHookFor_revertsWhenNoHookAndNoDefault() public {
+        // No project hook, no default — should revert.
+        vm.prank(projectOwner);
+        vm.expectRevert(abi.encodeWithSelector(JBBuybackHookRegistry.JBBuybackHookRegistry_HookNotSet.selector, projectId));
+        registry.lockHookFor(projectId);
+    }
+
+    function test_lockHookFor_revertsWhenDefaultWasDisallowed() public {
+        // Set default, then disallow it (clears default via L-26).
+        vm.prank(owner);
+        registry.setDefaultHook(hookA);
+        vm.prank(owner);
+        registry.disallowHook(hookA);
+
+        // No project hook, default is now zero — should revert.
+        vm.prank(projectOwner);
+        vm.expectRevert(abi.encodeWithSelector(JBBuybackHookRegistry.JBBuybackHookRegistry_HookNotSet.selector, projectId));
+        registry.lockHookFor(projectId);
+    }
+
+    //*********************************************************************//
     // --- Helpers ------------------------------------------------------- //
     //*********************************************************************//
 
