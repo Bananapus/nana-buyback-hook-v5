@@ -135,6 +135,34 @@ contract JBSwapLibTest is Test {
         assertEq(limit, TickMath.MIN_SQRT_RATIO + 1);
     }
 
+    /// @notice Extended range: ratio in [2^64, 2^128) should compute a valid limit, not fall back.
+    function test_sqrtPriceLimitExtendedRange() public pure {
+        // Simulate USDC (6 dec) → memecoin (18 dec) at ~18.4M tokens per USDC.
+        // ratio = 18.4e6 * 1e18 / (1 * 1e6) = 1.84e19 > 2^64 (~1.84e19) but < 2^128.
+        uint256 amountIn = 1e6; // 1 USDC
+        uint256 minOut = 18_500_000e18; // 18.5M tokens
+
+        uint160 limitZfo = JBSwapLib.sqrtPriceLimitFromAmounts(amountIn, minOut, true);
+        // Should NOT fall back to MIN_SQRT_RATIO + 1 — should compute a real limit.
+        assert(limitZfo > TickMath.MIN_SQRT_RATIO + 1);
+        assert(limitZfo <= TickMath.MAX_SQRT_RATIO);
+
+        uint160 limitOfz = JBSwapLib.sqrtPriceLimitFromAmounts(amountIn, minOut, false);
+        assert(limitOfz >= TickMath.MIN_SQRT_RATIO);
+        assert(limitOfz < TickMath.MAX_SQRT_RATIO - 1);
+    }
+
+    /// @notice Extreme ratio >= 2^128 should fall back to no limit.
+    function test_sqrtPriceLimitExtremeRatioFallback() public pure {
+        // zeroForOne: num = minOut, den = amountIn → ratio = 2^128, triggers fallback.
+        uint160 limit = JBSwapLib.sqrtPriceLimitFromAmounts(1, uint256(1) << 128, true);
+        assertEq(limit, TickMath.MIN_SQRT_RATIO + 1);
+
+        // !zeroForOne: num = amountIn, den = minOut → ratio = 2^128, triggers fallback.
+        limit = JBSwapLib.sqrtPriceLimitFromAmounts(uint256(1) << 128, 1, false);
+        assertEq(limit, TickMath.MAX_SQRT_RATIO - 1);
+    }
+
     //*********************************************************************//
     // ----- Fuzz Tests -------------------------------------------------- //
     //*********************************************************************//
