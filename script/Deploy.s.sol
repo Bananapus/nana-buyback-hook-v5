@@ -15,7 +15,7 @@ contract DeployScript is Script, Sphinx {
     CoreDeployment core;
 
     /// @notice the salts that are used to deploy the contracts.
-    bytes32 BUYBACK_HOOK = "JBBuybackHook";
+    bytes32 BUYBACK_HOOK = "JBBuybackHookV6";
 
     /// @notice tracks the addresses that are required for the chain we are deploying to.
     address weth;
