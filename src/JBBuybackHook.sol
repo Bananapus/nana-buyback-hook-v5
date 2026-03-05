@@ -63,6 +63,7 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IJBBuybackHook {
     error JBBuybackHook_TerminalTokenIsProjectToken(address terminalToken, address projectToken);
     error JBBuybackHook_Unauthorized(address caller);
     error JBBuybackHook_ZeroProjectToken();
+    error JBBuybackHook_AmountOverflow();
     error JBBuybackHook_ZeroTerminalToken();
 
     //*********************************************************************//
@@ -218,7 +219,7 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IJBBuybackHook {
         (JBRuleset memory ruleset,) = controller.currentRulesetOf(context.projectId);
 
         // If the hook should base its weight on a currency other than the terminal's currency, determine the
-        // factor. The weight is always a fixed point mumber with 18 decimals. To ensure this, the ratio should use the
+        // factor. The weight is always a fixed point number with 18 decimals. To ensure this, the ratio should use the
         // same number of decimals as the `amountToSwapWith`.
         uint256 weightRatio = context.amount.currency == ruleset.baseCurrency()
             ? 10 ** context.amount.decimals
@@ -383,6 +384,9 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IJBBuybackHook {
         // If the slippage tolerance meets or exceeds the maximum, return an empty quote.
         if (slippageTolerance >= TWAP_SLIPPAGE_DENOMINATOR) return 0;
 
+        // Make sure the amount doesn't overflow uint128 before passing to Uniswap.
+        if (amountIn > type(uint128).max) revert JBBuybackHook_AmountOverflow();
+
         // Get a quote based on this TWAP tick.
         amountOut = OracleLibrary.getQuoteAtTick({
             tick: arithmeticMeanTick,
@@ -497,7 +501,7 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IJBBuybackHook {
         (JBRuleset memory ruleset,) = controller.currentRulesetOf(context.projectId);
 
         // If the hook should base its weight on a currency other than the terminal's currency, determine the
-        // factor. The weight is always a fixed point mumber with 18 decimals. To ensure this, the ratio should use
+        // factor. The weight is always a fixed point number with 18 decimals. To ensure this, the ratio should use
         // the same number of decimals as the `leftoverAmountInThisContract`.
         uint256 weightRatio = context.amount.currency == ruleset.baseCurrency()
             ? 10 ** context.amount.decimals
@@ -650,7 +654,7 @@ contract JBBuybackHook is JBPermissioned, ERC2771Context, IJBBuybackHook {
         // Store the pool.
         poolOf[projectId][terminalToken] = newPool;
 
-        // Pack and store the TWAP window and the TWAP slippage tolerance in `twapParamsOf`.
+        // Store the TWAP window and the project token.
         twapWindowOf[projectId] = twapWindow;
         projectTokenOf[projectId] = address(projectToken);
 
