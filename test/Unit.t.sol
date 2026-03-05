@@ -2089,6 +2089,85 @@ contract Test_BuybackHook_Unit is TestBaseWorkflow, JBTest {
 
         assertFalse(ERC165Checker.supportsInterface(address(hook), random));
     }
+
+    /// @notice Test that `_getQuote` reverts with `JBBuybackHook_AmountOverflow` when `amountIn > type(uint128).max`.
+    function test_getQuote_revertsOnUint128Overflow() public {
+        // Mock the pool being unlocked.
+        vm.mockCall(address(pool), abi.encodeCall(pool.slot0, ()), abi.encode(0, 0, 0, 1, 0, 0, true));
+
+        // Return an oldest observation older than the TWAP window so that consult is called.
+        mockExpect(
+            address(pool),
+            abi.encodeCall(pool.observations, (0)),
+            abi.encode(block.timestamp - twapWindow - 1, 0, 0, true)
+        );
+
+        // Mock the pool's fee.
+        vm.mockCall(address(pool), abi.encodeCall(pool.fee, ()), abi.encode(uint24(3000)));
+
+        // Set up the TWAP observe mock.
+        uint32[] memory secondsAgos = new uint32[](2);
+        secondsAgos[0] = twapWindow;
+        secondsAgos[1] = 0;
+
+        int56[] memory tickCumulatives = new int56[](2);
+        tickCumulatives[0] = 100;
+        tickCumulatives[1] = 100 + int56(int32(twapWindow)) * 900; // mean tick = 900
+
+        uint160[] memory secondsPerLiquidity = new uint160[](2);
+        secondsPerLiquidity[0] = 0;
+        secondsPerLiquidity[1] = 1;
+
+        vm.mockCall(
+            address(pool),
+            abi.encodeCall(pool.observe, (secondsAgos)),
+            abi.encode(tickCumulatives, secondsPerLiquidity)
+        );
+
+        // Call with amountIn = type(uint128).max + 1 — should revert.
+        vm.expectRevert(JBBuybackHook.JBBuybackHook_AmountOverflow.selector);
+        hook.ForTest_getQuote(projectId, address(projectToken), uint256(type(uint128).max) + 1, address(weth));
+    }
+
+    /// @notice Test that `_getQuote` does NOT revert when `amountIn == type(uint128).max` (boundary).
+    function test_getQuote_succeedsAtUint128Max() public {
+        // Mock the pool being unlocked.
+        vm.mockCall(address(pool), abi.encodeCall(pool.slot0, ()), abi.encode(0, 0, 0, 1, 0, 0, true));
+
+        // Return an oldest observation older than the TWAP window.
+        mockExpect(
+            address(pool),
+            abi.encodeCall(pool.observations, (0)),
+            abi.encode(block.timestamp - twapWindow - 1, 0, 0, true)
+        );
+
+        // Mock the pool's fee.
+        vm.mockCall(address(pool), abi.encodeCall(pool.fee, ()), abi.encode(uint24(3000)));
+
+        // Set up the TWAP observe mock.
+        uint32[] memory secondsAgos = new uint32[](2);
+        secondsAgos[0] = twapWindow;
+        secondsAgos[1] = 0;
+
+        int56[] memory tickCumulatives = new int56[](2);
+        tickCumulatives[0] = 100;
+        tickCumulatives[1] = 100 + int56(int32(twapWindow)) * 900;
+
+        uint160[] memory secondsPerLiquidity = new uint160[](2);
+        secondsPerLiquidity[0] = 0;
+        secondsPerLiquidity[1] = 1;
+
+        vm.mockCall(
+            address(pool),
+            abi.encodeCall(pool.observe, (secondsAgos)),
+            abi.encode(tickCumulatives, secondsPerLiquidity)
+        );
+
+        // Call with amountIn = type(uint128).max — should NOT revert.
+        uint256 amountOut = hook.ForTest_getQuote(projectId, address(projectToken), type(uint128).max, address(weth));
+        // Should return a non-zero quote (the pool has liquidity and a valid TWAP).
+        assertGt(amountOut, 0, "Expected non-zero quote at uint128 max boundary");
+    }
 }
 
 /// @notice A mock version of `JBBuybackHook` which exposes internal functions for testing purposes.
