@@ -46,8 +46,8 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, ERC2771Context, JBPerm
     /// @custom:param projectId The ID of the project to get the locked hook for.
     mapping(uint256 projectId => bool) public override hasLockedHook;
 
-    /// @notice The address of each project's token.
-    /// @custom:param projectId The ID of the project the token belongs to.
+    /// @notice Whether the given hook is allowed for a project.
+    /// @custom:param hook The hook to check.
     mapping(IJBRulesetDataHook hook => bool) public override isHookAllowed;
 
     //*********************************************************************//
@@ -223,6 +223,7 @@ contract JBBuybackHookRegistry is IJBBuybackHookRegistry, ERC2771Context, JBPerm
 
         emit JBBuybackHookRegistry_LockHook(projectId);
     }
+
     /// @notice Set the default hook.
     /// @dev Only the owner can set the default hook.
     /// @param hook The hook to set as the default.
